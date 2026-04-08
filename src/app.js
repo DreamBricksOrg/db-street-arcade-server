@@ -10,6 +10,7 @@ import mongoPlugin     from './plugins/mongodb.js'
 import websocketPlugin from './plugins/websocket.js'
 import udpPlugin       from './plugins/udp.js'
 import gameRoutes      from './modules/game/game.routes.js'
+import sessionRoutes   from './modules/session/session.routes.js'
 import { UdpDispatcher } from './modules/udp/udp.dispatcher.js'
 
 const log = createLogger('app')
@@ -51,6 +52,9 @@ export async function buildApp() {
 
   // ── Phase 5: UDP ──────────────────────────────────────────────────────────
   await app.register(udpPlugin)
+
+  // ── Phase 6: Session REST API ─────────────────────────────────────────────
+  await app.register(sessionRoutes)
 
   // Start UDP dispatcher after all plugins are ready.
   // onReady fires after app.listen() completes — all decorators are available.

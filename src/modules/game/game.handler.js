@@ -29,6 +29,7 @@ const HEARTBEAT_TIMEOUT_MS  = 30_000   // disconnect if no pong in 30s
  */
 export class GameHandler {
   constructor(fastify) {
+    this.fastify    = fastify                // needed for udpDispatcher (set in onReady)
     this.publisher  = fastify.redisPublisher
     this.subscriber = fastify.redisSubscriber
     this.cache      = fastify.mongo ? new SessionCache(fastify.redisPublisher) : null
@@ -77,7 +78,14 @@ export class GameHandler {
     this.connections.set(socket, { sessionId, playerId, alive: true })
     log.info({ sessionId, playerId, total: this.connections.size }, 'Player connected')
 
-    // Persist player in MongoDB + refresh Redis cache
+    // Register socket handlers IMMEDIATELY — before any await.
+    // If registered after awaits, messages sent in quick succession are lost.
+    socket.on('message', (raw) => this.onMessage(socket, raw))
+    socket.on('close',   ()    => this.onClose(socket))
+    socket.on('pong',    ()    => this._markAlive(socket))
+    socket.on('error',   (err) => log.error({ err: err.message, sessionId, playerId }, 'WS error'))
+
+    // Persist player in MongoDB + refresh Redis cache (non-blocking for input flow)
     if (this.repo) {
       await this.repo.addPlayer(sessionId, playerId)
     }
@@ -86,17 +94,17 @@ export class GameHandler {
       if (updated) await this.cache.set(this._normalizeSession(updated))
     }
 
+    // TASK-U5.4: register session totems in UDP dispatcher so packets are routed correctly
+    const dispatcher = this.fastify.udpDispatcher  // available after onReady
+    if (dispatcher && session.totems?.length) {
+      dispatcher.registerSession(sessionId, session.totems)
+    }
+
     // Publish lifecycle event
     await this._publish(Channels.sessionSync(sessionId), 'sync', sessionId, playerId, {
       event: 'player_connected',
       playerId,
     })
-
-    // Register socket event handlers
-    socket.on('message', (raw) => this.onMessage(socket, raw))
-    socket.on('close',   ()    => this.onClose(socket))
-    socket.on('pong',    ()    => this._markAlive(socket))
-    socket.on('error',   (err) => log.error({ err: err.message, sessionId, playerId }, 'WS error'))
   }
 
   /**

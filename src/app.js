@@ -5,8 +5,9 @@
 import Fastify from 'fastify'
 import { env } from './config/env.js'
 import { logger } from './lib/logger.js'
-import mongoPlugin from './plugins/mongodb.js'
 import { createLogger } from './lib/logger.js'
+import redisPlugin from './plugins/redis.js'
+import mongoPlugin from './plugins/mongodb.js'
 
 const log = createLogger('app')
 
@@ -20,7 +21,17 @@ export async function buildApp() {
   app.get('/health', async () => ({ status: 'ok', ts: Date.now() }))
 
   // ── Plugin boot order (critical — must respect this sequence) ────────────
-  // Phase 3: Redis  ← loaded here when implemented
+
+  // Phase 3: Redis (must be first — WebSocket and UDP depend on it)
+  try {
+    await app.register(redisPlugin)
+  } catch (err) {
+    if (env.isDev) {
+      log.warn({ err: err.message }, 'Redis not available — pub/sub disabled')
+    } else {
+      throw err
+    }
+  }
 
   // Phase 2: MongoDB
   try {
@@ -39,3 +50,4 @@ export async function buildApp() {
 
   return app
 }
+

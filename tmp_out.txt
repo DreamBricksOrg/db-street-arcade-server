@@ -1,0 +1,17 @@
+[21:27:35] [34mDEBUG[39m: [36m[redis] Redis ready[39m
+    [35mcontext[39m: "redis"
+    [35mclient[39m: "subscriber"
+[21:27:35] [34mDEBUG[39m: [36m[redis] Redis ready[39m
+    [35mcontext[39m: "redis"
+    [35mclient[39m: "publisher"
+[21:27:35] [32mINFO[39m: [36m[redis] Connected: redis://:***@localhost:6379[39m
+    [35mcontext[39m: "redis"
+[21:27:35] [34mDEBUG[39m: [36m[mongodb] Indexes verified[39m
+    [35mcontext[39m: "mongodb"
+[21:27:35] [32mINFO[39m: [36m[mongodb] Connected: mongodb://:***@localhost:27020/street-arcade[39m
+    [35mcontext[39m: "mongodb"
+[21:27:35] [32mINFO[39m: [36m[] Server listening at http://127.0.0.1:3000[39m
+[21:27:35] [32mINFO[39m: [36m[] Server listening at http://192.168.10.173:3000[39m
+[21:27:35] [32mINFO[39m: [36m[] Server listening at http://172.18.160.1:3000[39m
+[21:27:35] [32mINFO[39m: [36m[server] Server running on http://0.0.0.0:3000 [development][39m
+    [35mcontext[39m: "server"

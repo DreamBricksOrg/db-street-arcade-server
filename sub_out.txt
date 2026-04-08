@@ -1,0 +1,6 @@
+subscribe
+game:input:test-session
+1
+message
+game:input:test-session
+{type:input,sessionId:test-session,playerId:player-1,data:{action:btn_A,state:pressed},ts:1234567890}

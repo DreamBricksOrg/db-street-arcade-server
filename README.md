@@ -52,6 +52,3 @@ public/             # Frontend servido pelo Fastify (fases 7–9)
 docs/               # Documentação e plano de desenvolvimento
 ```
 
-## Fases de Desenvolvimento
-
-Consulte [`docs/PLAN-street-arcade-backend.md`](docs/PLAN-street-arcade-backend.md).

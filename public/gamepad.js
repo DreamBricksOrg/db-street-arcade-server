@@ -81,27 +81,43 @@ export function initGamepad(onInput) {
   function onTouchStart(e) {
     for (const touch of e.changedTouches) {
       const el = buttonAt(touch.clientX, touch.clientY)
-      if (!el) continue
       activeTouches.set(touch.identifier, el)
-      press(el)
+      if (el) press(el)
+    }
+  }
+
+  function onTouchMove(e) {
+    for (const touch of e.changedTouches) {
+      // If we aren't tracking this touch, ignore it
+      if (!activeTouches.has(touch.identifier)) continue
+
+      const currentEl = activeTouches.get(touch.identifier)
+      const newEl = buttonAt(touch.clientX, touch.clientY)
+
+      if (newEl !== currentEl) {
+        if (currentEl) release(currentEl)
+        if (newEl) press(newEl)
+        activeTouches.set(touch.identifier, newEl)
+      }
     }
   }
 
   function onTouchEnd(e) {
     for (const touch of e.changedTouches) {
+      if (!activeTouches.has(touch.identifier)) continue
+
       const el = activeTouches.get(touch.identifier)
-      if (!el) continue
+      if (el) release(el)
       activeTouches.delete(touch.identifier)
-      release(el)
     }
   }
 
   function onTouchCancel(e) {
-    // Treat cancel the same as end (e.g. incoming call)
     onTouchEnd(e)
   }
 
   container.addEventListener('touchstart',  onTouchStart,  { passive: false })
+  container.addEventListener('touchmove',   onTouchMove,   { passive: false })
   container.addEventListener('touchend',    onTouchEnd,    { passive: false })
   container.addEventListener('touchcancel', onTouchCancel, { passive: false })
 

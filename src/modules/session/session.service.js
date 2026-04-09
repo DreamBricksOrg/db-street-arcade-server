@@ -54,6 +54,17 @@ export class SessionService {
   }
 
   /**
+   * Lists all active and waiting sessions.
+   * @returns {Promise<object[]>}
+   */
+  async listActiveSessions() {
+    // A query for all not-finished ones would be better, but we can do listByStatus and filter.
+    // Actually repo.listByStatus() with no args fetches all. Let's just fetch all and filter in JS for now
+    const all = await this.repo.listByStatus()
+    return all.filter(s => s.status !== 'finished')
+  }
+
+  /**
    * Player joins a session.
    * Validates capacity and state before adding.
    * @param {string} sessionId

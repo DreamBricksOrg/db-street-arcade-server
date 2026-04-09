@@ -144,50 +144,135 @@ async function pollSession(sessionId) {
 // ── List active sessions ───────────────────────────────────────────────────────
 
 async function loadSessions() {
-  // We don't have a GET /api/sessions list endpoint yet —
-  // show only the current session if available
   sessionList.innerHTML = ''
 
-  if (!currentSessionId) {
-    emptyState.style.display = 'flex'
-    return
-  }
-
   try {
-    const res  = await fetch(`${API}/${currentSessionId}`)
+    const res  = await fetch(API)
     if (!res.ok) {
       emptyState.style.display = 'flex'
       return
     }
-    const s = await res.json()
+    
+    const sessions = await res.json()
+    
+    if (sessions.length === 0) {
+      emptyState.style.display = 'flex'
+      return
+    }
 
     emptyState.style.display = 'none'
 
     const labels = { waiting: 'Aguardando', active: 'Ativo', finished: 'Encerrado' }
-    const displayStatus = labels[s.status] ?? s.status
 
-    const card = document.createElement('div')
-    card.className = 'session-card'
-    card.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <span class="status-badge status-${s.status}">
-          <div class="dot-pulse"></div>${displayStatus}
-        </span>
-        <span class="session-card-id">${s.sessionId}</span>
-      </div>
-      <div class="session-card-players">
-        Jogadores: <strong>${(s.players ?? []).length} / ${s.maxPlayers}</strong>
-      </div>
-      <div class="session-card-players">
-        Expira às: <strong>${formatExpiry(s.expiresAt)}</strong>
-      </div>
-    `
-    card.addEventListener('click', () => window.open(`/play/${s.sessionId}`, '_blank'))
-    sessionList.appendChild(card)
+    for (const s of sessions) {
+      const displayStatus = labels[s.status] ?? s.status
+
+      const card = document.createElement('div')
+      card.className = 'session-card'
+      
+      // Highlight current session if we have one
+      if (s.sessionId === currentSessionId) {
+        card.style.borderColor = '#cba6f7'
+      }
+
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #313244;padding-bottom:10px;margin-bottom:10px;">
+          <span class="status-badge status-${s.status}">
+            <div class="dot-pulse"></div>${displayStatus}
+          </span>
+          <span class="session-card-id" style="font-family:monospace; color:#bac2de;">${s.sessionId.slice(0,8)}</span>
+        </div>
+        
+        <div style="display:flex; gap: 15px; align-items: center;">
+          <img src="/api/sessions/${s.sessionId}/qr" alt="QR Code" style="width: 70px; height: 70px; border-radius: 4px; border: 2px solid #cdd6f4;" />
+          
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+            <div class="session-card-players" style="font-size: 0.9rem;">
+              Jog: <strong>${(s.players ?? []).length}/${s.maxPlayers}</strong>
+            </div>
+            <div class="session-card-players" style="font-size: 0.9rem;">
+              Totem: <strong style="font-family:monospace;">${s.totems && s.totems.length > 0 ? `${s.totems[0].ip}:${s.totems[0].udpPort}` : 'N/A'}</strong>
+            </div>
+            <div class="session-card-players" style="font-size: 0.9rem;">
+              Exp: <strong>${formatExpiry(s.expiresAt)}</strong>
+            </div>
+          </div>
+        </div>
+      `
+      card.addEventListener('click', () => {
+        document.getElementById('modal-qr-img').src = `/api/sessions/${s.sessionId}/qr`
+        document.getElementById('modal-meta-sid').textContent = s.sessionId.slice(0, 16) + '...'
+        document.getElementById('modal-meta-status').textContent = displayStatus
+        
+        const formatDate = (d) => {
+          if (!d) return 'N/A'
+          return new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+        }
+        
+        let htmlDetails = `
+          <div style="display:grid; grid-template-columns: auto 1fr; gap: 8px 16px;">
+            <div style="color:var(--text-muted)">Máx. Jogadores</div><div><strong>${s.maxPlayers}</strong></div>
+            <div style="color:var(--text-muted)">Criado Em</div><div>${formatDate(s.createdAt)}</div>
+            <div style="color:var(--text-muted)">Expira Em</div><div>${formatDate(s.expiresAt)}</div>
+          </div>
+        `
+
+        if (s.totems && s.totems.length > 0) {
+          htmlDetails += `<div style="margin-top:20px; margin-bottom:8px; font-weight:700; color:var(--accent); font-size:12px; letter-spacing:1px; text-transform:uppercase;">Totens Vinculados</div>`
+          s.totems.forEach(t => {
+            htmlDetails += `<div style="display:flex; justify-content:space-between; align-items:center; background:var(--surface); padding:10px 12px; border-radius:8px; margin-bottom:6px; border:1px solid var(--border);">
+              <span style="font-size:13px;">${t.id || 'Sem ID'}</span>
+              <span style="font-family:monospace; color:var(--success); font-size:13px;">${t.ip}:${t.udpPort}</span>
+            </div>`
+          })
+        } else {
+          htmlDetails += `<div style="margin-top:20px; margin-bottom:8px; font-weight:700; color:var(--accent); font-size:12px; letter-spacing:1px; text-transform:uppercase;">Totens Vinculados</div>`
+          htmlDetails += `<div style="color:var(--text-muted); font-size:13px;">Nenhum totem vinculado.</div>`
+        }
+
+        if (s.players && s.players.length > 0) {
+          htmlDetails += `<div style="margin-top:20px; margin-bottom:8px; font-weight:700; color:var(--accent); font-size:12px; letter-spacing:1px; text-transform:uppercase;">Jogadores (${s.players.length})</div>`
+          s.players.forEach(p => {
+            const playerId = typeof p === 'object' ? p.id : p
+            const connectedAt = typeof p === 'object' && p.connectedAt ? formatDate(p.connectedAt) : ''
+            
+            htmlDetails += `<div style="display:flex; justify-content:space-between; align-items:center; background:var(--surface); padding:10px 12px; border-radius:8px; margin-bottom:6px; border:1px solid var(--border);">
+              <span style="font-family:monospace; font-size:13px;">${playerId}</span>
+              <span style="font-size:11px; color:var(--text-muted);">${connectedAt}</span>
+            </div>`
+          })
+        } else {
+          htmlDetails += `<div style="margin-top:20px; margin-bottom:8px; font-weight:700; color:var(--accent); font-size:12px; letter-spacing:1px; text-transform:uppercase;">Jogadores (0)</div>`
+          htmlDetails += `<div style="color:var(--text-muted); font-size:13px;">Nenhum jogador conectado ainda.</div>`
+        }
+
+        document.getElementById('modal-details').innerHTML = htmlDetails
+        
+        document.getElementById('modal-btn-play').onclick = () => window.open(`/play/${s.sessionId}`, '_blank')
+        document.getElementById('sessionModal').classList.add('active')
+      })
+      sessionList.appendChild(card)
+    }
 
   } catch {
     emptyState.style.display = 'flex'
   }
+}
+
+// ── Modal Handlers ────────────────────────────────────────────────────────────
+const modal = document.getElementById('sessionModal')
+const btnClose = document.getElementById('modalClose')
+
+function closeModal() {
+  if (modal) modal.classList.remove('active')
+}
+
+if (btnClose) btnClose.addEventListener('click', closeModal)
+if (modal) {
+  modal.addEventListener('click', (e) => {
+    // se o clique foi fora do modal-content, fecha o modal
+    if (e.target === modal) closeModal()
+  })
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

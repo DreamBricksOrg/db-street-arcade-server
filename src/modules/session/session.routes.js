@@ -93,6 +93,20 @@ async function sessionRoutes(fastify) {
     })
   })
 
+  // ── GET /api/sessions ──────────────────────────────────────────────────────
+  fastify.get('/api/sessions', async (request, reply) => {
+    const sessions = await service.listActiveSessions()
+    return sessions.map(s => ({
+      sessionId:  s._id ?? s.id,
+      status:     s.status,
+      maxPlayers: s.maxPlayers,
+      players:    s.players ?? [],
+      totems:     s.totems ?? [],
+      createdAt:  s.createdAt,
+      expiresAt:  s.expiresAt,
+    }))
+  })
+
   // ── GET /api/sessions/:id ──────────────────────────────────────────────────
   fastify.get('/api/sessions/:id', { schema: { params: sessionIdParam } }, async (request, reply) => {
     const session = await service.findSession(request.params.id)

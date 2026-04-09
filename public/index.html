@@ -346,6 +346,35 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Modal ───────────────────────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center; justify-content: center;
+      animation: fadeInModal 0.2s;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      width: 90%; max-width: 480px;
+      position: relative;
+      box-shadow: 0 16px 64px rgba(0,0,0,0.6);
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+    }
+    .modal-close {
+      position: absolute; top: 16px; right: 16px;
+      background: transparent; border: none; font-size: 28px; line-height: 1; color: var(--text-muted);
+      cursor: pointer; transition: color 0.2s;
+    }
+    .modal-close:hover { color: var(--text); }
+    @keyframes fadeInModal { from { opacity: 0; } to { opacity: 1; } }
+
     /* ── Responsive ─────────────────────────────────────────────────────── */
     @media (max-width: 800px) {
       main { grid-template-columns: 1fr; }
@@ -385,7 +414,7 @@
         <label>Totem 1</label>
         <div class="totem-row">
           <input id="totem-ip" type="text" placeholder="192.168.1.100" value="127.0.0.1" />
-          <input id="totem-port" type="number" placeholder="9001" value="9001" />
+          <input id="totem-port" type="text" placeholder="9001" value="9001" />
         </div>
       </div>
 
@@ -426,6 +455,28 @@
   </main>
 
   <div id="toast"></div>
+
+  <!-- ── Modal de Detalhes da Sessão ───────────────────────────────────── -->
+  <div id="sessionModal" class="modal-overlay">
+    <div class="modal-content">
+      <button class="modal-close" id="modalClose">&times;</button>
+      <h2 style="margin-bottom: 24px; font-size: 22px;">Detalhes da Sessão</h2>
+      
+      <div id="modal-qr-image" style="width: 260px; height: 260px; background: white; padding: 12px; border-radius: 12px; margin: 0 auto 24px; box-shadow: 0 0 40px rgba(0,229,255,0.15);">
+        <img id="modal-qr-img" style="width: 100%; height: 100%; object-fit: contain; border-radius: 6px;" src="" alt="QR Code Expandido" />
+      </div>
+      
+      <div class="session-meta" style="margin-bottom: 24px;">
+        <div class="meta-pill">ID: <span id="modal-meta-sid">—</span></div>
+        <div class="meta-pill">Status: <span id="modal-meta-status" style="text-transform: capitalize;">—</span></div>
+      </div>
+      
+      <div id="modal-details" style="text-align: left; background: var(--surface2); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 100%; margin-bottom: 24px; max-height: 280px; overflow-y: auto; font-size: 14px; color: var(--text);">
+      </div>
+      
+      <button id="modal-btn-play" class="btn btn-primary" style="width: 100%;">Abrir Gamepad Mobile</button>
+    </div>
+  </div>
 
   <script type="module" src="/qrcode-page.js"></script>
 </body>

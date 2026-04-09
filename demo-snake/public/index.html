@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>🐍 Demo: Arcade Snake</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <header>
+    <h1>Arcade Snake Multi-Player</h1>
+    <p>Escaneie o QR Code no Totem com seu celular. D-PAD Move.</p>
+  </header>
+
+  <main>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <div id="sidePanel">
+      <h2>Scoreboard</h2>
+      <ul id="scoreList"></ul>
+
+      <h2 style="margin-top: 2rem;">Debug Log</h2>
+      <div id="connStatus" style="color: #f9e2af; margin-bottom: 0.5rem; font-size: 0.9rem;">🟡 Conectando SSE...</div>
+      <div id="debugLog" style="background: #1e1e2e; padding: 10px; border-radius: 8px; font-size: 0.8rem; font-family: monospace; height: 200px; overflow-y: hidden; word-break: break-all;">
+      </div>
+    </div>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>

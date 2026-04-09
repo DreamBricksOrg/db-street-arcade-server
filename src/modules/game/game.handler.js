@@ -90,8 +90,16 @@ export class GameHandler {
       await this.repo.addPlayer(sessionId, playerId)
     }
     if (this.cache) {
-      const updated = await this._findSession(sessionId)
-      if (updated) await this.cache.set(this._normalizeSession(updated))
+      const updated = this.repo ? await this.repo.findById(sessionId) : await this._findSession(sessionId)
+      if (updated) {
+        // If we don't have repo, we must forcefully update the cached array/status here (though without mongo, state memory relies on cache)
+        if (!this.repo) {
+          updated.status = 'active'
+          updated.players = updated.players || []
+          updated.players.push({ id: playerId, connectedAt: new Date() })
+        }
+        await this.cache.set(this._normalizeSession(updated))
+      }
     }
 
     // TASK-U5.4: register session totems in UDP dispatcher so packets are routed correctly
@@ -157,8 +165,29 @@ export class GameHandler {
 
     log.info({ sessionId, playerId, remaining: this.connections.size }, 'Player disconnected')
 
-    // Remove from MongoDB
-    if (this.repo) await this.repo.removePlayer(sessionId, playerId)
+    // Remove from MongoDB and update cache
+    if (this.repo) {
+      await this.repo.removePlayer(sessionId, playerId)
+      const updated = await this.repo.findById(sessionId)
+      if (updated) {
+        // If no players are left and it was active, revert to waiting
+        const remaining = (updated.players ?? [])
+        if (remaining.length === 0 && updated.status === 'active') {
+          await this.repo.updateStatus(sessionId, 'waiting')
+          updated.status = 'waiting'
+        }
+        if (this.cache) await this.cache.set(this._normalizeSession(updated))
+      }
+    } else if (this.cache) {
+      const cached = await this.cache.get(sessionId)
+      if (cached) {
+        cached.players = (cached.players ?? []).filter(p => p.id !== playerId)
+        if (cached.players.length === 0 && cached.status === 'active') {
+          cached.status = 'waiting'
+        }
+        await this.cache.set(cached)
+      }
+    }
 
     // Publish lifecycle event
     await this._publish(Channels.sessionSync(sessionId), 'sync', sessionId, playerId, {

@@ -135,6 +135,9 @@ async function pollSession(sessionId) {
       clearInterval(pollTimer)
       showToast('Sessão encerrada.', 'error')
     }
+
+    // Refresh the card list to sync players count and status badge on the card too
+    await loadSessions()
   } catch { /* ignore network errors */ }
 }
 
@@ -160,12 +163,15 @@ async function loadSessions() {
 
     emptyState.style.display = 'none'
 
+    const labels = { waiting: 'Aguardando', active: 'Ativo', finished: 'Encerrado' }
+    const displayStatus = labels[s.status] ?? s.status
+
     const card = document.createElement('div')
     card.className = 'session-card'
     card.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between">
         <span class="status-badge status-${s.status}">
-          <div class="dot-pulse"></div>${s.status}
+          <div class="dot-pulse"></div>${displayStatus}
         </span>
         <span class="session-card-id">${s.sessionId}</span>
       </div>

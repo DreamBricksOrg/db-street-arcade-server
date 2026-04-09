@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Street Arcade</title>
+  <meta name="description" content="Controle do Street Arcade. Escaneie o QR Code para jogar." />
+  <meta name="theme-color" content="#0a0a12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0a0a12;
+      --surface:  #12121e;
+      --surface2: #1a1a2e;
+      --border:   rgba(255,255,255,0.07);
+      --accent:   #00e5ff;
+      --accent2:  #ff6b35;
+      --text:     #f0f0f8;
+      --muted:    #7878a0;
+      --success:  #00e676;
+      --danger:   #ff5252;
+
+      /* Gamepad button colours */
+      --btn-A: #4cff72;
+      --btn-B: #ff4d4d;
+      --btn-X: #4d9fff;
+      --btn-Y: #ffe04d;
+      --dpad:  #2a2a40;
+    }
+
+    html, body {
+      height: 100%; width: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    /* ── Utility screens ─────────────────────────────────────────────────── */
+    .screen {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px; padding: 32px;
+      text-align: center;
+    }
+
+    /* Loading */
+    #loading {
+      background: var(--bg);
+      z-index: 10;
+    }
+
+    .logo-mark {
+      width: 72px; height: 72px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+      animation: bounceIn 0.5s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    @keyframes bounceIn {
+      from { opacity:0; transform:scale(0.5); }
+      to   { opacity:1; transform:scale(1); }
+    }
+
+    .loading-title {
+      font-size: 26px; font-weight: 900;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .loading-sub { font-size: 15px; color: var(--muted); }
+
+    .loader-bar {
+      width: 180px; height: 3px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 99px; overflow: hidden;
+    }
+
+    .loader-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px;
+      animation: loaderAnim 1.2s ease-in-out infinite;
+    }
+
+    @keyframes loaderAnim {
+      0%   { width: 0%; margin-left: 0%; }
+      50%  { width: 60%; margin-left: 20%; }
+      100% { width: 0%; margin-left: 100%; }
+    }
+
+    /* Error */
+    #error-screen {
+      background: var(--bg); z-index: 10; display: none;
+    }
+
+    .error-icon { font-size: 64px; }
+    .error-title { font-size: 22px; font-weight: 700; color: var(--danger); }
+    .error-msg { font-size: 14px; color: var(--muted); max-width: 280px; line-height: 1.5; }
+
+    /* ── Play screen ─────────────────────────────────────────────────────── */
+    #play-screen {
+      position: fixed; inset: 0;
+      display: none;
+      flex-direction: column;
+    }
+
+    /* Status bar */
+    .play-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .play-title {
+      font-size: 15px; font-weight: 900;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-center {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--muted);
+    }
+
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.4s, box-shadow 0.4s;
+    }
+
+    .status-dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .status-dot.error { background: var(--danger); }
+
+    #conn-status-text { font-size: 11px; color: var(--muted); }
+
+    #sid-label { font-size: 10px; font-family: monospace; color: var(--muted); opacity: 0.6; }
+
+    /* ── Gamepad area ────────────────────────────────────────────────────── */
+    #gamepad {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      gap: clamp(24px, 8vw, 64px);
+      max-width: 480px;
+      margin: 0 auto;
+      width: 100%;
+      min-height: 0;        /* prevents flex overflow */
+    }
+
+    /* ── D-Pad ───────────────────────────────────────────────────────────── */
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 4px;
+      width: min(42vw, 180px);
+      aspect-ratio: 1;
+      flex-shrink: 0;
+    }
+
+    .dpad-btn {
+      background: var(--dpad);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: clamp(14px, 4vw, 22px);
+      cursor: pointer;
+      transition: background 0.08s, transform 0.08s;
+      position: relative;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .dpad-btn.pressed {
+      background: rgba(0,229,255,0.25);
+      transform: scale(0.9);
+      border-color: var(--accent);
+      box-shadow: 0 0 12px rgba(0,229,255,0.3);
+    }
+
+    /* Hide center cell */
+    .dpad-center {
+      background: transparent;
+      border: none;
+      pointer-events: none;
+    }
+
+    /* ── Face buttons — Cruz estilo Xbox ───────────────────────────────────
+       Grid 3×3; cantos vazios formam a cruz:
+             [ ]  [Y]  [ ]
+             [X]  [ ]  [B]
+             [ ]  [A]  [ ]
+    ─────────────────────────────────────────────────────────────────────── */
+    .face-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 6px;
+      width: min(44vw, 186px);
+      aspect-ratio: 1;
+      flex-shrink: 0;
+    }
+
+    /* Empty corner cells */
+    .face-empty {
+      background: transparent;
+      pointer-events: none;
+    }
+
+    .face-btn {
+      border-radius: 50%;
+      border: none;
+      display: flex; align-items: center; justify-content: center;
+      font-size: clamp(15px, 4.5vw, 22px);
+      font-weight: 900;
+      cursor: pointer;
+      transition: transform 0.08s, box-shadow 0.08s, filter 0.08s;
+      -webkit-tap-highlight-color: transparent;
+      aspect-ratio: 1;
+      position: relative;
+      box-shadow: 0 5px 0 rgba(0,0,0,0.55);
+      letter-spacing: 0;
+    }
+
+    .face-btn.pressed {
+      transform: scale(0.87) translateY(3px);
+      box-shadow: 0 2px 0 rgba(0,0,0,0.55);
+      filter: brightness(1.35);
+    }
+
+    /* Xbox colour palette */
+    #btn-A { background: #107c10; color: #fff; }   /* Xbox green  — bottom */
+    #btn-B { background: #e23c28; color: #fff; }   /* Xbox red    — right  */
+    #btn-X { background: #0078d4; color: #fff; }   /* Xbox blue   — left   */
+    #btn-Y { background: #ffb900; color: #000; }   /* Xbox yellow — top    */
+
+    /* ── Input log (debug, hidden by default) ──────────────────────────── */
+    #input-log {
+      position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 12px;
+      font-size: 11px; font-family: monospace; color: var(--muted);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s;
+      white-space: nowrap;
+      z-index: 5;
+    }
+
+    #input-log.show { opacity: 1; }
+
+    /* ── Safe area (notch support) ──────────────────────────────────────── */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      #gamepad {
+        padding-bottom: calc(16px + env(safe-area-inset-bottom));
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading screen -->
+  <div id="loading" class="screen">
+    <div class="logo-mark">🕹️</div>
+    <div>
+      <div class="loading-title">Street Arcade</div>
+      <div class="loading-sub">Conectando à sessão…</div>
+    </div>
+    <div class="loader-bar"><div class="loader-fill"></div></div>
+  </div>
+
+  <!-- Error screen -->
+  <div id="error-screen" class="screen">
+    <div class="error-icon">⚠️</div>
+    <div class="error-title">Sessão Inválida</div>
+    <p class="error-msg" id="error-msg">Não foi possível conectar à sessão.</p>
+  </div>
+
+  <!-- Play screen (G8.1 — D-Pad + ABXY + status) -->
+  <div id="play-screen">
+
+    <!-- Status header -->
+    <div class="play-header">
+      <span class="play-title">🕹️ Arcade</span>
+      <div class="header-center">
+        <div id="conn-dot" class="status-dot"></div>
+        <span id="conn-status-text">Conectando…</span>
+      </div>
+      <span id="sid-label">—</span>
+    </div>
+
+    <!-- Gamepad (G8.1) -->
+    <div id="gamepad">
+
+      <!-- D-Pad (left side) -->
+      <div class="dpad">
+        <!-- Row 1 -->
+        <div></div>
+        <div id="btn-up" class="dpad-btn" data-btn aria-label="Cima">▲</div>
+        <div></div>
+        <!-- Row 2 -->
+        <div id="btn-left"  class="dpad-btn" data-btn aria-label="Esquerda">◀</div>
+        <div class="dpad-center"></div>
+        <div id="btn-right" class="dpad-btn" data-btn aria-label="Direita">▶</div>
+        <!-- Row 3 -->
+        <div></div>
+        <div id="btn-down" class="dpad-btn" data-btn aria-label="Baixo">▼</div>
+        <div></div>
+      </div>
+
+      <!-- Face buttons — Cruz Xbox: Y(topo) X(esq) B(dir) A(baixo) -->
+      <div class="face-buttons">
+        <!-- Row 1: _ Y _ -->
+        <div class="face-empty"></div>
+        <div id="btn-Y" class="face-btn" data-btn aria-label="Y">Y</div>
+        <div class="face-empty"></div>
+        <!-- Row 2: X _ B -->
+        <div id="btn-X" class="face-btn" data-btn aria-label="X">X</div>
+        <div class="face-empty"></div>
+        <div id="btn-B" class="face-btn" data-btn aria-label="B">B</div>
+        <!-- Row 3: _ A _ -->
+        <div class="face-empty"></div>
+        <div id="btn-A" class="face-btn" data-btn aria-label="A">A</div>
+        <div class="face-empty"></div>
+      </div>
+
+    </div><!-- #gamepad -->
+
+    <!-- Input debug log -->
+    <div id="input-log"></div>
+  </div>
+
+  <!-- C9.2 + C9.3: session orchestrator (reads URL, connects WS, wires gamepad) -->
+  <script type="module" src="/session.js"></script>
+</body>
+</html>

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Street Arcade — Painel Operador</title>
+  <meta name="description" content="Painel do operador para gerenciar sessões do Street Arcade e exibir QR Codes." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0a0a12;
+      --surface:    #12121e;
+      --surface2:   #1a1a2e;
+      --border:     rgba(255,255,255,0.07);
+      --accent:     #00e5ff;
+      --accent2:    #ff6b35;
+      --text:       #f0f0f8;
+      --text-muted: #7878a0;
+      --success:    #00e676;
+      --danger:     #ff5252;
+      --radius:     16px;
+      --glow:       0 0 32px rgba(0,229,255,0.18);
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    header {
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+
+    .logo-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+
+    .logo-text {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .badge-live {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--success);
+      font-weight: 600;
+    }
+
+    .dot-pulse {
+      width: 8px; height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    /* ── Main layout ─────────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 0;
+    }
+
+    /* ── Sidebar (create session) ─────────────────────────────────────────── */
+    aside {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    aside h2 {
+      font-size: 18px; font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .field-group { display: flex; flex-direction: column; gap: 8px; }
+
+    label {
+      font-size: 13px; font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input, select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 16px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      width: 100%;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,229,255,0.12);
+    }
+
+    .totem-row {
+      display: grid;
+      grid-template-columns: 1fr 80px;
+      gap: 8px;
+    }
+
+    .btn {
+      padding: 14px 20px;
+      border: none;
+      border-radius: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #0080ff);
+      color: #000;
+      box-shadow: 0 4px 24px rgba(0,229,255,0.25);
+    }
+
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: var(--glow); }
+    .btn-primary:active{ transform: translateY(0); }
+
+    .btn-primary:disabled {
+      opacity: 0.4; cursor: not-allowed; transform: none;
+    }
+
+    /* ── Content area ────────────────────────────────────────────────────── */
+    section.content {
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      overflow-y: auto;
+    }
+
+    /* ── QR Card ─────────────────────────────────────────────────────────── */
+    #qr-card {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      max-width: 440px;
+      margin: 0 auto;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.4);
+      animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    #qr-card.visible { display: flex; }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .qr-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    #qr-image {
+      width: 260px; height: 260px;
+      border-radius: 12px;
+      background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      padding: 12px;
+      box-shadow: 0 0 40px rgba(0,229,255,0.15);
+    }
+
+    #qr-image img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
+
+    .qr-url {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+      word-break: break-all;
+      max-width: 300px;
+    }
+
+    .session-meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .meta-pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .meta-pill span { color: var(--text); }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .status-waiting  { background: rgba(255,193,7,0.12); color: #ffc107; border: 1px solid rgba(255,193,7,0.3); }
+    .status-active   { background: rgba(0,230,118,0.12); color: var(--success); border: 1px solid rgba(0,230,118,0.3); }
+    .status-finished { background: rgba(255,82,82,0.12); color: var(--danger); border: 1px solid rgba(255,82,82,0.3); }
+
+    /* ── Session list ────────────────────────────────────────────────────── */
+    .sessions-header {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .sessions-header h2 {
+      font-size: 20px; font-weight: 700;
+    }
+
+    #session-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .session-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex; flex-direction: column; gap: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .session-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .session-card-id {
+      font-size: 12px;
+      font-family: monospace;
+      color: var(--text-muted);
+    }
+
+    .session-card-players {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .session-card-players strong { color: var(--text); }
+
+    /* ── Empty state ─────────────────────────────────────────────────────── */
+    #empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 16px; padding: 80px 20px;
+      color: var(--text-muted);
+    }
+
+    #empty-state .emoji { font-size: 64px; }
+    #empty-state p { font-size: 16px; }
+
+    /* ── Toast ───────────────────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 14px; font-weight: 600;
+      display: none;
+      z-index: 999;
+      animation: fadein 0.3s ease;
+    }
+
+    #toast.success { background: rgba(0,230,118,0.15); border: 1px solid var(--success); color: var(--success); }
+    #toast.error   { background: rgba(255,82,82,0.15); border: 1px solid var(--danger);  color: var(--danger);  }
+
+    @keyframes fadein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+
+    /* ── Spinner ─────────────────────────────────────────────────────────── */
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid #000;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      display: inline-block; vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Responsive ─────────────────────────────────────────────────────── */
+    @media (max-width: 800px) {
+      main { grid-template-columns: 1fr; }
+      aside { border-right: none; border-bottom: 1px solid var(--border); }
+      section.content { padding: 24px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a class="logo" href="/">
+      <div class="logo-icon">🕹️</div>
+      <span class="logo-text">Street Arcade</span>
+    </a>
+    <div class="badge-live">
+      <div class="dot-pulse"></div>
+      OPERADOR
+    </div>
+  </header>
+
+  <main>
+    <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+    <aside>
+      <h2>Nova Sessão</h2>
+
+      <div class="field-group">
+        <label for="max-players">Máx. Jogadores</label>
+        <select id="max-players">
+          <option value="1">1 jogador</option>
+          <option value="2" selected>2 jogadores</option>
+          <option value="4">4 jogadores</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label>Totem 1</label>
+        <div class="totem-row">
+          <input id="totem-ip" type="text" placeholder="192.168.1.100" value="127.0.0.1" />
+          <input id="totem-port" type="number" placeholder="9001" value="9001" />
+        </div>
+      </div>
+
+      <button id="btn-create" class="btn btn-primary" type="button">
+        Criar Sessão + QR Code
+      </button>
+    </aside>
+
+    <!-- ── Content ─────────────────────────────────────────────────────── -->
+    <section class="content">
+
+      <!-- QR Card — shown after session creation -->
+      <div id="qr-card">
+        <span class="qr-label">Escaneie para jogar</span>
+        <div id="qr-image"><img id="qr-img" src="" alt="QR Code" /></div>
+        <div id="session-status" class="status-badge status-waiting">
+          <div class="dot-pulse"></div>
+          Aguardando
+        </div>
+        <div class="session-meta">
+          <div class="meta-pill">ID: <span id="meta-sid">—</span></div>
+          <div class="meta-pill">Expira: <span id="meta-exp">—</span></div>
+        </div>
+        <p class="qr-url" id="qr-url-text">—</p>
+      </div>
+
+      <!-- Session list -->
+      <div class="sessions-header">
+        <h2>Sessões Ativas</h2>
+      </div>
+
+      <div id="session-list"></div>
+      <div id="empty-state">
+        <div class="emoji">🎮</div>
+        <p>Nenhuma sessão ativa. Crie uma para começar.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+
+  <script type="module" src="/qrcode-page.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 // src/app.js
 // Fastify application factory.
-// Boot order: Redis → MongoDB → WebSocket → UDP (Phase 5)
+// Boot order: Static → Redis → MongoDB → WebSocket → UDP → Session (F7)
 
 import Fastify from 'fastify'
 import { env } from './config/env.js'
@@ -9,6 +9,7 @@ import redisPlugin     from './plugins/redis.js'
 import mongoPlugin     from './plugins/mongodb.js'
 import websocketPlugin from './plugins/websocket.js'
 import udpPlugin       from './plugins/udp.js'
+import staticPlugin    from './plugins/static.js'
 import gameRoutes      from './modules/game/game.routes.js'
 import sessionRoutes   from './modules/session/session.routes.js'
 import { UdpDispatcher } from './modules/udp/udp.dispatcher.js'
@@ -23,6 +24,9 @@ export async function buildApp() {
 
   // ── Health ────────────────────────────────────────────────────────────────
   app.get('/health', async () => ({ status: 'ok', ts: Date.now() }))
+
+  // ── Phase 7: Static files + /play/:sessionId ─────────────────────────────
+  await app.register(staticPlugin)
 
   // ── Phase 3: Redis ────────────────────────────────────────────────────────
   try {

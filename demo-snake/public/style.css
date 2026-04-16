@@ -1,13 +1,12 @@
-/* demo-snake/public/style.css */
 * {
   box-sizing: border-box;
   margin: 0; padding: 0;
 }
 
 body {
-  background: #1e1e2e;
-  color: #fff;
-  font-family: 'Outfit', sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: 'Fira Code', monospace;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -21,45 +20,47 @@ header {
 
 header h1 {
   font-size: 32px;
-  background: linear-gradient(90deg, #00e5ff, #ff6b35);
+  background: linear-gradient(90deg, #3b82f6, #f97316);
   -webkit-background-clip: text;  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 header p {
-  color: #a0a0c0;
+  color: #64748b;
   margin-top: 5px;
 }
 
 main {
   display: flex;
   gap: 20px;
-  background: #2a2a3e;
+  background: transparent;
   padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  border-radius: 8px;
+  box-shadow: none;
 }
 
 canvas {
-  background: #11111b;
-  border-radius: 6px;
-  border: 2px solid #45475a;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
 #sidePanel {
   width: 250px;
   display: flex;
   flex-direction: column;
-  background: #181825;
-  border-radius: 6px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
   padding: 15px;
 }
 
 #sidePanel h2 {
-  font-size: 20px;
-  margin-bottom: 10px;
-  border-bottom: 1px solid #313244;
-  padding-bottom: 5px;
+  font-size: 18px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+  color: #0f172a;
 }
 
 #scoreList {
@@ -74,9 +75,9 @@ canvas {
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  background: #313244;
-  padding: 6px 12px;
-  border-radius: 4px;
+  background: #f1f5f9;
+  padding: 8px 12px;
+  border-radius: 6px;
 }
 
 .score-color {

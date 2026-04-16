@@ -7,29 +7,30 @@
   <meta name="description" content="Painel do operador para gerenciar sessões do Street Arcade e exibir QR Codes." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600;700&family=Fira+Sans:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:         #0a0a12;
-      --surface:    #12121e;
-      --surface2:   #1a1a2e;
-      --border:     rgba(255,255,255,0.07);
-      --accent:     #00e5ff;
-      --accent2:    #ff6b35;
-      --text:       #f0f0f8;
-      --text-muted: #7878a0;
-      --success:    #00e676;
-      --danger:     #ff5252;
-      --radius:     16px;
-      --glow:       0 0 32px rgba(0,229,255,0.18);
+      --bg:         #f8fafc;
+      --surface:    #ffffff;
+      --surface2:   #f1f5f9;
+      --border:     #e2e8f0;
+      --accent:     #3b82f6;
+      --accent2:    #60a5fa;
+      --cta:        #f97316;
+      --text:       #0f172a;
+      --text-muted: #64748b;
+      --success:    #10b981;
+      --danger:     #ef4444;
+      --radius:     8px;
+      --glow:       0 4px 14px rgba(59, 130, 246, 0.4);
     }
 
     html, body { height: 100%; }
 
     body {
-      font-family: 'Outfit', sans-serif;
+      font-family: 'Fira Sans', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -55,21 +56,22 @@
     }
 
     .logo-icon {
-      width: 40px; height: 40px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border-radius: 10px;
+      height: 48px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 20px;
+    }
+    
+    .logo-icon img {
+      max-height: 100%;
+      height: 100%;
+      object-fit: contain;
     }
 
     .logo-text {
       font-size: 20px;
-      font-weight: 900;
+      font-weight: 700;
+      font-family: 'Fira Code', monospace;
       letter-spacing: -0.5px;
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      color: var(--text);
     }
 
     .badge-live {
@@ -109,7 +111,8 @@
     }
 
     aside h2 {
-      font-size: 18px; font-weight: 700;
+      font-size: 16px; font-weight: 700;
+      font-family: 'Fira Code', monospace;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -128,8 +131,8 @@
       background: var(--surface2);
       border: 1px solid var(--border);
       color: var(--text);
-      font-family: 'Outfit', sans-serif;
-      font-size: 16px;
+      font-family: 'Fira Sans', sans-serif;
+      font-size: 15px;
       padding: 12px 16px;
       border-radius: 10px;
       outline: none;
@@ -139,7 +142,7 @@
 
     input:focus, select:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(0,229,255,0.12);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
     }
 
     .totem-row {
@@ -151,8 +154,8 @@
     .btn {
       padding: 14px 20px;
       border: none;
-      border-radius: 12px;
-      font-family: 'Outfit', sans-serif;
+      border-radius: 8px;
+      font-family: 'Fira Sans', sans-serif;
       font-size: 16px;
       font-weight: 700;
       cursor: pointer;
@@ -161,9 +164,9 @@
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #0080ff);
-      color: #000;
-      box-shadow: 0 4px 24px rgba(0,229,255,0.25);
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
     }
 
     .btn-primary:hover { transform: translateY(-2px); box-shadow: var(--glow); }
@@ -194,7 +197,7 @@
       gap: 24px;
       max-width: 440px;
       margin: 0 auto;
-      box-shadow: 0 8px 48px rgba(0,0,0,0.4);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
       animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1);
     }
 
@@ -206,9 +209,10 @@
     }
 
     .qr-label {
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 700;
-      letter-spacing: 2px;
+      font-family: 'Fira Code', monospace;
+      letter-spacing: 1px;
       text-transform: uppercase;
       color: var(--accent);
     }
@@ -219,7 +223,7 @@
       background: #fff;
       display: flex; align-items: center; justify-content: center;
       padding: 12px;
-      box-shadow: 0 0 40px rgba(0,229,255,0.15);
+      box-shadow: none;
     }
 
     #qr-image img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
@@ -261,9 +265,9 @@
       text-transform: uppercase;
     }
 
-    .status-waiting  { background: rgba(255,193,7,0.12); color: #ffc107; border: 1px solid rgba(255,193,7,0.3); }
-    .status-active   { background: rgba(0,230,118,0.12); color: var(--success); border: 1px solid rgba(0,230,118,0.3); }
-    .status-finished { background: rgba(255,82,82,0.12); color: var(--danger); border: 1px solid rgba(255,82,82,0.3); }
+    .status-waiting  { background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .status-active   { background: rgba(16, 185, 129, 0.12); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .status-finished { background: rgba(239, 68, 68, 0.12); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
 
     /* ── Session list ────────────────────────────────────────────────────── */
     .sessions-header {
@@ -272,6 +276,7 @@
 
     .sessions-header h2 {
       font-size: 20px; font-weight: 700;
+      font-family: 'Fira Code', monospace;
     }
 
     #session-list {
@@ -296,8 +301,8 @@
     }
 
     .session-card-id {
-      font-size: 12px;
-      font-family: monospace;
+      font-size: 13px;
+      font-family: 'Fira Code', monospace;
       color: var(--text-muted);
     }
 
@@ -387,7 +392,9 @@
 
   <header>
     <a class="logo" href="/">
-      <div class="logo-icon">🕹️</div>
+      <div class="logo-icon">
+        <img src="/assets/images/dreambricks_logo_250x160.png" alt="DreamBricks Logo">
+      </div>
       <span class="logo-text">Street Arcade</span>
     </a>
     <div class="badge-live">
@@ -460,9 +467,9 @@
   <div id="sessionModal" class="modal-overlay">
     <div class="modal-content">
       <button class="modal-close" id="modalClose">&times;</button>
-      <h2 style="margin-bottom: 24px; font-size: 22px;">Detalhes da Sessão</h2>
+      <h2 style="margin-bottom: 24px; font-size: 20px; font-family: 'Fira Code', monospace;">Detalhes da Sessão</h2>
       
-      <div id="modal-qr-image" style="width: 260px; height: 260px; background: white; padding: 12px; border-radius: 12px; margin: 0 auto 24px; box-shadow: 0 0 40px rgba(0,229,255,0.15);">
+      <div id="modal-qr-image" style="width: 260px; height: 260px; background: white; padding: 12px; border-radius: 12px; margin: 0 auto 24px;">
         <img id="modal-qr-img" style="width: 100%; height: 100%; object-fit: contain; border-radius: 6px;" src="" alt="QR Code Expandido" />
       </div>
       

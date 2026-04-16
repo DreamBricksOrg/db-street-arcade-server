@@ -24,6 +24,9 @@ const BUTTON_MAP = {
   'btn-Y':     'btn_Y',
 }
 
+/** Haptic feedback duration in ms (increase for stronger feel) */
+const VIBRATION_DURATION = 40;
+
 /**
  * Initialises the gamepad touch handling.
  *
@@ -66,6 +69,7 @@ export function initGamepad(onInput) {
     const action = getAction(el)
     if (!action) return
     el.classList.add('pressed')
+    if (navigator.vibrate) navigator.vibrate(VIBRATION_DURATION) // Tactical buzz
     onInput({ action, state: 'pressed' })
   }
 

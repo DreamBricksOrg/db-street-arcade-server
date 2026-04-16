@@ -78,9 +78,10 @@ async function sessionRoutes(fastify) {
   // ── POST /api/sessions ─────────────────────────────────────────────────────
   // Creates a new session. Returns sessionId and QR Code URL.
   fastify.post('/api/sessions', async (request, reply) => {
-    const { totems = [], maxPlayers } = request.body ?? {}
+    const { totems = [], maxPlayers, expiresInMs } = request.body ?? {}
 
-    const session = await service.createSession({ totems, maxPlayers })
+    const ttlMs = expiresInMs > 0 ? Number(expiresInMs) : undefined
+    const session = await service.createSession({ totems, maxPlayers, ttlMs })
 
     const playUrl = `${env.publicUrl}/play/${session._id}`
 

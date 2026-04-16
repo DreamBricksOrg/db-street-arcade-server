@@ -35,8 +35,8 @@ export class SessionService {
    * @param {{ totems?: object[], maxPlayers?: number }} options
    * @returns {Promise<object>} Created session document
    */
-  async createSession({ totems = [], maxPlayers } = {}) {
-    const session = await this.repo.createSession({ totems, maxPlayers })
+  async createSession({ totems = [], maxPlayers, ttlMs } = {}) {
+    const session = await this.repo.createSession({ totems, maxPlayers, ttlMs })
     await this.cache.set(session)
     log.info({ sessionId: session._id }, 'Session created')
     return session

@@ -12,6 +12,7 @@ import udpPlugin       from './plugins/udp.js'
 import staticPlugin    from './plugins/static.js'
 import gameRoutes      from './modules/game/game.routes.js'
 import sessionRoutes   from './modules/session/session.routes.js'
+import totemRoutes     from './modules/totem/totem.routes.js'
 import { UdpDispatcher } from './modules/udp/udp.dispatcher.js'
 
 const log = createLogger('app')
@@ -57,8 +58,9 @@ export async function buildApp() {
   // ── Phase 5: UDP ──────────────────────────────────────────────────────────
   await app.register(udpPlugin)
 
-  // ── Phase 6: Session REST API ─────────────────────────────────────────────
+  // ── Phase 6: Session + Totem REST API ──────────────────────────────────────
   await app.register(sessionRoutes)
+  await app.register(totemRoutes)
 
   // Start UDP dispatcher after all plugins are ready.
   // onReady fires after app.listen() completes — all decorators are available.

@@ -22,7 +22,14 @@ async function staticPlugin(fastify) {
 
   log.info({ root: PUBLIC_DIR }, 'Static files ready')
 
-  // ── TASK-Q7.2 — GET /play/:sessionId ──────────────────────────────────────
+  // ── GET /play/totem ────────────────────────────────────────────────────────
+  // Serves totem-entry.html — permanent QR Code entry point for each totem.
+  // The totem ID is passed as ?id= query param; JS resolves the active session.
+  fastify.get('/play/totem', async (_request, reply) => {
+    return reply.sendFile('totem-entry.html')
+  })
+
+  // ── GET /play/:sessionId ───────────────────────────────────────────────────
   // Serves play.html for every /play/<uuid> path.
   // The sessionId is already in the URL — the frontend JS reads it via location.pathname.
   fastify.get('/play/:sessionId', async (_request, reply) => {

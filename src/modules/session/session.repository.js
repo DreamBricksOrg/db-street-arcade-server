@@ -1,6 +1,10 @@
 // src/modules/session/session.repository.js
 // Raw database operations for sessions collection.
 // No business logic here — only CRUD against MongoDB.
+//
+// NOTE: Sessions are NEVER hard-deleted. The MongoDB TTL index has been removed.
+// Sessions persist forever for historical records. Status transitions:
+//   waiting → active → finished
 
 import { v4 as uuidv4 } from 'uuid'
 import { env } from '../../config/env.js'
@@ -12,12 +16,15 @@ const log = createLogger('session.repository')
  * Session document shape (reference):
  * {
  *   _id:        string,          // UUID v4 (sessionId)
+ *   totemId:    string,          // ID of the owning totem
  *   status:     'waiting'|'active'|'finished',
  *   totems:     Array<{ id: string, ip: string, udpPort: number }>,
  *   players:    Array<{ id: string, connectedAt: Date }>,
  *   maxPlayers: number,
  *   createdAt:  Date,
- *   expiresAt:  Date,            // TTL field — MongoDB deletes expired docs
+ *   expiresAt:  Date,            // time limit — checked by watcher (NO TTL index)
+ *   endedAt:    Date|null,       // set when finished
+ *   endReason:  'timeout'|'manual'|null,
  * }
  */
 
@@ -29,24 +36,27 @@ export class SessionRepository {
 
   /**
    * Creates a new session document.
-   * @param {{ totems: object[], maxPlayers?: number, ttlMs?: number }} data
+   * @param {{ totemId?: string, totems?: object[], maxPlayers?: number, ttlMs?: number }} data
    * @returns {Promise<object>} The created session document
    */
-  async createSession({ totems = [], maxPlayers, ttlMs }) {
-    const now       = new Date()
+  async createSession({ totemId, totems = [], maxPlayers, ttlMs }) {
+    const now         = new Date()
     const resolvedTtl = ttlMs ?? env.sessionTimeoutMs
     const session = {
       _id:        uuidv4(),
+      totemId:    totemId ?? null,
       status:     'waiting',
       totems,
       players:    [],
       maxPlayers: maxPlayers ?? env.sessionMaxPlayers,
       createdAt:  now,
       expiresAt:  new Date(now.getTime() + resolvedTtl),
+      endedAt:    null,
+      endReason:  null,
     }
 
     await this.col.insertOne(session)
-    log.debug({ sessionId: session._id }, 'Session created')
+    log.debug({ sessionId: session._id, totemId: session.totemId }, 'Session created')
     return session
   }
 
@@ -105,6 +115,27 @@ export class SessionRepository {
   }
 
   /**
+   * Marks a session as finished with reason and timestamp.
+   * Does NOT delete — session persists for historical records.
+   * @param {string} sessionId
+   * @param {'timeout'|'manual'} reason
+   * @returns {Promise<boolean>}
+   */
+  async markEnded(sessionId, reason) {
+    const result = await this.col.updateOne(
+      { _id: sessionId },
+      {
+        $set: {
+          status:    'finished',
+          endedAt:   new Date(),
+          endReason: reason,
+        },
+      },
+    )
+    return result.matchedCount > 0
+  }
+
+  /**
    * Extends the session TTL by resetting expiresAt.
    * Called whenever a player sends an input (activity heartbeat).
    * @param {string} sessionId
@@ -119,13 +150,14 @@ export class SessionRepository {
   }
 
   /**
-   * Permanently deletes a session document.
+   * Hard-deletes a session. Retained for admin/cleanup purposes only.
+   * Normal flow should use markEnded() instead.
    * @param {string} sessionId
    * @returns {Promise<boolean>}
    */
   async deleteSession(sessionId) {
     const result = await this.col.deleteOne({ _id: sessionId })
-    log.debug({ sessionId }, 'Session deleted')
+    log.debug({ sessionId }, 'Session hard-deleted')
     return result.deletedCount > 0
   }
 

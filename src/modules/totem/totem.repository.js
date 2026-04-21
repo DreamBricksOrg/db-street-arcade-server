@@ -10,12 +10,15 @@ const log = createLogger('totem.repository')
 /**
  * Totem document shape:
  * {
- *   _id:       string,  // UUID v4
- *   name:      string,  // ex: "Totem Cabine A"
- *   ip:        string,  // ex: "192.168.1.10"
- *   udpPort:   number,  // ex: 9001
- *   createdAt: Date,
- *   updatedAt: Date,
+ *   _id:               string,      // UUID v4
+ *   name:              string,      // ex: "Totem Cabine A"
+ *   ip:                string,      // ex: "192.168.1.10"
+ *   udpPort:           number,      // ex: 9001
+ *   maxPlayers:        number,      // max players per session (default: 2)
+ *   sessionDurationMs: number,      // session TTL in ms (default: 30 min)
+ *   currentSessionId:  string|null, // ID of the currently active session
+ *   createdAt:         Date,
+ *   updatedAt:         Date,
  * }
  */
 
@@ -27,18 +30,21 @@ export class TotemRepository {
 
   /**
    * Creates a new totem document.
-   * @param {{ name: string, ip: string, udpPort: number }} data
+   * @param {{ name: string, ip: string, udpPort: number, maxPlayers?: number, sessionDurationMs?: number }} data
    * @returns {Promise<object>}
    */
-  async create({ name, ip, udpPort }) {
+  async create({ name, ip, udpPort, maxPlayers, sessionDurationMs }) {
     const now   = new Date()
     const totem = {
-      _id:       uuidv4(),
+      _id:               uuidv4(),
       name,
       ip,
       udpPort,
-      createdAt: now,
-      updatedAt: now,
+      maxPlayers:        maxPlayers        ?? 2,
+      sessionDurationMs: sessionDurationMs ?? 30 * 60 * 1000, // 30 min default
+      currentSessionId:  null,
+      createdAt:         now,
+      updatedAt:         now,
     }
     await this.col.insertOne(totem)
     log.debug({ totemId: totem._id }, 'Totem created')
@@ -63,15 +69,30 @@ export class TotemRepository {
   }
 
   /**
-   * Updates name, ip, and/or udpPort of an existing totem.
+   * Updates allowed fields of an existing totem.
    * @param {string} id
-   * @param {{ name?: string, ip?: string, udpPort?: number }} fields
+   * @param {{ name?: string, ip?: string, udpPort?: number, maxPlayers?: number, sessionDurationMs?: number }} fields
    * @returns {Promise<boolean>} true if found and updated
    */
   async update(id, fields) {
     const result = await this.col.updateOne(
       { _id: id },
       { $set: { ...fields, updatedAt: new Date() } },
+    )
+    return result.matchedCount > 0
+  }
+
+  /**
+   * Sets the currentSessionId on a totem document.
+   * Called by TotemService after starting a new session.
+   * @param {string} totemId
+   * @param {string|null} sessionId
+   * @returns {Promise<boolean>}
+   */
+  async setCurrentSession(totemId, sessionId) {
+    const result = await this.col.updateOne(
+      { _id: totemId },
+      { $set: { currentSessionId: sessionId, updatedAt: new Date() } },
     )
     return result.matchedCount > 0
   }

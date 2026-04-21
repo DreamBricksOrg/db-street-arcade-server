@@ -1,13 +1,11 @@
 // src/modules/session/session.service.js
-// TASK-S6.1 — Session Service
-//
 // Business logic layer — sits between routes and the repository.
 // Enforces rules: capacity, state machine, timeout.
 //
 // Session state machine:
-//   waiting → active  (first player joins)
+//   waiting → active   (first player joins)
 //   active  → finished (endSession or timeout)
-//   finished → (deleted after TTL or manual delete)
+//   finished stays in MongoDB forever (no TTL deletion)
 
 import { SessionRepository } from './session.repository.js'
 import { SessionCache }      from './session.cache.js'
@@ -23,22 +21,34 @@ export class SessionService {
    * @param {import('ioredis').Redis} redisPublisher
    */
   constructor(mongo, redisPublisher) {
-    this.repo      = new SessionRepository(mongo)
-    this.cache     = new SessionCache(redisPublisher)
-    this.publisher = redisPublisher
+    this.repo        = new SessionRepository(mongo)
+    this.cache       = new SessionCache(redisPublisher)
+    this.publisher   = redisPublisher
+    // Injected lazily to avoid circular dependency with TotemService
+    this._TotemService = null
   }
 
-  // ── TASK-S6.1 operations ────────────────────────────────────────────────────
+  // ── Dependency injection ────────────────────────────────────────────────────
+
+  /**
+   * Injects the TotemService to enable auto-renew on session end.
+   * @param {import('../totem/totem.service.js').TotemService} totemService
+   */
+  setTotemService(totemService) {
+    this._TotemService = totemService
+  }
+
+  // ── Core operations ────────────────────────────────────────────────────────
 
   /**
    * Creates a new session and syncs it to Redis.
-   * @param {{ totems?: object[], maxPlayers?: number }} options
+   * @param {{ totemId?: string, totems?: object[], maxPlayers?: number, ttlMs?: number }} options
    * @returns {Promise<object>} Created session document
    */
-  async createSession({ totems = [], maxPlayers, ttlMs } = {}) {
-    const session = await this.repo.createSession({ totems, maxPlayers, ttlMs })
+  async createSession({ totemId, totems = [], maxPlayers, ttlMs } = {}) {
+    const session = await this.repo.createSession({ totemId, totems, maxPlayers, ttlMs })
     await this.cache.set(session)
-    log.info({ sessionId: session._id }, 'Session created')
+    log.info({ sessionId: session._id, totemId: session.totemId }, 'Session created')
     return session
   }
 
@@ -58,8 +68,6 @@ export class SessionService {
    * @returns {Promise<object[]>}
    */
   async listActiveSessions() {
-    // A query for all not-finished ones would be better, but we can do listByStatus and filter.
-    // Actually repo.listByStatus() with no args fetches all. Let's just fetch all and filter in JS for now
     const all = await this.repo.listByStatus()
     return all.filter(s => s.status !== 'finished')
   }
@@ -129,29 +137,51 @@ export class SessionService {
   }
 
   /**
-   * Ends a session — marks as finished, publishes event, cleanup handled by TTL.
+   * Ends a session — marks as finished, publishes event, triggers auto-renew for the totem.
+   * Sessions are NEVER hard-deleted; they persist for historical records.
+   *
    * @param {string} sessionId
-   * @returns {Promise<{ok: boolean, error?: string}>}
+   * @param {'timeout'|'manual'} [reason='manual']
+   * @returns {Promise<{ok: boolean, error?: string, newSessionId?: string}>}
    */
-  async endSession(sessionId) {
+  async endSession(sessionId, reason = 'manual') {
     const session = await this.findSession(sessionId)
     if (!session) return { ok: false, error: 'Session not found' }
+    if (session.status === 'finished') return { ok: true } // already ended
 
-    await this.repo.updateStatus(sessionId, 'finished')
+    // Mark as finished in MongoDB (document persists)
+    await this.repo.markEnded(sessionId, reason)
 
-    // Proactively delete from Redis — no need to wait for TTL
+    // Remove from Redis cache
     await this.cache.del(sessionId)
 
     await this._publish(Channels.gameEvent(sessionId), 'event', sessionId, null, {
       event: 'session_ended',
+      reason,
     })
 
-    log.info({ sessionId }, 'Session ended')
-    return { ok: true }
+    log.info({ sessionId, reason }, 'Session ended')
+
+    // Auto-renew: if this session belongs to a totem, start a new session
+    let newSessionId
+    if (session.totemId && this._TotemService) {
+      try {
+        const totem = await this._TotemService.findTotem(session.totemId)
+        if (totem) {
+          const result = await this._TotemService.startNewSession(totem)
+          if (result.ok) newSessionId = result.session._id
+        }
+      } catch (err) {
+        log.error({ err: err.message, totemId: session.totemId }, 'Auto-renew failed')
+      }
+    }
+
+    return { ok: true, newSessionId }
   }
 
   /**
    * Hard-deletes a session from MongoDB and Redis.
+   * Admin/cleanup use only. Prefer endSession() for normal flow.
    * @param {string} sessionId
    * @returns {Promise<{ok: boolean, error?: string}>}
    */
@@ -162,11 +192,11 @@ export class SessionService {
     await this.repo.deleteSession(sessionId)
     await this.cache.del(sessionId)
 
-    log.info({ sessionId }, 'Session deleted')
+    log.info({ sessionId }, 'Session hard-deleted')
     return { ok: true }
   }
 
-  // ── S6.3: Session Timeout ───────────────────────────────────────────────────
+  // ── Session Timeout ────────────────────────────────────────────────────────
 
   /**
    * Resets the activity TTL for a session.

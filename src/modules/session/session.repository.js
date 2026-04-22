@@ -36,20 +36,21 @@ export class SessionRepository {
 
   /**
    * Creates a new session document.
-   * @param {{ totemId?: string, totems?: object[], maxPlayers?: number, ttlMs?: number }} data
+   * @param {{ totemId?: string, totems?: object[], maxPlayers?: number, ttlMs?: number, allowedPlayers?: string[] }} data
    * @returns {Promise<object>} The created session document
    */
-  async createSession({ totemId, totems = [], maxPlayers, ttlMs }) {
+  async createSession({ totemId, totems = [], maxPlayers, ttlMs, allowedPlayers = [] }) {
     const now         = new Date()
     const resolvedTtl = ttlMs ?? env.sessionTimeoutMs
     const session = {
-      _id:        uuidv4(),
-      totemId:    totemId ?? null,
-      status:     'waiting',
+      _id:            uuidv4(),
+      totemId:        totemId ?? null,
+      status:         'waiting',
       totems,
-      players:    [],
-      maxPlayers: maxPlayers ?? env.sessionMaxPlayers,
-      createdAt:  now,
+      players:        [],
+      allowedPlayers: allowedPlayers,
+      maxPlayers:     maxPlayers ?? env.sessionMaxPlayers,
+      createdAt:      now,
       expiresAt:  new Date(now.getTime() + resolvedTtl),
       endedAt:    null,
       endReason:  null,

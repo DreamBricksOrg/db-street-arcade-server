@@ -43,7 +43,38 @@ async function totemRoutes(fastify) {
   })
 
   // ── POST /api/totems ─────────────────────────────────────────────────────────
-  fastify.post('/api/totems', async (request, reply) => {
+  fastify.post('/api/totems', {
+    schema: {
+      tags: ['Totems'],
+      summary: 'Create a new totem',
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          ip: { type: 'string' },
+          udpPort: { type: 'number' },
+          maxPlayers: { type: 'number' },
+          sessionDurationMs: { type: 'number' }
+        },
+        required: ['name', 'ip', 'udpPort']
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            _id: { type: 'string' },
+            name: { type: 'string' },
+            ip: { type: 'string' },
+            udpPort: { type: 'number' },
+            maxPlayers: { type: 'number', nullable: true },
+            sessionDurationMs: { type: 'number', nullable: true },
+            currentSessionId: { type: 'string', nullable: true }
+          }
+        },
+        400: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     const { name, ip, udpPort, maxPlayers, sessionDurationMs } = request.body ?? {}
 
     const result = await service.createTotem({
@@ -60,19 +91,84 @@ async function totemRoutes(fastify) {
   })
 
   // ── GET /api/totems ──────────────────────────────────────────────────────────
-  fastify.get('/api/totems', async () => {
+  fastify.get('/api/totems', {
+    schema: {
+      tags: ['Totems'],
+      summary: 'List all totems',
+      response: {
+        200: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              _id: { type: 'string' },
+              name: { type: 'string' },
+              ip: { type: 'string' },
+              udpPort: { type: 'number' },
+              maxPlayers: { type: 'number', nullable: true },
+              sessionDurationMs: { type: 'number', nullable: true },
+              currentSessionId: { type: 'string', nullable: true },
+              queueSize: { type: 'number' }
+            }
+          }
+        }
+      }
+    }
+  }, async () => {
     return service.listTotems()
   })
 
   // ── GET /api/totems/:id ──────────────────────────────────────────────────────
-  fastify.get('/api/totems/:id', { schema: { params: totemIdParam } }, async (request, reply) => {
+  fastify.get('/api/totems/:id', {
+    schema: {
+      tags: ['Totems'],
+      summary: 'Get a totem by ID',
+      params: totemIdParam,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            _id: { type: 'string' },
+            name: { type: 'string' },
+            ip: { type: 'string' },
+            udpPort: { type: 'number' },
+            maxPlayers: { type: 'number', nullable: true },
+            sessionDurationMs: { type: 'number', nullable: true },
+            currentSessionId: { type: 'string', nullable: true }
+          }
+        },
+        404: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     const totem = await service.findTotem(request.params.id)
     if (!totem) return reply.status(404).send({ error: 'Totem not found' })
     return totem
   })
 
   // ── PUT /api/totems/:id ──────────────────────────────────────────────────────
-  fastify.put('/api/totems/:id', { schema: { params: totemIdParam } }, async (request, reply) => {
+  fastify.put('/api/totems/:id', {
+    schema: {
+      tags: ['Totems'],
+      summary: 'Update a totem',
+      params: totemIdParam,
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          ip: { type: 'string' },
+          udpPort: { type: 'number' },
+          maxPlayers: { type: 'number' },
+          sessionDurationMs: { type: 'number' }
+        }
+      },
+      response: {
+        204: { type: 'null' },
+        400: { type: 'object', properties: { error: { type: 'string' } } },
+        404: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     const { name, ip, udpPort, maxPlayers, sessionDurationMs } = request.body ?? {}
 
     const fields = {}
@@ -93,15 +189,46 @@ async function totemRoutes(fastify) {
   })
 
   // ── DELETE /api/totems/:id ───────────────────────────────────────────────────
-  fastify.delete('/api/totems/:id', { schema: { params: totemIdParam } }, async (request, reply) => {
+  fastify.delete('/api/totems/:id', {
+    schema: {
+      tags: ['Totems'],
+      summary: 'Delete a totem',
+      params: totemIdParam,
+      response: {
+        204: { type: 'null' },
+        404: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     const result = await service.deleteTotem(request.params.id)
     if (!result.ok) return reply.status(404).send({ error: result.error })
     return reply.status(204).send()
   })
 
-  // ── GET /api/totems/:id/session ──────────────────────────────────────────────
-  // Returns the active session for this totem, creating one if needed.
-  fastify.get('/api/totems/:id/session', { schema: { params: totemIdParam } }, async (request, reply) => {
+  // ── GET /api/totems/:id/session ─────────────────────────────────────────────
+  // Returns the active session for this totem, creating one if needed. (LEGACY FLOW, TO BE UPDATED)
+  fastify.get('/api/totems/:id/session', {
+    schema: {
+      tags: ['Totems'],
+      summary: 'Get active session for totem (Legacy)',
+      params: totemIdParam,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string' },
+            totemId: { type: 'string' },
+            status: { type: 'string' },
+            maxPlayers: { type: 'number' },
+            expiresAt: { type: 'string' },
+            playUrl: { type: 'string' }
+          }
+        },
+        404: { type: 'object', properties: { error: { type: 'string' } } },
+        500: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     const result = await service.resolveSession(request.params.id)
 
     if (!result.ok) {
@@ -123,9 +250,163 @@ async function totemRoutes(fastify) {
     }
   })
 
+  // ── QUEUE SYSTEM ENDPOINTS ──────────────────────────────────────────────────
+
+  /**
+   * POST /api/totems/:id/queue/join
+   * Body: { playerId }
+   * Enters the queue if session is full, or joins session if space is available.
+   */
+  fastify.post('/api/totems/:id/queue/join', {
+    schema: {
+      tags: ['Totems', 'Queue'],
+      summary: 'Join totem queue',
+      params: totemIdParam,
+      body: {
+        type: 'object',
+        properties: { playerId: { type: 'string' } },
+        required: ['playerId']
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['play', 'queue'] },
+            sessionId: { type: 'string' },
+            position: { type: 'number' }
+          }
+        },
+        400: { type: 'object', properties: { error: { type: 'string' } } },
+        404: { type: 'object', properties: { error: { type: 'string' } } },
+        500: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params
+    const { playerId } = request.body || {}
+    if (!playerId) return reply.status(400).send({ error: 'playerId is required' })
+
+    const totem = await service.findTotem(id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+
+    const sessionRes = await service.resolveSession(id)
+    if (!sessionRes.ok) return reply.status(500).send({ error: sessionRes.error })
+    const session = sessionRes.session
+
+    // Check if session has room (and no one else is waiting ahead of us)
+    const qStatus = service._redisPub ? await service._redisPub.llen(`queue:totem:${id}`) : 0
+    const occupied = (session.players || []).length
+    const allowed  = session.allowedPlayers || [] // For reserved queue pop
+    
+    // If the player is already allowed, they can join instantly
+    if (allowed.includes(playerId)) {
+      const sid = (session._id ?? session.id).toString()
+      return { status: 'play', sessionId: sid }
+    }
+
+    // If session has space and queue is empty, they can go straight to play
+    if (qStatus === 0 && occupied < session.maxPlayers && allowed.length === 0) {
+      const sid = (session._id ?? session.id).toString()
+      return { status: 'play', sessionId: sid }
+    }
+
+    // Otherwise, join the queue
+    const result = await service.joinQueue(id, playerId)
+    if (!result.ok) return reply.status(500).send({ error: result.error })
+
+    return { status: 'queue', position: result.position }
+  })
+
+  /**
+   * GET /api/totems/:id/queue/status
+   * Query: ?playerId=X
+   */
+  fastify.get('/api/totems/:id/queue/status', {
+    schema: {
+      tags: ['Totems', 'Queue'],
+      summary: 'Get player queue status',
+      params: totemIdParam,
+      querystring: {
+        type: 'object',
+        properties: { playerId: { type: 'string' } },
+        required: ['playerId']
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['play', 'queue'] },
+            sessionId: { type: 'string' },
+            position: { type: 'number' },
+            size: { type: 'number' }
+          }
+        },
+        400: { type: 'object', properties: { error: { type: 'string' } } },
+        404: { type: 'object', properties: { error: { type: 'string' } } },
+        500: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params
+    const { playerId } = request.query
+    if (!playerId) return reply.status(400).send({ error: 'playerId requirement missing' })
+
+    // First check if they got selected for the current session!
+    const sessionRes = await service.resolveSession(id)
+    if (sessionRes.ok) {
+      const allowed = sessionRes.session.allowedPlayers || []
+      // If player was called to play
+      if (allowed.includes(playerId)) {
+        await service.leaveQueue(id, playerId) // leave queue definitively
+        const sid = (sessionRes.session._id ?? sessionRes.session.id).toString()
+        return { status: 'play', sessionId: sid }
+      }
+    }
+
+    const { ok, error, position, size } = await service.getQueueStatus(id, playerId)
+    if (!ok) return reply.status(error === 'Not in queue' ? 404 : 500).send({ error })
+
+    return { status: 'queue', position, size }
+  })
+
+  /**
+   * POST /api/totems/:id/queue/clear
+   */
+  fastify.post('/api/totems/:id/queue/clear', {
+    schema: {
+      tags: ['Totems', 'Queue'],
+      summary: 'Clear totem queue',
+      params: totemIdParam,
+      response: {
+        200: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' } }
+        },
+        500: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
+    const result = await service.clearQueue(request.params.id)
+    if (!result.ok) return reply.status(500).send({ error: result.error })
+    return { ok: true }
+  })
+
   // ── GET /api/totems/:id/qr ───────────────────────────────────────────────────
   // Returns a permanent QR Code PNG pointing to /play/totem?id=:totemId
-  fastify.get('/api/totems/:id/qr', { schema: { params: totemIdParam } }, async (request, reply) => {
+  fastify.get('/api/totems/:id/qr', {
+    schema: {
+      tags: ['Totems'],
+      summary: 'Get totem QR code',
+      params: totemIdParam,
+      querystring: {
+        type: 'object',
+        properties: { format: { type: 'string', enum: ['png', 'dataurl'] } }
+      },
+      response: {
+        404: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     const totem = await service.findTotem(request.params.id)
     if (!totem) return reply.status(404).send({ error: 'Totem not found' })
 

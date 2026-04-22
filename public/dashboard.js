@@ -73,6 +73,7 @@ export async function loadTotems() {
 function buildTotemCard(totem) {
   const durationLabel = formatDuration(totem.sessionDurationMs ?? 1800000)
   const entryUrl = `${window.location.origin}/play/totem?id=${totem._id}`
+  const queueCount = totem.queueSize || 0
   const card = document.createElement('div')
   card.className  = 'totem-card'
   card.dataset.id = totem._id
@@ -88,6 +89,7 @@ function buildTotemCard(totem) {
         <div class="totem-card-meta">
           <span>👥 ${totem.maxPlayers ?? 2} jogadores</span>
           <span>⏱ ${durationLabel}</span>
+          <span style="color: ${queueCount > 0 ? 'var(--accent)' : 'inherit'}; font-weight: ${queueCount > 0 ? '600' : 'normal'}">🧍‍♂️ Fila: ${queueCount}</span>
         </div>
         <div class="totem-session-status" data-status-area style="margin-top: 12px; margin-bottom: 0;">
           <span class="session-badge badge-loading">⏳ Verificando…</span>
@@ -97,6 +99,10 @@ function buildTotemCard(totem) {
           <button class="btn-icon btn-edit" title="Editar" aria-label="Editar totem ${escHtml(totem.name)}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Editar
+          </button>
+          <button class="btn-icon btn-clear-queue" title="Limpar Fila" aria-label="Limpar fila de ${escHtml(totem.name)}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3v4"></path><path d="M21 7h-8"></path><path d="M12 21H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h8"></path><path d="M12 7v14"></path></svg>
+            Limpar Fila
           </button>
           <button class="btn-icon btn-delete" title="Excluir" aria-label="Excluir totem ${escHtml(totem.name)}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -114,6 +120,7 @@ function buildTotemCard(totem) {
 
   card.querySelector('.btn-edit').addEventListener('click',   () => startEdit(totem))
   card.querySelector('.btn-delete').addEventListener('click', () => deleteTotem(totem._id, totem.name))
+  card.querySelector('.btn-clear-queue').addEventListener('click', () => clearTotemQueue(totem._id, totem.name))
 
   // Allow clicking the copy link to copy it to clipboard nicely
   const linkRef = card.querySelector('a')
@@ -328,6 +335,46 @@ async function deleteTotem(id, name) {
     })
   } catch (err) {
     showTotemError(`Erro ao excluir: ${err.message}`)
+  }
+}
+
+// ── Clear Queue ───────────────────────────────────────────────────────────────
+
+async function clearTotemQueue(id, name) {
+  const result = await Swal.fire({
+    title:              `Limpar fila de "${escHtml(name)}"?`,
+    text:               'Todos os jogadores na fila perderão suas vagas.',
+    icon:               'warning',
+    showCancelButton:   true,
+    confirmButtonColor: '#ef4444',
+    cancelButtonColor:  '#64748b',
+    confirmButtonText:  'Sim, limpar',
+    cancelButtonText:   'Cancelar',
+    reverseButtons:     true,
+    focusCancel:        true,
+  })
+
+  if (!result.isConfirmed) return
+
+  try {
+    const res = await fetch(`${API}/${id}/queue/clear`, { method: 'POST' })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error ?? `Erro ${res.status}`)
+    }
+
+    await loadTotems()
+
+    Swal.fire({
+      title:             'Fila Limpa!',
+      text:              `A fila do totem "${name}" foi limpa.`,
+      icon:              'success',
+      timer:             1800,
+      showConfirmButton: false,
+    })
+  } catch (err) {
+    showTotemError(`Erro ao limpar fila: ${err.message}`)
   }
 }
 

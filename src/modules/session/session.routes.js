@@ -76,7 +76,44 @@ async function sessionRoutes(fastify) {
   fastify.decorate('sessionService', service)
 
   // ── POST /api/sessions ──────────────────────────────────────────────────────
-  fastify.post('/api/sessions', async (request, reply) => {
+  fastify.post('/api/sessions', {
+    schema: {
+      tags: ['Sessions'],
+      summary: 'Create a new session',
+      body: {
+        type: 'object',
+        properties: {
+          totemId: { type: 'string' },
+          totems: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                ip: { type: 'string' },
+                udpPort: { type: 'number' }
+              }
+            }
+          },
+          maxPlayers: { type: 'number' },
+          expiresInMs: { type: 'number' }
+        }
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string' },
+            totemId: { type: 'string' },
+            status: { type: 'string' },
+            maxPlayers: { type: 'number' },
+            expiresAt: { type: 'string' },
+            playUrl: { type: 'string' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
     const { totems = [], maxPlayers, expiresInMs, totemId } = request.body ?? {}
 
     const ttlMs   = expiresInMs > 0 ? Number(expiresInMs) : undefined
@@ -95,7 +132,30 @@ async function sessionRoutes(fastify) {
   })
 
   // ── GET /api/sessions ───────────────────────────────────────────────────────
-  fastify.get('/api/sessions', async () => {
+  fastify.get('/api/sessions', {
+    schema: {
+      tags: ['Sessions'],
+      summary: 'List active sessions',
+      response: {
+        200: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              sessionId: { type: 'string' },
+              totemId: { type: 'string' },
+              status: { type: 'string' },
+              maxPlayers: { type: 'number' },
+              players: { type: 'array', items: { type: 'string' } },
+              totems: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              createdAt: { type: 'string' },
+              expiresAt: { type: 'string' }
+            }
+          }
+        }
+      }
+    }
+  }, async () => {
     const sessions = await service.listActiveSessions()
     return sessions.map(s => ({
       sessionId:  s._id ?? s.id,
@@ -110,7 +170,30 @@ async function sessionRoutes(fastify) {
   })
 
   // ── GET /api/sessions/:id ───────────────────────────────────────────────────
-  fastify.get('/api/sessions/:id', { schema: { params: sessionIdParam } }, async (request, reply) => {
+  fastify.get('/api/sessions/:id', {
+    schema: {
+      tags: ['Sessions'],
+      summary: 'Get session details',
+      params: sessionIdParam,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string' },
+            totemId: { type: 'string' },
+            status: { type: 'string' },
+            maxPlayers: { type: 'number' },
+            players: { type: 'array', items: { type: 'string' } },
+            totems: { type: 'array', items: { type: 'object', additionalProperties: true } },
+            expiresAt: { type: 'string', nullable: true },
+            endedAt: { type: 'string', nullable: true },
+            endReason: { type: 'string', nullable: true }
+          }
+        },
+        404: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     const session = await service.findSession(request.params.id)
 
     if (!session) return reply.status(404).send({ error: 'Session not found' })
@@ -129,7 +212,31 @@ async function sessionRoutes(fastify) {
   })
 
   // ── POST /api/sessions/:id/join ─────────────────────────────────────────────
-  fastify.post('/api/sessions/:id/join', { schema: { params: sessionIdParam } }, async (request, reply) => {
+  fastify.post('/api/sessions/:id/join', {
+    schema: {
+      tags: ['Sessions'],
+      summary: 'Join an active session',
+      params: sessionIdParam,
+      body: {
+        type: 'object',
+        properties: { playerId: { type: 'string' } },
+        required: ['playerId']
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string' },
+            status: { type: 'string' },
+            players: { type: 'array', items: { type: 'string' } }
+          }
+        },
+        400: { type: 'object', properties: { error: { type: 'string' } } },
+        404: { type: 'object', properties: { error: { type: 'string' } } },
+        409: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     const { playerId } = request.body ?? {}
 
     if (!playerId) return reply.status(400).send({ error: 'playerId is required' })
@@ -147,7 +254,23 @@ async function sessionRoutes(fastify) {
 
   // ── POST /api/sessions/:id/end ──────────────────────────────────────────────
   // Manual session termination by operator. Triggers auto-renew for the totem.
-  fastify.post('/api/sessions/:id/end', { schema: { params: sessionIdParam } }, async (request, reply) => {
+  fastify.post('/api/sessions/:id/end', {
+    schema: {
+      tags: ['Sessions'],
+      summary: 'End a session manually',
+      params: sessionIdParam,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean' },
+            newSessionId: { type: 'string', nullable: true }
+          }
+        },
+        404: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     const result = await service.endSession(request.params.id, 'manual')
 
     if (!result.ok) return reply.status(404).send({ error: result.error })
@@ -160,7 +283,17 @@ async function sessionRoutes(fastify) {
 
   // ── DELETE /api/sessions/:id ────────────────────────────────────────────────
   // Admin hard-delete. Normal flow should use POST /:id/end instead.
-  fastify.delete('/api/sessions/:id', { schema: { params: sessionIdParam } }, async (request, reply) => {
+  fastify.delete('/api/sessions/:id', {
+    schema: {
+      tags: ['Sessions'],
+      summary: 'Hard delete a session',
+      params: sessionIdParam,
+      response: {
+        204: { type: 'null' },
+        404: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     await service.endSession(request.params.id, 'manual')
     const result = await service.deleteSession(request.params.id)
 
@@ -170,7 +303,21 @@ async function sessionRoutes(fastify) {
   })
 
   // ── GET /api/sessions/:id/qr ────────────────────────────────────────────────
-  fastify.get('/api/sessions/:id/qr', { schema: { params: sessionIdParam } }, async (request, reply) => {
+  fastify.get('/api/sessions/:id/qr', {
+    schema: {
+      tags: ['Sessions'],
+      summary: 'Get session QR code',
+      params: sessionIdParam,
+      querystring: {
+        type: 'object',
+        properties: { format: { type: 'string', enum: ['png', 'dataurl'] } }
+      },
+      response: {
+        404: { type: 'object', properties: { error: { type: 'string' } } },
+        410: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
     const session = await service.findSession(request.params.id)
 
     if (!session) return reply.status(404).send({ error: 'Session not found' })

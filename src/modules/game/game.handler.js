@@ -11,7 +11,7 @@
 // Data flow:
 //   Socket → onMessage → buildMessage → redisPublisher.publish → UDP dispatcher (Phase 5)
 
-import { Channels, buildMessage } from '../../lib/channels.js'
+import { Channels, buildMessage, parseMessage } from '../../lib/channels.js'
 import { SessionCache } from '../session/session.cache.js'
 import { SessionRepository } from '../session/session.repository.js'
 import { createLogger } from '../../lib/logger.js'
@@ -39,6 +39,7 @@ export class GameHandler {
     this.connections = new Map()
 
     this._startHeartbeat()
+    this._setupSubscriptions()
   }
 
   // ── Public: called from game.routes.js ─────────────────────────────────────
@@ -65,6 +66,13 @@ export class GameHandler {
 
     if (session.status === 'finished') {
       socket.close(1008, 'Session already finished')
+      return
+    }
+
+    // If session has specific reserved/allowed players, enforce it
+    const allowed = session.allowedPlayers || []
+    if (allowed.length > 0 && !allowed.includes(playerId)) {
+      socket.close(1008, 'You are not allowed in this session')
       return
     }
 
@@ -254,5 +262,40 @@ export class GameHandler {
         try { socket.ping() } catch { /* socket may already be closing */ }
       }
     }, HEARTBEAT_INTERVAL_MS)
+  }
+
+  /**
+   * Subscribes to Redis events to broadcast them to WebSockets.
+   */
+  _setupSubscriptions() {
+    if (!this.subscriber) return
+
+    this.subscriber.psubscribe('game:event:*').catch(err => 
+      log.error({ err: err.message }, 'Failed to subscribe to game events')
+    )
+
+    this.subscriber.on('pmessage', (pattern, channel, raw) => {
+      if (pattern !== 'game:event:*') return
+      
+      const msg = parseMessage(raw)
+      if (!msg || msg.type !== 'event') return
+
+      const { sessionId } = msg
+      let sentCount = 0
+
+      // Broadcast to all sockets belonging to this session
+      for (const [socket, meta] of this.connections.entries()) {
+        if (meta.sessionId === sessionId) {
+          try {
+            socket.send(raw)
+            sentCount++
+          } catch (err) {
+            log.error({ err: err.message, sessionId, playerId: meta.playerId }, 'Failed to forward WS event')
+          }
+        }
+      }
+
+      log.debug({ sessionId, sentCount, event: msg.data?.event }, 'Broadcasted event to clients')
+    })
   }
 }

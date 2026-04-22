@@ -65,10 +65,19 @@ export class TotemService {
 
   /**
    * Returns all totems.
+   * Includes the current queue size for each.
    * @returns {Promise<object[]>}
    */
   async listTotems() {
-    return this.repo.list()
+    const totems = await this.repo.list()
+    
+    if (this._redisPub) {
+      await Promise.all(totems.map(async (t) => {
+        t.queueSize = await this._redisPub.llen(`queue:totem:${t._id}`)
+      }))
+    }
+
+    return totems
   }
 
   /**
@@ -156,6 +165,7 @@ export class TotemService {
 
   /**
    * Creates a new session for the given totem and sets it as current.
+   * Pops players from the queue to reserve their spots.
    * Uses totem's maxPlayers and sessionDurationMs, falling back to env defaults.
    *
    * @param {object} totem  Full totem document
@@ -164,16 +174,119 @@ export class TotemService {
   async startNewSession(totem) {
     const svc = this._getSessionService()
 
+    const maxPlayers = totem.maxPlayers ?? env.sessionMaxPlayers
+    const allowedPlayers = await this.dequeuePlayers(totem._id.toString(), maxPlayers)
+
     const session = await svc.createSession({
-      totemId:    totem._id,
-      totems:     [{ id: totem._id, ip: totem.ip, udpPort: totem.udpPort }],
-      maxPlayers: totem.maxPlayers ?? env.sessionMaxPlayers,
-      ttlMs:      totem.sessionDurationMs ?? env.sessionTimeoutMs,
+      totemId:        totem._id,
+      totems:         [{ id: totem._id, ip: totem.ip, udpPort: totem.udpPort }],
+      maxPlayers:     maxPlayers,
+      ttlMs:          totem.sessionDurationMs ?? env.sessionTimeoutMs,
+      allowedPlayers: allowedPlayers,
     })
 
     await this.repo.setCurrentSession(totem._id, session._id)
-    log.info({ totemId: totem._id, sessionId: session._id }, 'New session started for totem')
+    log.info({ totemId: totem._id, sessionId: session._id, allowedPlayers }, 'New session started for totem')
     return { ok: true, session }
+  }
+
+  // ── Queue System ────────────────────────────────────────────────────────────
+
+  /**
+   * Adds a player to the queue for this totem.
+   * Uses Redis List. Also registers a heartbeat for 2 minutes.
+   */
+  async joinQueue(totemId, playerId) {
+    if (!this._redisPub) return { ok: false, error: 'Redis disabled' }
+    const qKey = `queue:totem:${totemId}`
+    const hKey = `queue:heartbeat:${playerId}`
+    
+    // Check if player is already in queue
+    const pos = await this._redisPub.lpos(qKey, playerId)
+    // Add heartbeat regardless
+    await this._redisPub.setex(hKey, 120, '1')
+
+    if (pos !== null) {
+      // Already in queue
+      return { ok: true, position: pos + 1 }
+    }
+
+    // New to queue
+    await this._redisPub.rpush(qKey, playerId)
+    const len = await this._redisPub.llen(qKey)
+    return { ok: true, position: len }
+  }
+
+  /**
+   * Returns current queue status for the given player.
+   * Refreshes heartbeat.
+   */
+  async getQueueStatus(totemId, playerId) {
+    if (!this._redisPub) return { ok: false, error: 'Redis disabled' }
+    const qKey = `queue:totem:${totemId}`
+    const hKey = `queue:heartbeat:${playerId}`
+
+    const pos = await this._redisPub.lpos(qKey, playerId)
+    if (pos === null) return { ok: false, error: 'Not in queue' }
+
+    // Refresh heartbeat
+    await this._redisPub.setex(hKey, 120, '1')
+    
+    const size = await this._redisPub.llen(qKey)
+    return { ok: true, position: pos + 1, size }
+  }
+
+  /**
+   * Leaves the queue physically.
+   */
+  async leaveQueue(totemId, playerId) {
+    if (!this._redisPub) return { ok: true }
+    const qKey = `queue:totem:${totemId}`
+    const hKey = `queue:heartbeat:${playerId}`
+
+    await this._redisPub.lrem(qKey, 0, playerId)
+    await this._redisPub.del(hKey)
+    return { ok: true }
+  }
+
+  /**
+   * Drops all queue items. (For operator dashboard)
+   */
+  async clearQueue(totemId) {
+    if (!this._redisPub) return { ok: true }
+    await this._redisPub.del(`queue:totem:${totemId}`)
+    log.info({ totemId }, 'Queue cleared')
+    return { ok: true }
+  }
+
+  /**
+   * Takes the next 'count' players from the queue, ignoring ghost timeouts.
+   * @returns {Promise<string[]>} Array of playerIds
+   */
+  async dequeuePlayers(totemId, count) {
+    if (!this._redisPub) return []
+    const qKey = `queue:totem:${totemId}`
+
+    const selected = []
+    while (selected.length < count) {
+      const playerId = await this._redisPub.lpop(qKey)
+      if (!playerId) break // queue is empty
+
+      // Verify heartbeat
+      const hKey = `queue:heartbeat:${playerId}`
+      const hb = await this._redisPub.get(hKey)
+      if (!hb) {
+        // Heartbeat expired, ignore this player and continue
+        log.info({ totemId, playerId }, 'Queue player expired (no heartbeat)')
+        continue
+      }
+      
+      // Clean heartbeat
+      await this._redisPub.del(hKey)
+      selected.push(playerId)
+    }
+
+    return selected
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────

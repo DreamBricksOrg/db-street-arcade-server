@@ -1,10 +1,12 @@
 // public/totem-entry.js
 // Resolves the active session for the scanned totem and redirects to the play page.
+// Optionally manages the queue logic.
 //
 // Flow:
 //   1. Read ?id= from URL (totemId)
-//   2. GET /api/totems/:id/session  → resolves or creates active session
-//   3. Redirect to /play/:sessionId
+//   2. POST /api/totems/:id/queue/join
+//   3. If 'play', redirect to /play/:sessionId
+//   4. If 'queue', display queue UI and poll GET /api/totems/:id/queue/status
 
 const params  = new URLSearchParams(window.location.search)
 const totemId = params.get('id')
@@ -12,18 +14,75 @@ const totemId = params.get('id')
 const $loadingSub  = document.getElementById('loading-sub')
 const $errorScreen = document.getElementById('error-screen')
 const $loadScreen  = document.getElementById('loading')
+const $queueScreen = document.getElementById('queue-screen')
+const $queuePos    = document.getElementById('queue-pos')
 const $errorMsg    = document.getElementById('error-msg')
 const $retryBtn    = document.getElementById('retry-btn')
 
+$retryBtn.addEventListener('click', () => {
+  window.location.reload()
+})
+
 function showError(msg) {
   $loadScreen.style.display  = 'none'
+  $queueScreen.style.display = 'none'
   $errorScreen.style.display = 'flex'
   $errorMsg.textContent      = msg
+}
+
+function showQueue(pos) {
+  $loadScreen.style.display  = 'none'
+  $errorScreen.style.display = 'none'
+  $queueScreen.style.display = 'flex'
+  $queuePos.textContent      = pos
+}
+
+async function getPlayerId() {
+  const storageKey = `sa_queue_pid_${totemId}`
+  let pid = sessionStorage.getItem(storageKey)
+  if (!pid) {
+    pid = 'qp_' + crypto.randomUUID().slice(0, 8)
+    sessionStorage.setItem(storageKey, pid)
+  }
+  return pid
+}
+
+let pollTimer = null
+
+async function pollQueueStatus(playerId) {
+  try {
+    const res = await fetch(`/api/totems/${totemId}/queue/status?playerId=${playerId}`)
+    const data = await res.json()
+
+    if (!res.ok) {
+      if (data.error === 'Not in queue') {
+        // Did we get kicked? Or maybe the session opened and we lost connection?
+        // Let's just try to join again
+        resolveAndRedirect()
+        return
+      }
+      showError(data.error ?? 'Falha ao buscar status da fila.')
+      return
+    }
+
+    if (data.status === 'play') {
+      window.location.replace(`/play/${data.sessionId}`)
+      return
+    }
+
+    if (data.status === 'queue') {
+      showQueue(data.position)
+      pollTimer = setTimeout(() => pollQueueStatus(playerId), 3000)
+    }
+  } catch (err) {
+    showError('Problema de rede. ' + err.message)
+  }
 }
 
 async function resolveAndRedirect() {
   $loadScreen.style.display  = 'flex'
   $errorScreen.style.display = 'none'
+  $queueScreen.style.display = 'none'
   $loadingSub.textContent    = 'Conectando ao totem…'
 
   if (!totemId) {
@@ -32,9 +91,14 @@ async function resolveAndRedirect() {
   }
 
   try {
-    $loadingSub.textContent = 'Buscando sessão…'
+    $loadingSub.textContent = 'Verificando vagas…'
 
-    const res  = await fetch(`/api/totems/${totemId}/session`)
+    const playerId = await getPlayerId()
+    const res = await fetch(`/api/totems/${totemId}/queue/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId })
+    })
     const data = await res.json()
 
     if (!res.ok) {
@@ -42,18 +106,23 @@ async function resolveAndRedirect() {
       return
     }
 
-    $loadingSub.textContent = 'Redirecionando…'
+    if (data.status === 'play') {
+      $loadingSub.textContent = 'Redirecionando…'
+      // Delay visual
+      await new Promise(r => setTimeout(r, 400))
+      window.location.replace(`/play/${data.sessionId}`)
+      return
+    }
 
-    // Short delay so the user sees the redirect message
-    await new Promise(r => setTimeout(r, 400))
+    if (data.status === 'queue') {
+      showQueue(data.position)
+      // Begins polling
+      pollTimer = setTimeout(() => pollQueueStatus(playerId), 3000)
+    }
 
-    window.location.replace(`/play/${data.sessionId}`)
-  } catch {
-    showError('Erro de conexão. Verifique sua internet e tente novamente.')
+  } catch (err) {
+    showError('Falha de rede: ' + err.message)
   }
 }
 
-$retryBtn.addEventListener('click', resolveAndRedirect)
-
-// Run immediately
 resolveAndRedirect()

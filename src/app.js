@@ -10,6 +10,7 @@ import mongoPlugin     from './plugins/mongodb.js'
 import websocketPlugin from './plugins/websocket.js'
 import udpPlugin       from './plugins/udp.js'
 import staticPlugin    from './plugins/static.js'
+import swaggerPlugin   from './plugins/swagger.js'
 import gameRoutes      from './modules/game/game.routes.js'
 import sessionRoutes   from './modules/session/session.routes.js'
 import totemRoutes     from './modules/totem/totem.routes.js'
@@ -54,6 +55,9 @@ export async function buildApp() {
   // ── Phase 4: WebSocket + Game Routes ─────────────────────────────────────
   await app.register(websocketPlugin)
   await app.register(gameRoutes)
+
+  // ── Phase 4.5: Swagger Documentation ──────────────────────────────────────
+  await app.register(swaggerPlugin)
 
   // ── Phase 5: UDP ──────────────────────────────────────────────────────────
   await app.register(udpPlugin)

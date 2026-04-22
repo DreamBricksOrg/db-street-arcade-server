@@ -42,11 +42,11 @@ export class SessionService {
 
   /**
    * Creates a new session and syncs it to Redis.
-   * @param {{ totemId?: string, totems?: object[], maxPlayers?: number, ttlMs?: number }} options
+   * @param {{ totemId?: string, totems?: object[], maxPlayers?: number, ttlMs?: number, allowedPlayers?: string[] }} options
    * @returns {Promise<object>} Created session document
    */
-  async createSession({ totemId, totems = [], maxPlayers, ttlMs } = {}) {
-    const session = await this.repo.createSession({ totemId, totems, maxPlayers, ttlMs })
+  async createSession({ totemId, totems = [], maxPlayers, ttlMs, allowedPlayers = [] } = {}) {
+    const session = await this.repo.createSession({ totemId, totems, maxPlayers, ttlMs, allowedPlayers })
     await this.cache.set(session)
     log.info({ sessionId: session._id, totemId: session.totemId }, 'Session created')
     return session

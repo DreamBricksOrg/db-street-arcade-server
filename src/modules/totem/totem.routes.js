@@ -264,7 +264,10 @@ async function totemRoutes(fastify) {
       params: totemIdParam,
       body: {
         type: 'object',
-        properties: { playerId: { type: 'string' } },
+        properties: { 
+          playerId: { type: 'string' },
+          metadata: { type: 'object', additionalProperties: true }
+        },
         required: ['playerId']
       },
       response: {
@@ -283,8 +286,15 @@ async function totemRoutes(fastify) {
     }
   }, async (request, reply) => {
     const { id } = request.params
-    const { playerId } = request.body || {}
+    const { playerId, metadata: clientMeta } = request.body || {}
     if (!playerId) return reply.status(400).send({ error: 'playerId is required' })
+
+    // Build metadata from headers + body
+    const metadata = {
+      ua: request.headers['user-agent'],
+      ip: request.ip,
+      ...(clientMeta || {})
+    }
 
     const totem = await service.findTotem(id)
     if (!totem) return reply.status(404).send({ error: 'Totem not found' })
@@ -302,7 +312,7 @@ async function totemRoutes(fastify) {
     // 1. Reserved by the queue (was dequeued) → play and claim slot
     if (allowed.includes(playerId)) {
       await service.leaveQueue(id, playerId)
-      if (svc) await svc.joinSession(sid, playerId)
+      if (svc) await svc.joinSession(sid, playerId, metadata)
       return { status: 'play', sessionId: sid }
     }
 
@@ -312,12 +322,12 @@ async function totemRoutes(fastify) {
 
     // 3. No queue and free slots → play directly and claim the slot
     if (queueSize === 0 && occupied < session.maxPlayers) {
-      if (svc) await svc.joinSession(sid, playerId)
+      if (svc) await svc.joinSession(sid, playerId, metadata)
       return { status: 'play', sessionId: sid }
     }
 
     // 4. Full or queue exists → wait in line
-    const result = await service.joinQueue(id, playerId)
+    const result = await service.joinQueue(id, playerId, metadata)
     if (!result.ok) return reply.status(500).send({ error: result.error })
     return { status: 'queue', position: result.position }
   })
@@ -431,6 +441,102 @@ async function totemRoutes(fastify) {
   }, async (request, reply) => {
     const result = await service.clearQueue(request.params.id)
     if (!result.ok) return reply.status(500).send({ error: result.error })
+    return { ok: true }
+  })
+
+  /**
+   * GET /api/totems/:id/queue
+   * Returns the full ordered list of player IDs currently waiting in the queue,
+   * plus the active session players for this totem.
+   */
+  fastify.get('/api/totems/:id/queue', {
+    schema: {
+      tags: ['Totems', 'Queue'],
+      summary: 'Get full queue and session state for a totem',
+      params: totemIdParam,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            queue:          { 
+              type: 'array', 
+              items: { 
+                type: 'object',
+                properties: {
+                  id:       { type: 'string' },
+                  metadata: { type: 'object', additionalProperties: true }
+                }
+              }
+            },
+            sessionPlayers: { type: 'array', items: { type: 'object' } },
+            sessionId:      { type: 'string' },
+          },
+        },
+        404: { type: 'object', properties: { error: { type: 'string' } } },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params
+
+    const totem = await service.findTotem(id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+
+    // Full queue list from Redis
+    const queueIds = service._redisPub
+      ? await service._redisPub.lrange(`queue:totem:${id}`, 0, -1)
+      : []
+
+    // Fetch metadata for each player in queue
+    const queue = await Promise.all(queueIds.map(async (pid) => {
+      const meta = await service.getPlayerMetadata(pid)
+      return { id: pid, metadata: meta }
+    }))
+
+    // Session state from Redis cache (or Mongo fallback)
+    let sessionPlayers = []
+    let sessionId      = totem.currentSessionId ?? null
+
+    if (sessionId && fastify.sessionService) {
+      const session = await fastify.sessionService.findSession(sessionId)
+      sessionPlayers = (session?.players ?? []).filter(p => p && (p.id || p._id || typeof p === 'string'))
+    }
+
+    return { 
+      queue, 
+      sessionPlayers, 
+      sessionId: sessionId ? sessionId.toString() : null 
+    }
+  })
+
+  /**
+   * DELETE /api/totems/:id/queue/:playerId
+   * Kicks a player from the queue. Does not affect active session.
+   */
+  fastify.delete('/api/totems/:id/queue/:playerId', {
+    schema: {
+      tags: ['Totems', 'Queue'],
+      summary: 'Kick a player from the queue',
+      params: {
+        type:       'object',
+        properties: {
+          id:       { type: 'string', minLength: 36, maxLength: 36 },
+          playerId: { type: 'string', minLength: 1 },
+        },
+        required: ['id', 'playerId'],
+      },
+      response: {
+        200: { type: 'object', properties: { ok: { type: 'boolean' } } },
+        404: { type: 'object', properties: { error: { type: 'string' } } },
+      },
+    },
+  }, async (request, reply) => {
+    const { id, playerId } = request.params
+
+    const totem = await service.findTotem(id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+
+    await service.leaveQueue(id, playerId)
+    log.info({ totemId: id, playerId }, 'Player kicked from queue by operator')
     return { ok: true }
   })
 

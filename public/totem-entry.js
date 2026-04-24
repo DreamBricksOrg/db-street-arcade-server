@@ -95,10 +95,19 @@ async function resolveAndRedirect() {
     $loadingSub.textContent = 'Verificando vagas…'
 
     const playerId = await getPlayerId()
+    
+    // Collect basic device metadata
+    const metadata = {
+      screen: `${window.screen.width}x${window.screen.height}`,
+      ratio: window.devicePixelRatio,
+      lang: navigator.language,
+      plat: navigator.platform
+    }
+
     const res = await fetch(`/api/totems/${totemId}/queue/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerId })
+      body: JSON.stringify({ playerId, metadata })
     })
     const data = await res.json()
 

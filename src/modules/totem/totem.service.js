@@ -196,15 +196,21 @@ export class TotemService {
    * Adds a player to the queue for this totem.
    * Uses Redis List. Also registers a heartbeat for 2 minutes.
    */
-  async joinQueue(totemId, playerId) {
+  async joinQueue(totemId, playerId, metadata = null) {
     if (!this._redisPub) return { ok: false, error: 'Redis disabled' }
     const qKey = `queue:totem:${totemId}`
     const hKey = `queue:heartbeat:${playerId}`
+    const mKey = `player:metadata:${playerId}`
     
     // Check if player is already in queue
     const pos = await this._redisPub.lpos(qKey, playerId)
     // Add heartbeat regardless
     await this._redisPub.setex(hKey, 120, '1')
+
+    // Store metadata if provided (expires with heartbeat)
+    if (metadata) {
+      await this._redisPub.setex(mKey, 120, JSON.stringify(metadata))
+    }
 
     if (pos !== null) {
       // Already in queue
@@ -215,6 +221,20 @@ export class TotemService {
     await this._redisPub.rpush(qKey, playerId)
     const len = await this._redisPub.llen(qKey)
     return { ok: true, position: len }
+  }
+
+  /**
+   * Fetches metadata for a player from Redis.
+   */
+  async getPlayerMetadata(playerId) {
+    if (!this._redisPub) return null
+    const mKey = `player:metadata:${playerId}`
+    const data = await this._redisPub.get(mKey)
+    try {
+      return data ? JSON.parse(data) : null
+    } catch {
+      return null
+    }
   }
 
   /**

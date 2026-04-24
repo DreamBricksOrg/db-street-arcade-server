@@ -281,6 +281,31 @@ async function sessionRoutes(fastify) {
     }
   })
 
+  // ── POST /api/sessions/:id/players/:playerId/kick ──────────────────────────
+  fastify.post('/api/sessions/:id/players/:playerId/kick', {
+    schema: {
+      tags: ['Sessions'],
+      summary: 'Kick a specific player from a session',
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          playerId: { type: 'string' }
+        },
+        required: ['id', 'playerId']
+      },
+      response: {
+        200: { type: 'object', properties: { ok: { type: 'boolean' } } },
+        404: { type: 'object', properties: { error: { type: 'string' } } }
+      }
+    }
+  }, async (request, reply) => {
+    const { id, playerId } = request.params
+    const result = await service.leaveSession(id, playerId)
+    if (!result.ok) return reply.status(404).send({ error: result.error })
+    return { ok: true }
+  })
+
   // ── POST /api/sessions/:id/player-died ────────────────────────────────────
   // Called by the demo-snake server when a player dies.
   // Ends the session (advancing the queue) only if someone is waiting.

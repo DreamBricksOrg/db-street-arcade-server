@@ -30,6 +30,7 @@ const totemFormModalClose = document.getElementById('totemFormModalClose')
 // ── State ─────────────────────────────────────────────────────────────────────
 let editingTotemId    = null
 let sessionPollTimers = {}  // totemId → intervalId
+let queuePollTimers   = {}  // totemId → intervalId
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -45,9 +46,11 @@ async function apiFetch(url, options = {}) {
 // ── Load & Render ──────────────────────────────────────────────────────────────
 
 export async function loadTotems() {
-  // Clean up old session polls
+  // Clean up old polls
   Object.values(sessionPollTimers).forEach(clearInterval)
+  Object.values(queuePollTimers).forEach(clearInterval)
   sessionPollTimers = {}
+  queuePollTimers   = {}
 
   totemList.innerHTML = ''
   const totems = await apiFetch(API).catch(() => [])
@@ -64,6 +67,7 @@ export async function loadTotems() {
     const card = buildTotemCard(t)
     totemList.appendChild(card)
     startSessionPoll(t, card)
+    startQueuePoll(t, card)
   }
 
   dispatchTotemsUpdated(totems)
@@ -74,6 +78,7 @@ function buildTotemCard(totem) {
   const durationLabel = formatDuration(totem.sessionDurationMs ?? 1800000)
   const entryUrl = `${window.location.origin}/play/totem?id=${totem._id}`
   const queueCount = totem.queueSize || 0
+  const shortId = totem._id.slice(0, 8)
   const card = document.createElement('div')
   card.className  = 'totem-card'
   card.dataset.id = totem._id
@@ -86,7 +91,14 @@ function buildTotemCard(totem) {
           <span class="totem-card-name">${escHtml(totem.name)}</span>
           <span class="totem-card-addr">${escHtml(totem.ip)}:${totem.udpPort}</span>
         </div>
-        <div class="totem-card-meta">
+
+        <!-- Totem ID row -->
+        <div style="display: flex; align-items: center; gap: 6px; margin-top: 5px;">
+          <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">ID</span>
+          <code class="totem-id-chip" data-full-id="${escHtml(totem._id)}" title="Clique para copiar o ID completo" style="cursor:pointer;">${shortId}…</code>
+        </div>
+
+        <div class="totem-card-meta" style="margin-top: 8px;">
           <span>👥 ${totem.maxPlayers ?? 2} jogadores</span>
           <span>⏱ ${durationLabel}</span>
           <span style="color: ${queueCount > 0 ? 'var(--accent)' : 'inherit'}; font-weight: ${queueCount > 0 ? '600' : 'normal'}">🧍‍♂️ Fila: ${queueCount}</span>
@@ -94,8 +106,16 @@ function buildTotemCard(totem) {
         <div class="totem-session-status" data-status-area style="margin-top: 12px; margin-bottom: 0;">
           <span class="session-badge badge-loading">⏳ Verificando…</span>
         </div>
+
+        <!-- Queue panel (hidden by default, toggled by button) -->
+        <div data-queue-area style="margin-top: 12px; display: none;"></div>
+
         <div style="flex: 1;"></div>
         <div class="totem-card-actions" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+          <button class="btn-icon btn-queue-toggle" title="Ver Fila" aria-label="Ver fila do totem ${escHtml(totem.name)}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            Fila
+          </button>
           <button class="btn-icon btn-edit" title="Editar" aria-label="Editar totem ${escHtml(totem.name)}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Editar
@@ -118,11 +138,39 @@ function buildTotemCard(totem) {
     </div>
   `
 
+  // Copy full ID on click
+  card.querySelector('.totem-id-chip').addEventListener('click', function () {
+    const fullId = this.dataset.fullId
+    navigator.clipboard.writeText(fullId).then(() => {
+      const orig = this.textContent
+      this.textContent = 'Copiado!'
+      this.style.color = 'var(--success)'
+      setTimeout(() => { this.textContent = orig; this.style.color = '' }, 1800)
+    })
+  })
+
   card.querySelector('.btn-edit').addEventListener('click',   () => startEdit(totem))
   card.querySelector('.btn-delete').addEventListener('click', () => deleteTotem(totem._id, totem.name))
   card.querySelector('.btn-clear-queue').addEventListener('click', () => clearTotemQueue(totem._id, totem.name))
 
-  // Allow clicking the copy link to copy it to clipboard nicely
+  // Queue panel toggle — stored so startQueuePoll can reference it
+  const queueArea   = card.querySelector('[data-queue-area]')
+  const toggleBtn   = card.querySelector('.btn-queue-toggle')
+  let   queueOpen   = false
+  let   queueRender = null  // injected by startQueuePoll
+
+  toggleBtn.addEventListener('click', () => {
+    queueOpen = !queueOpen
+    queueArea.style.display = queueOpen ? 'block' : 'none'
+    toggleBtn.classList.toggle('btn-queue-toggle--active', queueOpen)
+    toggleBtn.title = queueOpen ? 'Fechar Fila' : 'Ver Fila'
+    if (queueOpen && queueRender) queueRender()  // refresh immediately on open
+  })
+
+  // Expose so startQueuePoll can inject the render fn
+  card._injectQueueRender = (fn) => { queueRender = fn }
+
+  // Allow clicking the copy link to copy to clipboard
   const linkRef = card.querySelector('a')
   linkRef.addEventListener('click', (e) => {
     e.preventDefault()
@@ -179,6 +227,170 @@ function startSessionPoll(totem, card) {
 
   render()
   sessionPollTimers[totem._id] = setInterval(render, 15_000)
+}
+
+// ── Queue Panel ───────────────────────────────────────────────────────────────
+
+function startQueuePoll(totem, card) {
+  const render = async () => {
+    const area = card.querySelector('[data-queue-area]')
+    if (!area || area.style.display === 'none') return  // skip if panel is closed
+
+    let data
+    try {
+      const res = await fetch(`${API}/${totem._id}/queue`)
+      data = res.ok ? await res.json() : null
+    } catch { data = null }
+
+    if (!data) { area.innerHTML = ''; return }
+
+    const { queue = [], sessionPlayers = [] } = data
+    if (queue.length === 0 && sessionPlayers.length === 0) {
+      area.innerHTML = `<div class="queue-panel"><div class="queue-panel-header"><span>Controle de Fila</span><span class="queue-count">Vazio</span></div></div>`
+      return
+    }
+
+    const formatDeviceMeta = (meta) => {
+      if (!meta || !meta.ua) return ''
+      const ua = meta.ua.toLowerCase()
+      let device = '🌐'
+      
+      if (ua.includes('iphone')) device = '📱 iPhone'
+      else if (ua.includes('ipad')) device = 'Tablet'
+      else if (ua.includes('android')) {
+        device = '📱 Android'
+        // Simple attempt to get model: usually after "Android X; "
+        const parts = meta.ua.split(';')
+        if (parts.length > 2 && ua.includes('android')) {
+          const model = parts[2].split(')')[0].trim()
+          if (model.length < 20) device += ` (${model})`
+        }
+      }
+      else if (ua.includes('windows')) device = '💻 Win'
+      else if (ua.includes('macintosh')) device = '💻 Mac'
+      else if (ua.includes('linux')) device = '🐧 Linux'
+
+      let browser = ''
+      if (ua.includes('chrome')) browser = 'Chrome'
+      else if (ua.includes('safari') && !ua.includes('chrome')) browser = 'Safari'
+      else if (ua.includes('firefox')) browser = 'Firefox'
+      else if (ua.includes('edg')) browser = 'Edge'
+      
+      const screen = meta.screen ? ` · ${meta.screen}` : ''
+      const lang = meta.lang ? ` · ${meta.lang.split('-')[0].toUpperCase()}` : ''
+      
+      return `<div class="queue-device-meta">${device}${browser ? ' · ' + browser : ''}${screen}${lang}</div>`
+    }
+
+    const playerRows = sessionPlayers.filter(p => p && (typeof p === 'string' || p.id || p._id)).map((p) => {
+      const pid = (typeof p === 'string') ? p : (p.id || p._id)
+      const pidStr = String(pid)
+      const shortId = pidStr.length > 14 ? pidStr.slice(0, 14) : pidStr
+      const metaHtml = formatDeviceMeta(p?.metadata)
+      return `
+        <div class="queue-row queue-row--playing">
+          <span class="queue-pos">🎮</span>
+          <div style="flex: 1; min-width: 0;">
+            <div class="queue-pid" title="${escHtml(pidStr)}">${escHtml(shortId)}${pidStr.length > 14 ? '…' : ''}</div>
+            ${metaHtml}
+          </div>
+          <button class="btn-kick" 
+            data-totem-id="${escHtml(totem._id)}"
+            data-session-id="${escHtml(String(data.sessionId || ''))}" 
+            data-player-id="${escHtml(pidStr)}" 
+            title="Expulsar da sessão">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Expulsar
+          </button>
+        </div>`
+    }).join('')
+
+    const queueRows = queue.filter(item => item && (typeof item === 'string' || item.id || item._id)).map((item, i) => {
+      const pid = (typeof item === 'string') ? item : (item.id || item._id)
+      const pidStr = String(pid)
+      const shortId = pidStr.length > 14 ? pidStr.slice(0, 14) : pidStr
+      const metaHtml = formatDeviceMeta(item?.metadata)
+      return `
+        <div class="queue-row" data-player-id="${escHtml(pidStr)}">
+          <span class="queue-pos">#${i + 1}</span>
+          <div style="flex: 1; min-width: 0;">
+            <div class="queue-pid" title="${escHtml(pidStr)}">${escHtml(shortId)}${pidStr.length > 14 ? '…' : ''}</div>
+            ${metaHtml}
+          </div>
+          <button class="btn-kick" data-totem-id="${escHtml(totem._id)}" data-player-id="${escHtml(pidStr)}" title="Expulsar da fila">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Expulsar
+          </button>
+        </div>`
+    }).join('')
+
+    area.innerHTML = `
+      <div class="queue-panel">
+        <div class="queue-panel-header">
+          <span>Controle de Fila</span>
+          <span class="queue-count">${sessionPlayers.length} jogando · ${queue.length} na fila</span>
+        </div>
+        ${playerRows}
+        ${queue.length > 0 && sessionPlayers.length > 0 ? `<div class="queue-divider"></div>` : ''}
+        ${queueRows}
+      </div>
+    `
+
+    area.querySelectorAll('.btn-kick').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const pid = btn.dataset.playerId
+        const tid = btn.dataset.totemId
+        const sid = btn.dataset.sessionId
+        
+        if (sid) {
+          await kickFromSession(sid, pid, totem.name)
+        } else {
+          await kickFromQueue(tid, pid, totem.name)
+        }
+        render()
+      })
+    })
+  }
+
+  // Inject render into the card so the toggle button can call it
+  card._injectQueueRender?.(render)
+
+  // Poll every 10s (only renders when panel is open)
+  queuePollTimers[totem._id] = setInterval(render, 10_000)
+}
+
+// ── Kick from Queue ───────────────────────────────────────────────────────────
+
+async function kickFromQueue(totemId, playerId, totemName) {
+  try {
+    const res = await fetch(`${API}/${totemId}/queue/${encodeURIComponent(playerId)}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error(`Erro ${res.status}`)
+    Swal.fire({
+      title:             'Jogador Expulso',
+      text:              `O jogador foi removido da fila de "${totemName}".`,
+      icon:              'success',
+      timer:             1500,
+      showConfirmButton: false,
+    })
+  } catch (err) {
+    showTotemError(`Erro ao expulsar da fila: ${err.message}`)
+  }
+}
+
+async function kickFromSession(sessionId, playerId, totemName) {
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}/players/${encodeURIComponent(playerId)}/kick`, { method: 'POST' })
+    if (!res.ok) throw new Error(`Erro ${res.status}`)
+    Swal.fire({
+      title:             'Jogador Expulso',
+      text:              `O jogador foi removido da sessão de "${totemName}".`,
+      icon:              'success',
+      timer:             1500,
+      showConfirmButton: false,
+    })
+  } catch (err) {
+    showTotemError(`Erro ao expulsar da sessão: ${err.message}`)
+  }
 }
 
 // ── End Session ────────────────────────────────────────────────────────────────

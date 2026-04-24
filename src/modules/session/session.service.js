@@ -83,9 +83,10 @@ export class SessionService {
    * Validates capacity and state before adding.
    * @param {string} sessionId
    * @param {string} playerId
+   * @param {object} [metadata]
    * @returns {Promise<{ok: boolean, error?: string, session?: object}>}
    */
-  async joinSession(sessionId, playerId) {
+  async joinSession(sessionId, playerId, metadata = null) {
     const session = await this.findSession(sessionId)
 
     if (!session) return { ok: false, error: 'Session not found' }
@@ -100,7 +101,7 @@ export class SessionService {
 
     // Update in-memory object if not already there
     if (!isAlreadyIn) {
-      currentPlayers.push({ id: playerId, connectedAt: new Date() })
+      currentPlayers.push({ id: playerId, connectedAt: new Date(), metadata })
       session.players = currentPlayers
     }
     
@@ -117,6 +118,7 @@ export class SessionService {
     await this._publish(Channels.sessionSync(sessionId), 'sync', sessionId, playerId, {
       event: 'player_joined',
       playerId,
+      metadata
     })
 
     log.info({ sessionId, playerId, status: session.status }, 'Player joined session (Redis-only)')

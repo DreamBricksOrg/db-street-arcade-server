@@ -260,6 +260,16 @@ export class TotemService {
   }
 
   /**
+   * Returns how many players are currently waiting in this totem's queue.
+   * @param {string} totemId
+   * @returns {Promise<number>}
+   */
+  async getQueueSize(totemId) {
+    if (!this._redisPub) return 0
+    return this._redisPub.llen(`queue:totem:${totemId}`)
+  }
+
+  /**
    * Takes the next 'count' players from the queue, ignoring ghost timeouts.
    * @returns {Promise<string[]>} Array of playerIds
    */

@@ -292,28 +292,33 @@ async function totemRoutes(fastify) {
     const sessionRes = await service.resolveSession(id)
     if (!sessionRes.ok) return reply.status(500).send({ error: sessionRes.error })
     const session = sessionRes.session
+    const sid = (session._id ?? session.id).toString()
+    const svc = fastify.sessionService
 
-    // Check if session has room (and no one else is waiting ahead of us)
-    const qStatus = service._redisPub ? await service._redisPub.llen(`queue:totem:${id}`) : 0
-    const occupied = (session.players || []).length
-    const allowed  = session.allowedPlayers || [] // For reserved queue pop
-    
-    // If the player is already allowed, they can join instantly
+    const allowed  = session.allowedPlayers || []
+    const players  = session.players || []
+    const queueSize = service._redisPub ? await service._redisPub.llen(`queue:totem:${id}`) : 0
+
+    // 1. Reserved by the queue (was dequeued) → play and claim slot
     if (allowed.includes(playerId)) {
-      const sid = (session._id ?? session.id).toString()
+      await service.leaveQueue(id, playerId)
+      if (svc) await svc.joinSession(sid, playerId)
       return { status: 'play', sessionId: sid }
     }
 
-    // If session has space and queue is empty, they can go straight to play
-    if (qStatus === 0 && occupied < session.maxPlayers && allowed.length === 0) {
-      const sid = (session._id ?? session.id).toString()
+    // 2. Effective occupied = joined players + allowedPlayers not yet connected
+    const unclaimedReservations = allowed.filter(aid => !players.some(p => p.id === aid)).length
+    const occupied = players.length + unclaimedReservations
+
+    // 3. No queue and free slots → play directly and claim the slot
+    if (queueSize === 0 && occupied < session.maxPlayers) {
+      if (svc) await svc.joinSession(sid, playerId)
       return { status: 'play', sessionId: sid }
     }
 
-    // Otherwise, join the queue
+    // 4. Full or queue exists → wait in line
     const result = await service.joinQueue(id, playerId)
     if (!result.ok) return reply.status(500).send({ error: result.error })
-
     return { status: 'queue', position: result.position }
   })
 
@@ -355,10 +360,12 @@ async function totemRoutes(fastify) {
     const sessionRes = await service.resolveSession(id)
     if (sessionRes.ok) {
       const allowed = sessionRes.session.allowedPlayers || []
-      // If player was called to play
+      // If player was called to play (dequeued into allowedPlayers)
       if (allowed.includes(playerId)) {
-        await service.leaveQueue(id, playerId) // leave queue definitively
+        await service.leaveQueue(id, playerId)
         const sid = (sessionRes.session._id ?? sessionRes.session.id).toString()
+        const svc = fastify.sessionService
+        if (svc) await svc.joinSession(sid, playerId)
         return { status: 'play', sessionId: sid }
       }
     }
@@ -367,6 +374,42 @@ async function totemRoutes(fastify) {
     if (!ok) return reply.status(error === 'Not in queue' ? 404 : 500).send({ error })
 
     return { status: 'queue', position, size }
+  })
+
+  // ── POST /api/totems/:id/end-session ─────────────────────────────────────────
+  // Ends the active session for the given totem.
+  // Used by the game/totem itself when the player dies.
+  fastify.post('/api/totems/:id/end-session', {
+    schema: {
+      tags: ['Totems'],
+      summary: 'End the active session for a totem',
+      description: 'Resolves the active session for the totem by ID and ends it. Used by the game client on player death.',
+      params: totemIdParam,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            ok:           { type: 'boolean' },
+            newSessionId: { type: 'string' },
+          },
+        },
+        404: { type: 'object', properties: { error: { type: 'string' } } },
+        500: { type: 'object', properties: { error: { type: 'string' } } },
+      },
+    },
+  }, async (request, reply) => {
+    const totem = await service.findTotem(request.params.id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+    if (!totem.currentSessionId) return reply.status(404).send({ error: 'No active session for this totem' })
+
+    const svc = fastify.sessionService
+    if (!svc) return reply.status(500).send({ error: 'SessionService not available' })
+
+    const result = await svc.endSession(totem.currentSessionId, 'manual')
+    if (!result.ok) return reply.status(500).send({ error: result.error })
+
+    log.info({ totemId: request.params.id, sessionId: totem.currentSessionId }, 'Session ended via totem end-session route')
+    return { ok: true, newSessionId: result.newSessionId }
   })
 
   /**

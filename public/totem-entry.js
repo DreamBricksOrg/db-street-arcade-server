@@ -66,6 +66,7 @@ async function pollQueueStatus(playerId) {
     }
 
     if (data.status === 'play') {
+      sessionStorage.setItem(`sa_player_${data.sessionId}`, playerId)
       window.location.replace(`/play/${data.sessionId}`)
       return
     }
@@ -108,7 +109,8 @@ async function resolveAndRedirect() {
 
     if (data.status === 'play') {
       $loadingSub.textContent = 'Redirecionando…'
-      // Delay visual
+      // Share playerId so session.js uses the same ID for WS connection
+      sessionStorage.setItem(`sa_player_${data.sessionId}`, playerId)
       await new Promise(r => setTimeout(r, 400))
       window.location.replace(`/play/${data.sessionId}`)
       return

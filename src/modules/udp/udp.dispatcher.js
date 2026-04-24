@@ -48,15 +48,24 @@ export class UdpDispatcher {
    * Called once after all plugins are ready.
    */
   async start() {
-    await this.subscriber.psubscribe('game:input:*')
+    await Promise.all([
+      this.subscriber.psubscribe('game:input:*'),
+      this.subscriber.psubscribe('game:event:*'),
+    ])
 
-    this.subscriber.on('pmessage', (_pattern, _channel, raw) => {
-      this._handleMessage(raw).catch((err) =>
-        log.error({ err: err.message }, 'Dispatcher error')
-      )
+    this.subscriber.on('pmessage', (pattern, _channel, raw) => {
+      if (pattern === 'game:input:*') {
+        this._handleMessage(raw).catch((err) =>
+          log.error({ err: err.message }, 'Dispatcher input error')
+        )
+      } else if (pattern === 'game:event:*') {
+        this._handleEvent(raw).catch((err) =>
+          log.error({ err: err.message }, 'Dispatcher event error')
+        )
+      }
     })
 
-    log.info("Subscribed to 'game:input:*'")
+    log.info("Subscribed to 'game:input:*' and 'game:event:*'")
   }
 
   /**
@@ -115,6 +124,16 @@ export class UdpDispatcher {
         )
       )
     )
+  }
+
+  async _handleEvent(raw) {
+    const msg = parseMessage(raw)
+    if (!msg || msg.type !== 'event') return
+
+    const { sessionId, data } = msg
+    if (data?.event === 'session_ended') {
+      this.unregisterSession(sessionId)
+    }
   }
 
   /**

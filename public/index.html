@@ -564,20 +564,69 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 32px;
+      padding: 0;
       width: 90%; max-width: 480px;
       position: relative;
       box-shadow: 0 16px 64px rgba(0,0,0,0.4);
-      display: flex; flex-direction: column; align-items: center; text-align: center;
+      display: flex; flex-direction: column;
+      overflow: hidden;
     }
 
     .modal-close {
-      position: absolute; top: 16px; right: 16px;
-      background: transparent; border: none; font-size: 28px; line-height: 1;
+      position: absolute; top: 14px; right: 16px;
+      background: transparent; border: none; font-size: 22px; line-height: 1;
       color: var(--text-muted); cursor: pointer; transition: color 0.2s;
+      z-index: 2;
     }
 
     .modal-close:hover { color: var(--text); }
+
+    .modal-header {
+      padding: 22px 28px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-header h2 {
+      font-size: 16px;
+      font-family: 'Fira Code', monospace;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0;
+    }
+
+    .modal-header p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .modal-body {
+      padding: 22px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-footer {
+      padding: 14px 28px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      background: var(--surface2);
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
 
     @keyframes fadeInModal { from { opacity: 0; } to { opacity: 1; } }
 
@@ -646,48 +695,61 @@
   <div id="totemFormModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Novo Totem" style="display:none;">
     <div class="modal-content">
       <button class="modal-close" id="totemFormModalClose" aria-label="Fechar">&times;</button>
-      <h2 id="totem-form-title" style="margin-bottom: 24px; font-size: 20px; font-family: 'Fira Code', monospace;">Novo Totem</h2>
 
-      <div class="field-group">
-        <label for="tf-name">Nome</label>
-        <input id="tf-name" type="text" placeholder="ex: Totem Cabine A" maxlength="80" />
+      <div class="modal-header">
+        <h2 id="totem-form-title">Novo Totem</h2>
+        <p>Configure o endereço de rede e as regras de sessão.</p>
       </div>
 
-      <div class="field-group">
-        <label for="tf-ip">Endereço IP</label>
-        <input id="tf-ip" type="text" placeholder="ex: 192.168.1.10" maxlength="45" />
+      <div class="modal-body">
+        <div class="field-group">
+          <label for="tf-name">Nome do Totem</label>
+          <input id="tf-name" type="text" placeholder="ex: Cabine A" maxlength="80" />
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="tf-ip">Endereço IP</label>
+            <input id="tf-ip" type="text" placeholder="192.168.1.10" maxlength="45" />
+            <span class="field-hint">IP do servidor do jogo</span>
+          </div>
+          <div class="field-group">
+            <label for="tf-port">Porta UDP</label>
+            <input id="tf-port" type="number" min="1" max="65535" placeholder="9001" />
+            <span class="field-hint">Padrão: 9001</span>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="tf-max-players">Máx. Jogadores</label>
+            <select id="tf-max-players">
+              <option value="1">1 jogador</option>
+              <option value="2" selected>2 jogadores</option>
+              <option value="4">4 jogadores</option>
+              <option value="8">8 jogadores</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="tf-duration">Duração da Sessão</label>
+            <select id="tf-duration">
+              <option value="300000">5 minutos</option>
+              <option value="900000">15 minutos</option>
+              <option value="1800000" selected>30 minutos</option>
+              <option value="3600000">1 hora</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="totem-error"></div>
       </div>
 
-      <div class="field-group">
-        <label for="tf-port">Porta UDP</label>
-        <input id="tf-port" type="number" min="1" max="65535" placeholder="ex: 9001" />
-      </div>
-
-      <div class="field-group">
-        <label for="tf-max-players">Máx. Jogadores por Sessão</label>
-        <select id="tf-max-players">
-          <option value="1">1 jogador</option>
-          <option value="2" selected>2 jogadores</option>
-          <option value="4">4 jogadores</option>
-          <option value="8">8 jogadores</option>
-        </select>
-      </div>
-
-      <div class="field-group">
-        <label for="tf-duration">Duração da Sessão</label>
-        <select id="tf-duration">
-          <option value="300000">5 minutos</option>
-          <option value="900000">15 minutos</option>
-          <option value="1800000" selected>30 minutos</option>
-          <option value="3600000">1 hora</option>
-        </select>
-      </div>
-
-      <div id="totem-error"></div>
-
-      <div style="display:flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
-        <button id="btn-cancel-edit" class="btn btn-secondary" type="button" style="width:auto; padding: 10px 16px;">Cancelar</button>
-        <button id="btn-save-totem" class="btn btn-primary" type="button" style="width:auto; padding: 10px 16px;">Salvar Totem</button>
+      <div class="modal-footer">
+        <button id="btn-cancel-edit" class="btn btn-secondary" type="button" style="width:auto; padding: 9px 18px;">Cancelar</button>
+        <button id="btn-save-totem" class="btn btn-primary" type="button" style="width:auto; padding: 9px 18px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          Salvar Totem
+        </button>
       </div>
     </div>
   </div>

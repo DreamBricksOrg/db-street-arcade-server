@@ -64,12 +64,18 @@ export class SessionService {
   }
 
   /**
-   * Lists all active and waiting sessions.
+   * Lists all active and waiting sessions, merging live state from Redis.
    * @returns {Promise<object[]>}
    */
   async listActiveSessions() {
-    const all = await this.repo.listByStatus()
-    return all.filter(s => s.status !== 'finished')
+    const sessions = await this.repo.listByStatus()
+    const active = sessions.filter(s => s.status !== 'finished')
+
+    // Merge live state from Redis for each active session
+    return Promise.all(active.map(async (s) => {
+      const cached = await this.cache.get(s._id)
+      return cached || s
+    }))
   }
 
   /**
@@ -85,25 +91,36 @@ export class SessionService {
     if (!session) return { ok: false, error: 'Session not found' }
     if (session.status === 'finished') return { ok: false, error: 'Session already finished' }
 
-    const currentPlayers = (session.players ?? []).length
-    if (currentPlayers >= session.maxPlayers) return { ok: false, error: 'Session is full' }
+    const currentPlayers = (session.players ?? [])
+    const isAlreadyIn = currentPlayers.some(p => p.id === playerId)
 
-    await this.repo.addPlayer(sessionId, playerId)
+    if (!isAlreadyIn && currentPlayers.length >= session.maxPlayers) {
+      return { ok: false, error: 'Session is full' }
+    }
 
-    // Refresh both Redis and MongoDB TTL on join
-    await this.repo.refreshTtl(sessionId, env.sessionTimeoutMs)
-    await this.cache.refreshTtl(sessionId, env.sessionTimeoutMs)
+    // Update in-memory object if not already there
+    if (!isAlreadyIn) {
+      currentPlayers.push({ id: playerId, connectedAt: new Date() })
+      session.players = currentPlayers
+    }
+    
+    // Transition status if needed
+    if (session.status === 'waiting') {
+      session.status = 'active'
+    }
 
-    const updated = await this.repo.findById(sessionId)
-    await this.cache.set(updated)
+    // Refresh TTL and Save to Redis only
+    const ttlMs = session.gameDurationMs || env.sessionTimeoutMs
+    session.expiresAt = new Date(Date.now() + ttlMs)
+    await this.cache.set(session)
 
     await this._publish(Channels.sessionSync(sessionId), 'sync', sessionId, playerId, {
       event: 'player_joined',
       playerId,
     })
 
-    log.info({ sessionId, playerId }, 'Player joined session')
-    return { ok: true, session: updated }
+    log.info({ sessionId, playerId, status: session.status }, 'Player joined session (Redis-only)')
+    return { ok: true, session }
   }
 
   /**
@@ -116,23 +133,22 @@ export class SessionService {
     const session = await this.findSession(sessionId)
     if (!session) return { ok: false, error: 'Session not found' }
 
-    await this.repo.removePlayer(sessionId, playerId)
-
+    // Update in-memory object
+    session.players = (session.players ?? []).filter(p => p.id !== playerId)
+    
     // If no players left and session was active, revert to waiting
-    const remaining = (session.players ?? []).filter(p => p.id !== playerId)
-    if (remaining.length === 0 && session.status === 'active') {
-      await this.repo.updateStatus(sessionId, 'waiting')
+    if (session.players.length === 0 && session.status === 'active') {
+      session.status = 'waiting'
     }
 
-    const updated = await this.repo.findById(sessionId)
-    if (updated) await this.cache.set(updated)
+    await this.cache.set(session)
 
     await this._publish(Channels.sessionSync(sessionId), 'sync', sessionId, playerId, {
       event: 'player_left',
       playerId,
     })
 
-    log.info({ sessionId, playerId }, 'Player left session')
+    log.info({ sessionId, playerId, status: session.status }, 'Player left session (Redis-only)')
     return { ok: true }
   }
 
@@ -149,8 +165,8 @@ export class SessionService {
     if (!session) return { ok: false, error: 'Session not found' }
     if (session.status === 'finished') return { ok: true } // already ended
 
-    // Mark as finished in MongoDB (document persists)
-    await this.repo.markEnded(sessionId, reason)
+    // ARCHIVE: Save final state to MongoDB
+    await this.repo.markEnded(sessionId, reason, session)
 
     // Remove from Redis cache
     await this.cache.del(sessionId)
@@ -160,7 +176,7 @@ export class SessionService {
       reason,
     })
 
-    log.info({ sessionId, reason }, 'Session ended')
+    log.info({ sessionId, reason, playersCount: (session.players ?? []).length }, 'Session ended and archived to MongoDB')
 
     // Auto-renew: if this session belongs to a totem, start a new session
     let newSessionId
@@ -177,6 +193,26 @@ export class SessionService {
     }
 
     return { ok: true, newSessionId }
+  }
+
+  /**
+   * Called when a player dies in a game that supports respawn (e.g. demo-snake).
+   * If someone is waiting in the totem's queue, ends the session immediately so
+   * the auto-renew mechanism can advance the queue to the next player.
+   *
+   * @param {string} sessionId
+   * @returns {Promise<{ shouldEnd: boolean, newSessionId?: string }>}
+   */
+  async playerDied(sessionId) {
+    const session = await this.findSession(sessionId)
+    if (!session || session.status === 'finished') return { shouldEnd: false }
+    if (!session.totemId || !this._TotemService) return { shouldEnd: false }
+
+    const queueSize = await this._TotemService.getQueueSize(session.totemId)
+    if (queueSize <= 0) return { shouldEnd: false }
+
+    const result = await this.endSession(sessionId, 'player_died')
+    return { shouldEnd: true, newSessionId: result.newSessionId }
   }
 
   /**
@@ -204,10 +240,7 @@ export class SessionService {
    * @param {string} sessionId
    */
   async refreshActivityTtl(sessionId) {
-    await Promise.allSettled([
-      this.repo.refreshTtl(sessionId, env.sessionTimeoutMs),
-      this.cache.refreshTtl(sessionId, env.sessionTimeoutMs),
-    ])
+    await this.cache.refreshTtl(sessionId, env.sessionTimeoutMs)
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────

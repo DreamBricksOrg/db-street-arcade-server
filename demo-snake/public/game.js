@@ -13,9 +13,10 @@ const GAME_SPEED = 5; // Velocidade da cobra (quadros por segundo)
 const PALETTE = ['#f38ba8', '#a6e3a1', '#89b4fa', '#f9e2af', '#cba6f7', '#fab387'];
 let colorIndex = 0;
 
-let players = {}; 
-// player format: { pid, color, path: [{x,y}], dir: {x,y}, pendingDir: {x,y}, score, alive }
+let players = {};
+// player format: { pid, color, path: [{x,y}], dir: {x,y}, pendingDir: {x,y}, score, alive, gameOver }
 
+let currentTotemId = null; // learned from SSE 'init' handshake
 let food = spawnFood();
 
 // ── Lógica Central do Jogo ──────────────────────────────────────────────────
@@ -90,6 +91,14 @@ function die(player) {
   player.alive = false;
   player.path = [];
   updateScoreboard();
+
+  // Notifica o backend via proxy do server.js — encerra a sessão ativa do totem
+  console.log('[die] Calling /end-session for totem:', currentTotemId);
+  fetch('/end-session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pid: player.pid }),
+  }).catch(() => {});
 }
 
 function draw() {
@@ -197,6 +206,20 @@ evtSource.onmessage = function(event) {
       return;
     }
 
+    // Handshake: o server.js envia o totemId assim que o browser conecta
+    if (data.type === 'init') {
+      currentTotemId = data.totemId;
+      console.log('[SSE] Handshake — totemId:', currentTotemId);
+      return;
+    }
+
+    if (data.type === 'session_start') {
+      // Nova sessão iniciada — reseta o estado de gameOver de todos os jogadores
+      Object.keys(players).forEach(k => delete players[k]);
+      colorIndex = 0;
+      return;
+    }
+
     // Add to debug log
     const d = new Date();
     const time = `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}.${d.getMilliseconds().toString().padStart(3,'0')}`;
@@ -221,8 +244,7 @@ evtSource.onmessage = function(event) {
     if (!p) return;
 
     if (!p.alive && action === 'btn_A' && state === 1) {
-      // Respawn pressionando A
-      addPlayer(pid); 
+      if (!p.gameOver) addPlayer(pid);
     }
 
     if (!p.alive) return;

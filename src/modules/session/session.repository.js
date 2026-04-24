@@ -50,6 +50,7 @@ export class SessionRepository {
       players:        [],
       allowedPlayers: allowedPlayers,
       maxPlayers:     maxPlayers ?? env.sessionMaxPlayers,
+      gameDurationMs: resolvedTtl,
       createdAt:      now,
       expiresAt:  new Date(now.getTime() + resolvedTtl),
       endedAt:    null,
@@ -117,21 +118,26 @@ export class SessionRepository {
 
   /**
    * Marks a session as finished with reason and timestamp.
-   * Does NOT delete — session persists for historical records.
+   * Archives the final state (players, allowedPlayers) to MongoDB.
    * @param {string} sessionId
    * @param {'timeout'|'manual'} reason
+   * @param {object} [finalState] - The latest session state from Redis
    * @returns {Promise<boolean>}
    */
-  async markEnded(sessionId, reason) {
+  async markEnded(sessionId, reason, finalState = {}) {
+    const update = {
+      status:    'finished',
+      endedAt:   new Date(),
+      endReason: reason,
+    }
+
+    // Archive dynamic fields from Redis if provided
+    if (finalState.players)        update.players        = finalState.players
+    if (finalState.allowedPlayers) update.allowedPlayers = finalState.allowedPlayers
+
     const result = await this.col.updateOne(
       { _id: sessionId },
-      {
-        $set: {
-          status:    'finished',
-          endedAt:   new Date(),
-          endReason: reason,
-        },
-      },
+      { $set: update },
     )
     return result.matchedCount > 0
   }

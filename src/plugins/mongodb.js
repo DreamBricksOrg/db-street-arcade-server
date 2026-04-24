@@ -31,10 +31,10 @@ async function mongoPlugin(fastify) {
 async function ensureIndexes(db) {
   const sessions = db.collection('sessions')
 
-  // TTL index — MongoDB auto-deletes expired sessions
+  // Index for fast timeout-watcher queries (soft TTL — watcher calls endSession)
   await sessions.createIndex(
     { expiresAt: 1 },
-    { expireAfterSeconds: 0, name: 'sessions_ttl' },
+    { name: 'sessions_expires_at' },
   )
 
   // Fast lookup by status (active sessions list)

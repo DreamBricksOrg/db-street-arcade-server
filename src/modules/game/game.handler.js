@@ -76,8 +76,9 @@ export class GameHandler {
       return
     }
 
-    const playerCount = (session.players ?? []).length
-    if (playerCount >= session.maxPlayers) {
+    const sessionPlayers = session.players ?? []
+    const isPreRegistered = sessionPlayers.some(p => p.id === playerId)
+    if (!isPreRegistered && sessionPlayers.length >= session.maxPlayers) {
       socket.close(1008, 'Session is full')
       return
     }
@@ -86,34 +87,30 @@ export class GameHandler {
     this.connections.set(socket, { sessionId, playerId, alive: true })
     log.info({ sessionId, playerId, total: this.connections.size }, 'Player connected')
 
-    // Register socket handlers IMMEDIATELY — before any await.
-    // If registered after awaits, messages sent in quick succession are lost.
+    // Register socket handlers IMMEDIATELY
     socket.on('message', (raw) => this.onMessage(socket, raw))
     socket.on('close',   ()    => this.onClose(socket))
     socket.on('pong',    ()    => this._markAlive(socket))
     socket.on('error',   (err) => log.error({ err: err.message, sessionId, playerId }, 'WS error'))
 
-    // Persist player in MongoDB + refresh Redis cache (non-blocking for input flow)
-    if (this.repo) {
-      await this.repo.addPlayer(sessionId, playerId)
-    }
-    if (this.cache) {
-      const updated = this.repo ? await this.repo.findById(sessionId) : await this._findSession(sessionId)
-      if (updated) {
-        // If we don't have repo, we must forcefully update the cached array/status here (though without mongo, state memory relies on cache)
-        if (!this.repo) {
-          updated.status = 'active'
-          updated.players = updated.players || []
-          updated.players.push({ id: playerId, connectedAt: new Date() })
-        }
-        await this.cache.set(this._normalizeSession(updated))
-      }
-    }
+    // NOTE: We no longer update MongoDB/Cache here. 
+    // The player is expected to have called SessionService.joinSession() 
+    // via API before connecting the WebSocket.
 
     // TASK-U5.4: register session totems in UDP dispatcher so packets are routed correctly
     const dispatcher = this.fastify.udpDispatcher  // available after onReady
     if (dispatcher && session.totems?.length) {
       dispatcher.registerSession(sessionId, session.totems)
+
+      // Notify the game (demo-snake) of the session+totem IDs via UDP.
+      // The game server uses 'tid' to know which totem it belongs to,
+      // so it can call POST /api/totems/:id/end-session when the player dies.
+      const startPacket = JSON.stringify({ type: 'session_start', sid: sessionId, tid: session.totemId ?? null })
+      for (const totem of session.totems) {
+        this.fastify.udpSend(totem.ip, totem.udpPort, startPacket).catch(err =>
+          log.warn({ err: err.message, totemIp: totem.ip }, 'UDP session_start send failed')
+        )
+      }
     }
 
     // Publish lifecycle event
@@ -148,9 +145,8 @@ export class GameHandler {
       return
     }
 
-    // Refresh TTL on both Redis and MongoDB so active sessions don't expire
+    // Refresh TTL on Redis only
     if (this.cache) await this.cache.refreshTtl(sessionId, env.sessionTimeoutMs)
-    if (this.repo)  await this.repo.refreshTtl(sessionId, env.sessionTimeoutMs)
 
     // Publish to Redis — UDP dispatcher (Phase 5) will pick this up
     await this._publish(Channels.gameInput(sessionId), 'input', sessionId, playerId, {
@@ -173,29 +169,9 @@ export class GameHandler {
 
     log.info({ sessionId, playerId, remaining: this.connections.size }, 'Player disconnected')
 
-    // Remove from MongoDB and update cache
-    if (this.repo) {
-      await this.repo.removePlayer(sessionId, playerId)
-      const updated = await this.repo.findById(sessionId)
-      if (updated) {
-        // If no players are left and it was active, revert to waiting
-        const remaining = (updated.players ?? [])
-        if (remaining.length === 0 && updated.status === 'active') {
-          await this.repo.updateStatus(sessionId, 'waiting')
-          updated.status = 'waiting'
-        }
-        if (this.cache) await this.cache.set(this._normalizeSession(updated))
-      }
-    } else if (this.cache) {
-      const cached = await this.cache.get(sessionId)
-      if (cached) {
-        cached.players = (cached.players ?? []).filter(p => p.id !== playerId)
-        if (cached.players.length === 0 && cached.status === 'active') {
-          cached.status = 'waiting'
-        }
-        await this.cache.set(cached)
-      }
-    }
+    // NOTE: We no longer remove players from MongoDB/Redis on disconnect.
+    // This allows them to reconnect if they close the tab by accident.
+    // The session state will be cleaned up when the session ends or expires.
 
     // Publish lifecycle event
     await this._publish(Channels.sessionSync(sessionId), 'sync', sessionId, playerId, {

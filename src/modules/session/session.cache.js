@@ -33,13 +33,16 @@ export class SessionCache {
 
     // HSET accepts alternating field/value pairs
     await this.redis.hset(key, {
-      id:         session._id,
-      status:     session.status,
-      maxPlayers: String(session.maxPlayers),
+      id:             session._id,
+      totemId:        session.totemId ?? '',
+      status:         session.status,
+      maxPlayers:     String(session.maxPlayers),
+      gameDurationMs: String(session.gameDurationMs ?? 0),
       // Serialize arrays as JSON strings — Redis HASH values must be strings
-      totems:     JSON.stringify(session.totems ?? []),
-      players:    JSON.stringify(session.players ?? []),
-      expiresAt:  String(new Date(session.expiresAt).getTime()),
+      totems:         JSON.stringify(session.totems ?? []),
+      players:        JSON.stringify(session.players ?? []),
+      allowedPlayers: JSON.stringify(session.allowedPlayers ?? []),
+      expiresAt:      String(new Date(session.expiresAt).getTime()),
     })
 
     await this.redis.expire(key, ttlSecs)
@@ -59,12 +62,15 @@ export class SessionCache {
     if (!raw || !raw.id) return null
 
     return {
-      id:         raw.id,
-      status:     raw.status,
-      maxPlayers: parseInt(raw.maxPlayers, 10),
-      totems:     JSON.parse(raw.totems),
-      players:    JSON.parse(raw.players),
-      expiresAt:  new Date(parseInt(raw.expiresAt, 10)),
+      _id:            raw.id, // return as _id for consistency with Mongo
+      totemId:        raw.totemId || null,
+      status:         raw.status,
+      maxPlayers:     parseInt(raw.maxPlayers, 10),
+      gameDurationMs: parseInt(raw.gameDurationMs || '0', 10),
+      totems:         JSON.parse(raw.totems),
+      players:        JSON.parse(raw.players),
+      allowedPlayers: JSON.parse(raw.allowedPlayers || '[]'),
+      expiresAt:      new Date(parseInt(raw.expiresAt, 10)),
     }
   }
 

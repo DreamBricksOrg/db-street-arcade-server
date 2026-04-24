@@ -281,6 +281,29 @@ async function sessionRoutes(fastify) {
     }
   })
 
+  // ── POST /api/sessions/:id/player-died ────────────────────────────────────
+  // Called by the demo-snake server when a player dies.
+  // Ends the session (advancing the queue) only if someone is waiting.
+  fastify.post('/api/sessions/:id/player-died', {
+    schema: {
+      tags: ['Sessions'],
+      summary: 'Notify player death — ends session if queue is non-empty',
+      params: sessionIdParam,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            shouldEnd:    { type: 'boolean' },
+            newSessionId: { type: 'string', nullable: true }
+          }
+        }
+      }
+    }
+  }, async (request) => {
+    const result = await service.playerDied(request.params.id)
+    return { shouldEnd: result.shouldEnd, newSessionId: result.newSessionId ?? null }
+  })
+
   // ── DELETE /api/sessions/:id ────────────────────────────────────────────────
   // Admin hard-delete. Normal flow should use POST /:id/end instead.
   fastify.delete('/api/sessions/:id', {

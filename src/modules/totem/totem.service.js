@@ -36,10 +36,10 @@ export class TotemService {
 
   /**
    * Creates a new totem after validating fields.
-   * @param {{ name: string, ip: string, udpPort: number, maxPlayers?: number, sessionDurationMs?: number }} data
+   * @param {{ name: string, ip: string, udpPort: number, maxPlayers?: number, sessionDurationMs?: number, maxQueueSize?: number }} data
    * @returns {Promise<{ ok: true, totem: object } | { ok: false, error: string }>}
    */
-  async createTotem({ name, ip, udpPort, maxPlayers, sessionDurationMs }) {
+  async createTotem({ name, ip, udpPort, maxPlayers, sessionDurationMs, maxQueueSize }) {
     if (!name?.trim()) return { ok: false, error: 'name is required' }
     if (!ip?.trim())   return { ok: false, error: 'ip is required' }
     if (!udpPort || udpPort < 1 || udpPort > 65535)
@@ -47,9 +47,11 @@ export class TotemService {
 
     const mp  = maxPlayers        ? Number(maxPlayers)        : undefined
     const dur = sessionDurationMs ? Number(sessionDurationMs) : undefined
+    const mqs = maxQueueSize      ? Number(maxQueueSize)      : undefined
 
     if (mp  !== undefined && (mp  < 1 || mp  > 8))   return { ok: false, error: 'maxPlayers must be 1–8' }
     if (dur !== undefined && (dur < 60_000))           return { ok: false, error: 'sessionDurationMs must be >= 60000 (1 min)' }
+    if (mqs !== undefined && (mqs < 1 || mqs > 200))   return { ok: false, error: 'maxQueueSize must be 1–200' }
 
     const totem = await this.repo.create({
       name: name.trim(),
@@ -57,6 +59,7 @@ export class TotemService {
       udpPort,
       maxPlayers:        mp,
       sessionDurationMs: dur,
+      maxQueueSize:      mqs,
     })
 
     log.info({ totemId: totem._id, name: totem.name }, 'Totem created')
@@ -92,7 +95,7 @@ export class TotemService {
   /**
    * Updates a totem's fields. Only provided fields are changed.
    * @param {string} id
-   * @param {{ name?: string, ip?: string, udpPort?: number, maxPlayers?: number, sessionDurationMs?: number }} fields
+   * @param {{ name?: string, ip?: string, udpPort?: number, maxPlayers?: number, sessionDurationMs?: number, maxQueueSize?: number|null }} fields
    * @returns {Promise<{ ok: true } | { ok: false, error: string }>}
    */
   async updateTotem(id, fields) {
@@ -117,6 +120,15 @@ export class TotemService {
       const dur = Number(fields.sessionDurationMs)
       if (dur < 60_000) return { ok: false, error: 'sessionDurationMs must be >= 60000' }
       patch.sessionDurationMs = dur
+    }
+    if (fields.maxQueueSize !== undefined) {
+      if (fields.maxQueueSize === null) {
+        patch.maxQueueSize = null // explicit "unlimited"
+      } else {
+        const mqs = Number(fields.maxQueueSize)
+        if (mqs < 1 || mqs > 200) return { ok: false, error: 'maxQueueSize must be 1–200' }
+        patch.maxQueueSize = mqs
+      }
     }
 
     await this.repo.update(id, patch)
@@ -195,15 +207,27 @@ export class TotemService {
   /**
    * Adds a player to the queue for this totem.
    * Uses Redis List. Also registers a heartbeat for 2 minutes.
+   * Enforces the totem's maxQueueSize cap, if set.
    */
   async joinQueue(totemId, playerId, metadata = null) {
     if (!this._redisPub) return { ok: false, error: 'Redis disabled' }
     const qKey = `queue:totem:${totemId}`
     const hKey = `queue:heartbeat:${playerId}`
     const mKey = `player:metadata:${playerId}`
-    
+
     // Check if player is already in queue
     const pos = await this._redisPub.lpos(qKey, playerId)
+
+    if (pos === null) {
+      const totem = await this.repo.findById(totemId)
+      if (totem?.maxQueueSize) {
+        const size = await this._redisPub.llen(qKey)
+        if (size >= totem.maxQueueSize) {
+          return { ok: false, error: 'Queue is full', full: true }
+        }
+      }
+    }
+
     // Add heartbeat regardless
     await this._redisPub.setex(hKey, 120, '1')
 
@@ -220,7 +244,19 @@ export class TotemService {
     // New to queue
     await this._redisPub.rpush(qKey, playerId)
     const len = await this._redisPub.llen(qKey)
+    await this._publishQueueEvent(totemId)
     return { ok: true, position: len }
+  }
+
+  /**
+   * Returns the seconds remaining on a queued player's presence heartbeat.
+   * Null = no Redis. -2 = expired/missing (likely a ghost). -1 = no TTL set.
+   * @param {string} playerId
+   * @returns {Promise<number|null>}
+   */
+  async getHeartbeatTtl(playerId) {
+    if (!this._redisPub) return null
+    return this._redisPub.ttl(`queue:heartbeat:${playerId}`)
   }
 
   /**
@@ -264,17 +300,29 @@ export class TotemService {
     const qKey = `queue:totem:${totemId}`
     const hKey = `queue:heartbeat:${playerId}`
 
-    await this._redisPub.lrem(qKey, 0, playerId)
+    const removed = await this._redisPub.lrem(qKey, 0, playerId)
     await this._redisPub.del(hKey)
+    if (removed > 0) await this._publishQueueEvent(totemId)
     return { ok: true }
   }
 
   /**
-   * Drops all queue items. (For operator dashboard)
+   * Drops all queue items and recycles the totem's active session, so freed
+   * slots become immediately available instead of waiting for it to expire.
+   * (For operator dashboard)
    */
   async clearQueue(totemId) {
-    if (!this._redisPub) return { ok: true }
-    await this._redisPub.del(`queue:totem:${totemId}`)
+    if (this._redisPub) {
+      await this._redisPub.del(`queue:totem:${totemId}`)
+    }
+
+    const totem = await this.repo.findById(totemId)
+    if (totem?.currentSessionId) {
+      const svc = this._getSessionService()
+      await svc.endSession(totem.currentSessionId, 'manual')
+    }
+
+    await this._publishQueueEvent(totemId)
     log.info({ totemId }, 'Queue cleared')
     return { ok: true }
   }
@@ -316,6 +364,7 @@ export class TotemService {
       selected.push(playerId)
     }
 
+    if (selected.length > 0) await this._publishQueueEvent(totemId)
     return selected
   }
 
@@ -326,5 +375,20 @@ export class TotemService {
       throw new Error('SessionService not injected into TotemService — call setSessionService()')
     }
     return this._SessionService
+  }
+
+  /**
+   * Notifies anyone subscribed to this totem's queue (SSE) that something
+   * changed — so waiting players can re-check their status immediately
+   * instead of waiting for their next poll tick.
+   * @param {string} totemId
+   */
+  async _publishQueueEvent(totemId) {
+    if (!this._redisPub) return
+    try {
+      await this._redisPub.publish(`queue:event:${totemId}`, JSON.stringify({ type: 'queue_changed', totemId, ts: Date.now() }))
+    } catch (err) {
+      log.warn({ err: err.message, totemId }, 'Failed to publish queue event')
+    }
   }
 }

@@ -825,6 +825,16 @@
     </div>
   </div>
 
+  <!-- ── Modal de Fila do Totem ────────────────────────────────────────────── -->
+  <div id="queueModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Fila do Totem" style="display:none;">
+    <div class="modal-content" style="max-width:420px;">
+      <button class="modal-close" id="queueModalClose" aria-label="Fechar">&times;</button>
+      <h2 style="margin-bottom:4px; font-size:18px; font-family:'Fira Code',monospace;">Fila do Totem</h2>
+      <p id="queue-modal-totem-name" style="font-size:13px; color:var(--text-muted); margin-bottom:16px;"></p>
+      <div id="queue-modal-body"></div>
+    </div>
+  </div>
+
   <!-- ── Modal de Cadastro de Totem ──────────────────────────────────────── -->
   <div id="totemFormModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Novo Totem" style="display:none;">
     <div class="modal-content">
@@ -873,6 +883,12 @@
               <option value="3600000">1 hora</option>
             </select>
           </div>
+        </div>
+
+        <div class="field-group">
+          <label for="tf-max-queue">Tamanho Máx. da Fila</label>
+          <input id="tf-max-queue" type="number" min="1" max="200" placeholder="Sem limite" />
+          <span class="field-hint">Deixe em branco para fila ilimitada</span>
         </div>
 
         <div id="totem-error"></div>

@@ -16,6 +16,7 @@ const $errorScreen = document.getElementById('error-screen')
 const $loadScreen  = document.getElementById('loading')
 const $queueScreen = document.getElementById('queue-screen')
 const $queuePos    = document.getElementById('queue-pos')
+const $queueEta    = document.getElementById('queue-eta')
 const $errorMsg    = document.getElementById('error-msg')
 const $retryBtn    = document.getElementById('retry-btn')
 
@@ -28,13 +29,23 @@ function showError(msg) {
   $queueScreen.style.display = 'none'
   $errorScreen.style.display = 'flex'
   $errorMsg.textContent      = msg
+  stopQueueEvents()
 }
 
-function showQueue(pos) {
+function formatEta(ms) {
+  if (!ms || ms <= 0) return ''
+  const totalMin = Math.ceil(ms / 60_000)
+  if (totalMin < 1) return 'menos de 1 min'
+  if (totalMin === 1) return '~1 min'
+  return `~${totalMin} min`
+}
+
+function showQueue(pos, estimatedWaitMs) {
   $loadScreen.style.display  = 'none'
   $errorScreen.style.display = 'none'
   $queueScreen.style.display = 'flex'
   $queuePos.textContent      = pos
+  $queueEta.textContent      = estimatedWaitMs ? `Tempo estimado: ${formatEta(estimatedWaitMs)}` : ''
 }
 
 async function getPlayerId() {
@@ -47,7 +58,36 @@ async function getPlayerId() {
   return pid
 }
 
-let pollTimer = null
+let pollTimer  = null
+let eventSrc   = null
+
+// SSE: pushed whenever this totem's queue changes (join/leave/dequeue/clear),
+// so we re-check our status right away instead of waiting up to 3s for the
+// next poll tick. Polling stays on as a fallback in case SSE drops.
+function startQueueEvents(playerId) {
+  if (eventSrc || !totemId) return
+  try {
+    eventSrc = new EventSource(`/api/totems/${totemId}/queue/events`)
+    eventSrc.onmessage = (e) => {
+      let msg
+      try { msg = JSON.parse(e.data) } catch { return }
+      if (msg.type !== 'queue_changed') return
+      clearTimeout(pollTimer)
+      pollQueueStatus(playerId)
+    }
+    eventSrc.onerror = () => {
+      // Let the browser's built-in EventSource reconnection handle transient drops;
+      // polling continues regardless, so this is just a latency hit, not a hard failure.
+    }
+  } catch {
+    // EventSource not available — polling alone still works.
+  }
+}
+
+function stopQueueEvents() {
+  eventSrc?.close()
+  eventSrc = null
+}
 
 async function pollQueueStatus(playerId) {
   try {
@@ -66,13 +106,16 @@ async function pollQueueStatus(playerId) {
     }
 
     if (data.status === 'play') {
+      stopQueueEvents()
       sessionStorage.setItem(`sa_player_${data.sessionId}`, playerId)
       window.location.replace(`/play/${data.sessionId}`)
       return
     }
 
     if (data.status === 'queue') {
-      showQueue(data.position)
+      showQueue(data.position, data.estimatedWaitMs)
+      startQueueEvents(playerId)
+      clearTimeout(pollTimer)
       pollTimer = setTimeout(() => pollQueueStatus(playerId), 3000)
     }
   } catch (err) {
@@ -112,6 +155,14 @@ async function resolveAndRedirect() {
     const data = await res.json()
 
     if (!res.ok) {
+      if (res.status === 409 && data.error === 'Queue is full') {
+        showError('A fila deste totem está cheia no momento. Tente novamente em alguns minutos.')
+        return
+      }
+      if (res.status === 429) {
+        showError('Muitas tentativas seguidas. Aguarde alguns segundos e tente de novo.')
+        return
+      }
       showError(data.error ?? 'Totem não encontrado ou indisponível.')
       return
     }
@@ -126,8 +177,9 @@ async function resolveAndRedirect() {
     }
 
     if (data.status === 'queue') {
-      showQueue(data.position)
-      // Begins polling
+      showQueue(data.position, data.estimatedWaitMs)
+      startQueueEvents(playerId)
+      // Begins polling (fallback in case SSE is unavailable/drops)
       pollTimer = setTimeout(() => pollQueueStatus(playerId), 3000)
     }
 

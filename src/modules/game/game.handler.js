@@ -83,6 +83,11 @@ export class GameHandler {
       return
     }
 
+    // Was anyone already connected to this session before this player? If so,
+    // a match is already in progress and we must not broadcast a board reset.
+    const isFirstConnectionForSession =
+      ![...this.connections.values()].some(m => m.sessionId === sessionId)
+
     // Register connection
     this.connections.set(socket, { sessionId, playerId, alive: true })
     log.info({ sessionId, playerId, total: this.connections.size }, 'Player connected')
@@ -93,8 +98,8 @@ export class GameHandler {
     socket.on('pong',    ()    => this._markAlive(socket))
     socket.on('error',   (err) => log.error({ err: err.message, sessionId, playerId }, 'WS error'))
 
-    // NOTE: We no longer update MongoDB/Cache here. 
-    // The player is expected to have called SessionService.joinSession() 
+    // NOTE: We no longer update MongoDB/Cache here.
+    // The player is expected to have called SessionService.joinSession()
     // via API before connecting the WebSocket.
 
     // TASK-U5.4: register session totems in UDP dispatcher so packets are routed correctly
@@ -102,14 +107,18 @@ export class GameHandler {
     if (dispatcher && session.totems?.length) {
       dispatcher.registerSession(sessionId, session.totems)
 
-      // Notify the game (demo-snake) of the session+totem IDs via UDP.
-      // The game server uses 'tid' to know which totem it belongs to,
-      // so it can call POST /api/totems/:id/end-session when the player dies.
-      const startPacket = JSON.stringify({ type: 'session_start', sid: sessionId, tid: session.totemId ?? null })
-      for (const totem of session.totems) {
-        this.fastify.udpSend(totem.ip, totem.udpPort, startPacket).catch(err =>
-          log.warn({ err: err.message, totemIp: totem.ip }, 'UDP session_start send failed')
-        )
+      // Notify the game (demo-snake) of the session+totem IDs via UDP — but only
+      // for the first player of a session. Players backfilled mid-match (e.g. a
+      // queued player replacing one who died) must NOT trigger this, since the
+      // game client treats 'session_start' as a full board reset and would wipe
+      // out the snakes of players still alive.
+      if (isFirstConnectionForSession) {
+        const startPacket = JSON.stringify({ type: 'session_start', sid: sessionId, tid: session.totemId ?? null })
+        for (const totem of session.totems) {
+          this.fastify.udpSend(totem.ip, totem.udpPort, startPacket).catch(err =>
+            log.warn({ err: err.message, totemIp: totem.ip }, 'UDP session_start send failed')
+          )
+        }
       }
     }
 
@@ -178,6 +187,21 @@ export class GameHandler {
       event: 'player_disconnected',
       playerId,
     })
+  }
+
+  /**
+   * Forcibly closes the WS connection for a specific player in a session.
+   * Used when a player is removed from a multiplayer session (e.g. died and
+   * was replaced by the next player in the totem's queue) — their phone gets
+   * a clean close instead of being left as a zombie connection.
+   */
+  disconnectPlayer(sessionId, playerId, code = 1008, reason = 'Removed from session') {
+    for (const [socket, meta] of this.connections) {
+      if (meta.sessionId === sessionId && meta.playerId === playerId) {
+        socket.close(code, reason)
+        this.connections.delete(socket)
+      }
+    }
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────

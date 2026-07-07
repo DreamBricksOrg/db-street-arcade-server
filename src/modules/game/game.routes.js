@@ -8,6 +8,10 @@ import fp from 'fastify-plugin'
 async function gameRoutes(fastify) {
   const handler = new GameHandler(fastify)
 
+  // Expose so SessionService can force-disconnect a specific player's socket
+  // (e.g. when they die in a multiplayer game and are replaced from the queue).
+  fastify.decorate('gameHandler', handler)
+
   // ── WebSocket endpoint ─────────────────────────────────────────────────────
   // Client connects with: ws://host:port/ws/game?sessionId=XX&playerId=YY
   fastify.get(

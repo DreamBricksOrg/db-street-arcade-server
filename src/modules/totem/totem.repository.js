@@ -16,6 +16,7 @@ const log = createLogger('totem.repository')
  *   udpPort:           number,      // ex: 9001
  *   maxPlayers:        number,      // max players per session (default: 2)
  *   sessionDurationMs: number,      // session TTL in ms (default: 30 min)
+ *   maxQueueSize:      number|null, // cap on waiting-list length (default: null = unlimited)
  *   currentSessionId:  string|null, // ID of the currently active session
  *   createdAt:         Date,
  *   updatedAt:         Date,
@@ -30,10 +31,10 @@ export class TotemRepository {
 
   /**
    * Creates a new totem document.
-   * @param {{ name: string, ip: string, udpPort: number, maxPlayers?: number, sessionDurationMs?: number }} data
+   * @param {{ name: string, ip: string, udpPort: number, maxPlayers?: number, sessionDurationMs?: number, maxQueueSize?: number }} data
    * @returns {Promise<object>}
    */
-  async create({ name, ip, udpPort, maxPlayers, sessionDurationMs }) {
+  async create({ name, ip, udpPort, maxPlayers, sessionDurationMs, maxQueueSize }) {
     const now   = new Date()
     const totem = {
       _id:               uuidv4(),
@@ -42,6 +43,7 @@ export class TotemRepository {
       udpPort,
       maxPlayers:        maxPlayers        ?? 2,
       sessionDurationMs: sessionDurationMs ?? 30 * 60 * 1000, // 30 min default
+      maxQueueSize:      maxQueueSize      ?? null,           // null = unlimited
       currentSessionId:  null,
       createdAt:         now,
       updatedAt:         now,

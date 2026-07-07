@@ -1,7 +1,26 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node test-queue.js)"
+      "Bash(node test-queue.js)",
+      "Bash(node src/server.js)",
+      "Bash(node server.js)",
+      "Bash(node --check public/dashboard.js)",
+      "Bash(node --check src/modules/totem/totem.service.js)",
+      "Bash(node --check demo-snake/server.js)",
+      "Bash(curl -s -X POST http://localhost:9000/end-session -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(kill %1)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill *)",
+      "Bash(node --check src/modules/game/game.handler.js)",
+      "Bash(node --check src/modules/game/game.routes.js)",
+      "Bash(node --check src/modules/session/session.service.js)",
+      "Bash(node --check src/modules/session/session.routes.js)",
+      "Bash(node --check src/modules/totem/totem.routes.js)",
+      "Bash(node --check src/modules/totem/totem.repository.js)",
+      "Bash(node --check src/modules/session/session.repository.js)",
+      "Bash(node --check public/totem-entry.js)",
+      "Bash(node *)",
+      "Bash(tasklist *)"
     ]
   }
 }

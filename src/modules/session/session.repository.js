@@ -177,4 +177,18 @@ export class SessionRepository {
     const filter = status ? { status } : {}
     return this.col.find(filter, { sort: { createdAt: -1 }, limit: 100 }).toArray()
   }
+
+  /**
+   * Returns the most recently finished sessions for a totem.
+   * Used to estimate queue wait time from actual past round durations.
+   * @param {string} totemId
+   * @param {number} [limit=5]
+   * @returns {Promise<object[]>}
+   */
+  async findRecentFinished(totemId, limit = 5) {
+    return this.col.find(
+      { totemId, status: 'finished', endedAt: { $ne: null } },
+      { sort: { endedAt: -1 }, limit },
+    ).toArray()
+  }
 }

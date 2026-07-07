@@ -8,6 +8,22 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Load .env manually — this is a standalone demo with no dependencies (no dotenv).
+try {
+  const envFile = fs.readFileSync(path.join(__dirname, '.env'), 'utf-8');
+  for (const line of envFile.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    if (!(key in process.env)) process.env[key] = value;
+  }
+} catch {
+  console.warn('[BOOT] No .env file found — relying on shell environment variables');
+}
+
 const HTTP_PORT  = 9000;
 const UDP_PORT   = 9001;
 const BACKEND_URL = process.env.BACKEND_URL || '';
@@ -58,7 +74,9 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Proxy: ends the active session for this totem when a player dies
+  // Proxy: notifies the backend that a player died for this totem.
+  // Forwards the dying player's pid so the backend can remove just that
+  // player (multiplayer) instead of always ending the whole session.
   if (req.method === 'POST' && req.url === '/end-session') {
     if (!BACKEND_URL || !currentTotemId) {
       console.warn('[HTTP] /end-session called but no totemId registered');
@@ -67,21 +85,32 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    const totemId = currentTotemId;
-    console.log(`[HTTP] Ending session for totem: ${totemId}`);
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      let playerId = null;
+      try { playerId = JSON.parse(body || '{}').pid ?? null; } catch {}
 
-    fetch(`${BACKEND_URL}/api/totems/${totemId}/end-session`, { method: 'POST' })
-      .then(r => r.json())
-      .then(json => {
-        console.log(`[HTTP] end-session response:`, json);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(json));
+      const totemId = currentTotemId;
+      console.log(`[HTTP] Player died — totem: ${totemId}, player: ${playerId || '(unknown)'}`);
+
+      fetch(`${BACKEND_URL}/api/totems/${totemId}/end-session`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ playerId }),
       })
-      .catch(err => {
-        console.error('[HTTP] end-session proxy failed:', err.message);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: false }));
-      });
+        .then(r => r.json())
+        .then(json => {
+          console.log(`[HTTP] end-session response:`, json);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(json));
+        })
+        .catch(err => {
+          console.error('[HTTP] end-session proxy failed:', err.message);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false }));
+        });
+    });
     return;
   }
 

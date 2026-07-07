@@ -18,6 +18,7 @@ const formIp         = document.getElementById('tf-ip')
 const formPort       = document.getElementById('tf-port')
 const formMaxPlayers = document.getElementById('tf-max-players')
 const formDuration   = document.getElementById('tf-duration')
+const formMaxQueue   = document.getElementById('tf-max-queue')
 const btnSaveTotem   = document.getElementById('btn-save-totem')
 const btnCancelEdit  = document.getElementById('btn-cancel-edit')
 const totemFormTitle = document.getElementById('totem-form-title')
@@ -27,10 +28,18 @@ const btnNewTotem         = document.getElementById('btn-new-totem')
 const totemFormModal      = document.getElementById('totemFormModal')
 const totemFormModalClose = document.getElementById('totemFormModalClose')
 
+// Queue modal refs
+const queueModal         = document.getElementById('queueModal')
+const queueModalClose    = document.getElementById('queueModalClose')
+const queueModalTotemName = document.getElementById('queue-modal-totem-name')
+const queueModalBody     = document.getElementById('queue-modal-body')
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let editingTotemId    = null
 let sessionPollTimers = {}  // totemId → intervalId
 let queuePollTimers   = {}  // totemId → intervalId
+let queueModalTotemId = null
+let queueModalTimer   = null
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -101,14 +110,11 @@ function buildTotemCard(totem) {
         <div class="totem-card-meta" style="margin-top: 8px;">
           <span>👥 ${totem.maxPlayers ?? 2} jogadores</span>
           <span>⏱ ${durationLabel}</span>
-          <span style="color: ${queueCount > 0 ? 'var(--accent)' : 'inherit'}; font-weight: ${queueCount > 0 ? '600' : 'normal'}">🧍‍♂️ Fila: ${queueCount}</span>
+          <span data-queue-count style="color: ${queueCount > 0 ? 'var(--accent)' : 'inherit'}; font-weight: ${queueCount > 0 ? '600' : 'normal'}">🧍‍♂️ Fila: ${queueCount}</span>
         </div>
         <div class="totem-session-status" data-status-area style="margin-top: 12px; margin-bottom: 0;">
           <span class="session-badge badge-loading">⏳ Verificando…</span>
         </div>
-
-        <!-- Queue panel (hidden by default, toggled by button) -->
-        <div data-queue-area style="margin-top: 12px; display: none;"></div>
 
         <div style="flex: 1;"></div>
         <div class="totem-card-actions" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
@@ -152,23 +158,7 @@ function buildTotemCard(totem) {
   card.querySelector('.btn-edit').addEventListener('click',   () => startEdit(totem))
   card.querySelector('.btn-delete').addEventListener('click', () => deleteTotem(totem._id, totem.name))
   card.querySelector('.btn-clear-queue').addEventListener('click', () => clearTotemQueue(totem._id, totem.name))
-
-  // Queue panel toggle — stored so startQueuePoll can reference it
-  const queueArea   = card.querySelector('[data-queue-area]')
-  const toggleBtn   = card.querySelector('.btn-queue-toggle')
-  let   queueOpen   = false
-  let   queueRender = null  // injected by startQueuePoll
-
-  toggleBtn.addEventListener('click', () => {
-    queueOpen = !queueOpen
-    queueArea.style.display = queueOpen ? 'block' : 'none'
-    toggleBtn.classList.toggle('btn-queue-toggle--active', queueOpen)
-    toggleBtn.title = queueOpen ? 'Fechar Fila' : 'Ver Fila'
-    if (queueOpen && queueRender) queueRender()  // refresh immediately on open
-  })
-
-  // Expose so startQueuePoll can inject the render fn
-  card._injectQueueRender = (fn) => { queueRender = fn }
+  card.querySelector('.btn-queue-toggle').addEventListener('click', () => openQueueModal(totem))
 
   // Allow clicking the copy link to copy to clipboard
   const linkRef = card.querySelector('a')
@@ -229,135 +219,195 @@ function startSessionPoll(totem, card) {
   sessionPollTimers[totem._id] = setInterval(render, 15_000)
 }
 
-// ── Queue Panel ───────────────────────────────────────────────────────────────
+// ── Queue Poll ───────────────────────────────────────────────────────────────
 
 function startQueuePoll(totem, card) {
-  const render = async () => {
-    const area = card.querySelector('[data-queue-area]')
-    if (!area || area.style.display === 'none') return  // skip if panel is closed
+  const updateCount = async () => {
+    const countEl = card.querySelector('[data-queue-count]')
+    if (!countEl) return
 
     let data
     try {
       const res = await fetch(`${API}/${totem._id}/queue`)
       data = res.ok ? await res.json() : null
     } catch { data = null }
+    if (!data) return
 
-    if (!data) { area.innerHTML = ''; return }
-
-    const { queue = [], sessionPlayers = [] } = data
-    if (queue.length === 0 && sessionPlayers.length === 0) {
-      area.innerHTML = `<div class="queue-panel"><div class="queue-panel-header"><span>Controle de Fila</span><span class="queue-count">Vazio</span></div></div>`
-      return
-    }
-
-    const formatDeviceMeta = (meta) => {
-      if (!meta || !meta.ua) return ''
-      const ua = meta.ua.toLowerCase()
-      let device = '🌐'
-      
-      if (ua.includes('iphone')) device = '📱 iPhone'
-      else if (ua.includes('ipad')) device = 'Tablet'
-      else if (ua.includes('android')) {
-        device = '📱 Android'
-        // Simple attempt to get model: usually after "Android X; "
-        const parts = meta.ua.split(';')
-        if (parts.length > 2 && ua.includes('android')) {
-          const model = parts[2].split(')')[0].trim()
-          if (model.length < 20) device += ` (${model})`
-        }
-      }
-      else if (ua.includes('windows')) device = '💻 Win'
-      else if (ua.includes('macintosh')) device = '💻 Mac'
-      else if (ua.includes('linux')) device = '🐧 Linux'
-
-      let browser = ''
-      if (ua.includes('chrome')) browser = 'Chrome'
-      else if (ua.includes('safari') && !ua.includes('chrome')) browser = 'Safari'
-      else if (ua.includes('firefox')) browser = 'Firefox'
-      else if (ua.includes('edg')) browser = 'Edge'
-      
-      const screen = meta.screen ? ` · ${meta.screen}` : ''
-      const lang = meta.lang ? ` · ${meta.lang.split('-')[0].toUpperCase()}` : ''
-      
-      return `<div class="queue-device-meta">${device}${browser ? ' · ' + browser : ''}${screen}${lang}</div>`
-    }
-
-    const playerRows = sessionPlayers.filter(p => p && (typeof p === 'string' || p.id || p._id)).map((p) => {
-      const pid = (typeof p === 'string') ? p : (p.id || p._id)
-      const pidStr = String(pid)
-      const shortId = pidStr.length > 14 ? pidStr.slice(0, 14) : pidStr
-      const metaHtml = formatDeviceMeta(p?.metadata)
-      return `
-        <div class="queue-row queue-row--playing">
-          <span class="queue-pos">🎮</span>
-          <div style="flex: 1; min-width: 0;">
-            <div class="queue-pid" title="${escHtml(pidStr)}">${escHtml(shortId)}${pidStr.length > 14 ? '…' : ''}</div>
-            ${metaHtml}
-          </div>
-          <button class="btn-kick" 
-            data-totem-id="${escHtml(totem._id)}"
-            data-session-id="${escHtml(String(data.sessionId || ''))}" 
-            data-player-id="${escHtml(pidStr)}" 
-            title="Expulsar da sessão">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            Expulsar
-          </button>
-        </div>`
-    }).join('')
-
-    const queueRows = queue.filter(item => item && (typeof item === 'string' || item.id || item._id)).map((item, i) => {
-      const pid = (typeof item === 'string') ? item : (item.id || item._id)
-      const pidStr = String(pid)
-      const shortId = pidStr.length > 14 ? pidStr.slice(0, 14) : pidStr
-      const metaHtml = formatDeviceMeta(item?.metadata)
-      return `
-        <div class="queue-row" data-player-id="${escHtml(pidStr)}">
-          <span class="queue-pos">#${i + 1}</span>
-          <div style="flex: 1; min-width: 0;">
-            <div class="queue-pid" title="${escHtml(pidStr)}">${escHtml(shortId)}${pidStr.length > 14 ? '…' : ''}</div>
-            ${metaHtml}
-          </div>
-          <button class="btn-kick" data-totem-id="${escHtml(totem._id)}" data-player-id="${escHtml(pidStr)}" title="Expulsar da fila">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            Expulsar
-          </button>
-        </div>`
-    }).join('')
-
-    area.innerHTML = `
-      <div class="queue-panel">
-        <div class="queue-panel-header">
-          <span>Controle de Fila</span>
-          <span class="queue-count">${sessionPlayers.length} jogando · ${queue.length} na fila</span>
-        </div>
-        ${playerRows}
-        ${queue.length > 0 && sessionPlayers.length > 0 ? `<div class="queue-divider"></div>` : ''}
-        ${queueRows}
-      </div>
-    `
-
-    area.querySelectorAll('.btn-kick').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const pid = btn.dataset.playerId
-        const tid = btn.dataset.totemId
-        const sid = btn.dataset.sessionId
-        
-        if (sid) {
-          await kickFromSession(sid, pid, totem.name)
-        } else {
-          await kickFromQueue(tid, pid, totem.name)
-        }
-        render()
-      })
-    })
+    const queueCount = data.queue?.length ?? 0
+    countEl.textContent = `🧍‍♂️ Fila: ${queueCount}`
+    countEl.style.color = queueCount > 0 ? 'var(--accent)' : 'inherit'
+    countEl.style.fontWeight = queueCount > 0 ? '600' : 'normal'
   }
 
-  // Inject render into the card so the toggle button can call it
-  card._injectQueueRender?.(render)
-
-  // Poll every 10s (only renders when panel is open)
-  queuePollTimers[totem._id] = setInterval(render, 10_000)
+  updateCount()
+  queuePollTimers[totem._id] = setInterval(updateCount, 10_000)
 }
+
+// ── Queue Modal ───────────────────────────────────────────────────────────────
+
+function formatDeviceMeta(meta) {
+  if (!meta) return ''
+
+  let device = '🌐 Desconhecido'
+  if (meta.ua) {
+    const ua = meta.ua.toLowerCase()
+
+    if (ua.includes('iphone')) device = '📱 iPhone'
+    else if (ua.includes('ipad')) device = '📱 iPad'
+    else if (ua.includes('android')) {
+      device = '📱 Android'
+      const parts = meta.ua.split(';')
+      if (parts.length > 2) {
+        const model = parts[2].split(')')[0].trim()
+        if (model.length < 20) device += ` (${model})`
+      }
+    }
+    else if (ua.includes('windows')) device = '💻 Windows'
+    else if (ua.includes('macintosh')) device = '💻 Mac'
+    else if (ua.includes('linux')) device = '🐧 Linux'
+
+    let browser = ''
+    if (ua.includes('edg'))      browser = 'Edge'
+    else if (ua.includes('chrome'))   browser = 'Chrome'
+    else if (ua.includes('firefox'))  browser = 'Firefox'
+    else if (ua.includes('safari'))   browser = 'Safari'
+
+    if (browser) device += ` · ${browser}`
+  }
+
+  const ip   = meta.ip ? ` · 🌐 ${meta.ip}` : ''
+  const lang = meta.lang ? ` · ${meta.lang.split('-')[0].toUpperCase()}` : ''
+
+  return `<div class="queue-device-meta">${escHtml(device)}${escHtml(ip)}${escHtml(lang)}</div>`
+}
+
+async function renderQueueModal(totem) {
+  let data
+  try {
+    const res = await fetch(`${API}/${totem._id}/queue`)
+    data = res.ok ? await res.json() : null
+  } catch { data = null }
+
+  if (!data) {
+    queueModalBody.innerHTML = '<p style="font-size:13px; color: var(--text-muted);">Erro ao carregar a fila.</p>'
+    return
+  }
+
+  const { queue = [], sessionPlayers = [], sessionId = null, maxQueueSize = null } = data
+  const queueCapLabel = maxQueueSize ? ` / ${maxQueueSize}` : ''
+
+  if (queue.length === 0 && sessionPlayers.length === 0) {
+    queueModalBody.innerHTML = `<div class="queue-panel"><div class="queue-panel-header"><span>Controle de Fila</span><span class="queue-count">Vazio${queueCapLabel ? ' · limite' + queueCapLabel : ''}</span></div></div>`
+    return
+  }
+
+  const shortSessionId = sessionId ? String(sessionId).slice(0, 8) : null
+
+  const playerRows = sessionPlayers.filter(p => p && (typeof p === 'string' || p.id || p._id)).map((p) => {
+    const pid = (typeof p === 'string') ? p : (p.id || p._id)
+    const pidStr = String(pid)
+    const shortId = pidStr.length > 14 ? pidStr.slice(0, 14) : pidStr
+    const metaHtml = formatDeviceMeta(p?.metadata)
+    return `
+      <div class="queue-row queue-row--playing">
+        <span class="queue-pos">🎮</span>
+        <div style="flex: 1; min-width: 0;">
+          <div class="queue-pid" title="${escHtml(pidStr)}">${escHtml(shortId)}${pidStr.length > 14 ? '…' : ''}</div>
+          ${metaHtml}
+          ${shortSessionId ? `<div class="queue-device-meta" title="${escHtml(String(sessionId))}">🆔 sessão ${escHtml(shortSessionId)}…</div>` : ''}
+        </div>
+        <button class="btn-kick"
+          data-totem-id="${escHtml(totem._id)}"
+          data-session-id="${escHtml(String(sessionId || ''))}"
+          data-player-id="${escHtml(pidStr)}"
+          title="Remover jogador e encerrar a sessão dele">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Expulsar
+        </button>
+      </div>`
+  }).join('')
+
+  const queueRows = queue.filter(item => item && (typeof item === 'string' || item.id || item._id)).map((item, i) => {
+    const pid = (typeof item === 'string') ? item : (item.id || item._id)
+    const pidStr = String(pid)
+    const shortId = pidStr.length > 14 ? pidStr.slice(0, 14) : pidStr
+    const metaHtml = formatDeviceMeta(item?.metadata)
+
+    // Heartbeat TTL: null = no Redis, -2 = expired/missing (ghost), -1 = no TTL, else seconds left.
+    const ttl = item?.heartbeatTtl
+    const isGhost = typeof ttl === 'number' && (ttl === -2 || ttl < 15)
+    const ghostHtml = isGhost
+      ? `<div class="queue-device-meta" style="color: var(--danger);">⚠️ ${ttl < 0 ? 'inativo' : `expira em ${ttl}s`}</div>`
+      : ''
+
+    const eta = item?.estimatedWaitMs
+    const etaHtml = eta ? `<div class="queue-device-meta">⏱ ~${Math.max(1, Math.ceil(eta / 60000))} min</div>` : ''
+
+    return `
+      <div class="queue-row" data-player-id="${escHtml(pidStr)}">
+        <span class="queue-pos">#${i + 1}</span>
+        <div style="flex: 1; min-width: 0;">
+          <div class="queue-pid" title="${escHtml(pidStr)}">${escHtml(shortId)}${pidStr.length > 14 ? '…' : ''}</div>
+          ${metaHtml}
+          ${etaHtml}
+          ${ghostHtml}
+        </div>
+        <button class="btn-kick" data-totem-id="${escHtml(totem._id)}" data-player-id="${escHtml(pidStr)}" title="Remover da fila">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Expulsar
+        </button>
+      </div>`
+  }).join('')
+
+  queueModalBody.innerHTML = `
+    <div class="queue-panel">
+      <div class="queue-panel-header">
+        <span>Controle de Fila</span>
+        <span class="queue-count">${sessionPlayers.length} jogando · ${queue.length}${queueCapLabel} na fila</span>
+      </div>
+      ${playerRows}
+      ${queue.length > 0 && sessionPlayers.length > 0 ? `<div class="queue-divider"></div>` : ''}
+      ${queueRows}
+    </div>
+  `
+
+  queueModalBody.querySelectorAll('.btn-kick').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pid = btn.dataset.playerId
+      const tid = btn.dataset.totemId
+      const sid = btn.dataset.sessionId
+
+      if (sid) {
+        await kickFromSession(sid, pid, totem.name)
+      } else {
+        await kickFromQueue(tid, pid, totem.name)
+      }
+      renderQueueModal(totem)
+    })
+  })
+}
+
+function openQueueModal(totem) {
+  queueModalTotemId = totem._id
+  queueModalTotemName.textContent = totem.name
+  queueModal.style.display = 'flex'
+  renderQueueModal(totem)
+
+  clearInterval(queueModalTimer)
+  queueModalTimer = setInterval(() => renderQueueModal(totem), 5_000)
+}
+
+function closeQueueModal() {
+  queueModal.style.display = 'none'
+  queueModalTotemId = null
+  clearInterval(queueModalTimer)
+  queueModalTimer = null
+}
+
+queueModalClose?.addEventListener('click', closeQueueModal)
+queueModal?.addEventListener('click', (e) => {
+  if (e.target === queueModal) closeQueueModal()
+})
 
 // ── Kick from Queue ───────────────────────────────────────────────────────────
 
@@ -446,6 +496,7 @@ function startEdit(totem) {
   formPort.value             = totem.udpPort
   formMaxPlayers.value       = String(totem.maxPlayers ?? 2)
   formDuration.value         = String(totem.sessionDurationMs ?? 1800000)
+  formMaxQueue.value         = totem.maxQueueSize != null ? String(totem.maxQueueSize) : ''
   totemFormTitle.textContent = 'Editar Totem'
   openTotemModal()
 }
@@ -457,6 +508,7 @@ function resetForm() {
   formPort.value              = ''
   formMaxPlayers.value        = '2'
   formDuration.value          = '1800000'
+  formMaxQueue.value          = ''
   totemFormTitle.textContent  = 'Novo Totem'
 }
 
@@ -477,6 +529,7 @@ btnSaveTotem?.addEventListener('click', async () => {
   const udpPort           = parseInt(formPort.value, 10)
   const maxPlayers        = parseInt(formMaxPlayers.value, 10)
   const sessionDurationMs = parseInt(formDuration.value, 10)
+  const maxQueueSize      = formMaxQueue.value.trim() ? parseInt(formMaxQueue.value, 10) : null
 
   if (!name || !ip || !udpPort) {
     showTotemError('Preencha nome, IP e porta.')
@@ -490,12 +543,12 @@ btnSaveTotem?.addEventListener('click', async () => {
     if (editingTotemId) {
       await apiFetch(`${API}/${editingTotemId}`, {
         method: 'PUT',
-        body:   JSON.stringify({ name, ip, udpPort, maxPlayers, sessionDurationMs }),
+        body:   JSON.stringify({ name, ip, udpPort, maxPlayers, sessionDurationMs, maxQueueSize }),
       })
     } else {
       await apiFetch(API, {
         method: 'POST',
-        body:   JSON.stringify({ name, ip, udpPort, maxPlayers, sessionDurationMs }),
+        body:   JSON.stringify({ name, ip, udpPort, maxPlayers, sessionDurationMs, maxQueueSize }),
       })
     }
 

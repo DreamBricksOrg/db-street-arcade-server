@@ -65,7 +65,7 @@ async function sessionRoutes(fastify) {
     return
   }
 
-  const service = new SessionService(fastify.mongo, fastify.redisPublisher)
+  const service = new SessionService(fastify.mongo, fastify.redisPublisher, fastify)
   const repo    = new SessionRepository(fastify.mongo)
 
   // Start the expiry watcher
@@ -282,10 +282,13 @@ async function sessionRoutes(fastify) {
   })
 
   // ── POST /api/sessions/:id/players/:playerId/kick ──────────────────────────
+  // Operator-initiated removal from the dashboard's queue panel. Behaves just
+  // like the player dying: solo totems end the whole round, multiplayer totems
+  // remove only this player and backfill the freed slot from the queue.
   fastify.post('/api/sessions/:id/players/:playerId/kick', {
     schema: {
       tags: ['Sessions'],
-      summary: 'Kick a specific player from a session',
+      summary: 'Kick a specific player, ending their turn and backfilling the queue',
       params: {
         type: 'object',
         properties: {
@@ -295,38 +298,56 @@ async function sessionRoutes(fastify) {
         required: ['id', 'playerId']
       },
       response: {
-        200: { type: 'object', properties: { ok: { type: 'boolean' } } },
+        200: {
+          type: 'object',
+          properties: {
+            ok:           { type: 'boolean' },
+            newSessionId: { type: 'string', nullable: true },
+            backfilled:   { type: 'string', nullable: true }
+          }
+        },
         404: { type: 'object', properties: { error: { type: 'string' } } }
       }
     }
   }, async (request, reply) => {
     const { id, playerId } = request.params
-    const result = await service.leaveSession(id, playerId)
+    const result = await service.endPlayerTurn(id, playerId, 'kicked')
     if (!result.ok) return reply.status(404).send({ error: result.error })
-    return { ok: true }
+    return { ok: true, newSessionId: result.newSessionId ?? null, backfilled: result.backfilled ?? null }
   })
 
   // ── POST /api/sessions/:id/player-died ────────────────────────────────────
-  // Called by the demo-snake server when a player dies.
-  // Ends the session (advancing the queue) only if someone is waiting.
+  // Called by the demo-snake server when a specific player dies.
+  // Solo totems: ends the whole session and auto-renews.
+  // Multiplayer totems: removes only that player and backfills their slot
+  // from the totem's queue, leaving any other players untouched.
   fastify.post('/api/sessions/:id/player-died', {
     schema: {
       tags: ['Sessions'],
-      summary: 'Notify player death — ends session if queue is non-empty',
+      summary: 'Notify a specific player\'s death — ends their turn and backfills the queue',
       params: sessionIdParam,
+      body: {
+        type: 'object',
+        properties: { playerId: { type: 'string' } },
+        required: ['playerId']
+      },
       response: {
         200: {
           type: 'object',
           properties: {
-            shouldEnd:    { type: 'boolean' },
-            newSessionId: { type: 'string', nullable: true }
+            ok:           { type: 'boolean' },
+            newSessionId: { type: 'string', nullable: true },
+            backfilled:   { type: 'string', nullable: true }
           }
-        }
+        },
+        404: { type: 'object', properties: { error: { type: 'string' } } }
       }
     }
-  }, async (request) => {
-    const result = await service.playerDied(request.params.id)
-    return { shouldEnd: result.shouldEnd, newSessionId: result.newSessionId ?? null }
+  }, async (request, reply) => {
+    const { playerId } = request.body
+    const result = await service.endPlayerTurn(request.params.id, playerId, 'player_died')
+    if (!result.ok) return reply.status(404).send({ error: result.error })
+    return { ok: true, newSessionId: result.newSessionId ?? null, backfilled: result.backfilled ?? null }
   })
 
   // ── DELETE /api/sessions/:id ────────────────────────────────────────────────

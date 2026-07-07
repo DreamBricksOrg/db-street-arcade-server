@@ -19,11 +19,13 @@ export class SessionService {
   /**
    * @param {import('@fastify/mongodb').FastifyMongoObject} mongo
    * @param {import('ioredis').Redis} redisPublisher
+   * @param {import('fastify').FastifyInstance} [fastify] Used to reach fastify.gameHandler for forced disconnects
    */
-  constructor(mongo, redisPublisher) {
+  constructor(mongo, redisPublisher, fastify) {
     this.repo        = new SessionRepository(mongo)
     this.cache       = new SessionCache(redisPublisher)
     this.publisher   = redisPublisher
+    this._fastify    = fastify
     // Injected lazily to avoid circular dependency with TotemService
     this._TotemService = null
   }
@@ -137,7 +139,10 @@ export class SessionService {
 
     // Update in-memory object
     session.players = (session.players ?? []).filter(p => p.id !== playerId)
-    
+    // Also drop any leftover reservation — otherwise a departed player would
+    // keep counting as an "unclaimed reservation" and block their old slot.
+    session.allowedPlayers = (session.allowedPlayers ?? []).filter(id => id !== playerId)
+
     // If no players left and session was active, revert to waiting
     if (session.players.length === 0 && session.status === 'active') {
       session.status = 'waiting'
@@ -198,23 +203,72 @@ export class SessionService {
   }
 
   /**
-   * Called when a player dies in a game that supports respawn (e.g. demo-snake).
-   * If someone is waiting in the totem's queue, ends the session immediately so
-   * the auto-renew mechanism can advance the queue to the next player.
+   * Called when a specific player dies in a multiplayer-capable game (e.g. demo-snake).
+   * Removes only that player from the session and, if anyone is waiting in the
+   * totem's queue, immediately reserves the freed slot for the next player —
+   * the other players already in the session are left untouched.
    *
    * @param {string} sessionId
-   * @returns {Promise<{ shouldEnd: boolean, newSessionId?: string }>}
+   * @param {string} playerId
+   * @returns {Promise<{ ok: boolean, error?: string, backfilled?: string|null }>}
    */
-  async playerDied(sessionId) {
+  async playerDied(sessionId, playerId) {
     const session = await this.findSession(sessionId)
-    if (!session || session.status === 'finished') return { shouldEnd: false }
-    if (!session.totemId || !this._TotemService) return { shouldEnd: false }
+    if (!session) return { ok: false, error: 'Session not found' }
+    if (session.status === 'finished') return { ok: true, backfilled: null }
 
-    const queueSize = await this._TotemService.getQueueSize(session.totemId)
-    if (queueSize <= 0) return { shouldEnd: false }
+    await this.leaveSession(sessionId, playerId)
 
-    const result = await this.endSession(sessionId, 'player_died')
-    return { shouldEnd: true, newSessionId: result.newSessionId }
+    // Forcibly close that player's WS so their phone knows the round is over for them.
+    this._fastify?.gameHandler?.disconnectPlayer(sessionId, playerId, 1008, 'You died')
+
+    if (!session.totemId || !this._TotemService) return { ok: true, backfilled: null }
+
+    const [nextPlayerId] = await this._TotemService.dequeuePlayers(session.totemId.toString(), 1)
+    if (!nextPlayerId) return { ok: true, backfilled: null }
+
+    const fresh = await this.findSession(sessionId)
+    if (!fresh || fresh.status === 'finished') {
+      // Session vanished/ended mid-flight — put the popped player back in line.
+      await this._TotemService.joinQueue(session.totemId.toString(), nextPlayerId)
+      return { ok: true, backfilled: null }
+    }
+
+    fresh.allowedPlayers = [...(fresh.allowedPlayers ?? []), nextPlayerId]
+    await this.cache.set(fresh)
+
+    log.info({ sessionId, playerId, backfilled: nextPlayerId }, 'Player died — slot backfilled from queue')
+    return { ok: true, backfilled: nextPlayerId }
+  }
+
+  /**
+   * Unified "this player is done" entry point — used both when a player dies
+   * in-game and when an operator kicks a playing player from the dashboard.
+   *
+   * - Solo totems (maxPlayers <= 1): ending the only player's turn ends the
+   *   whole session and auto-renews (dequeues the next player(s)).
+   * - Multiplayer totems (maxPlayers > 1): only that player is removed and
+   *   their slot is immediately backfilled from the queue, leaving any other
+   *   players in the session untouched.
+   *
+   * @param {string} sessionId
+   * @param {string} playerId
+   * @param {'player_died'|'kicked'|'manual'} [reason='manual']
+   * @returns {Promise<{ ok: boolean, error?: string, newSessionId?: string|null, backfilled?: string|null }>}
+   */
+  async endPlayerTurn(sessionId, playerId, reason = 'manual') {
+    const session = await this.findSession(sessionId)
+    if (!session) return { ok: false, error: 'Session not found' }
+    if (session.status === 'finished') return { ok: true, newSessionId: null, backfilled: null }
+
+    if ((session.maxPlayers ?? 1) <= 1) {
+      const result = await this.endSession(sessionId, reason)
+      if (!result.ok) return result
+      return { ok: true, newSessionId: result.newSessionId ?? null, backfilled: null }
+    }
+
+    const result = await this.playerDied(sessionId, playerId)
+    return { ok: result.ok, error: result.error, newSessionId: null, backfilled: result.backfilled ?? null }
   }
 
   /**
@@ -232,6 +286,26 @@ export class SessionService {
 
     log.info({ sessionId }, 'Session hard-deleted')
     return { ok: true }
+  }
+
+  /**
+   * Estimates the average real duration (ms) of recent finished rounds for a
+   * totem, used to give waiting players a rough ETA. Falls back to the given
+   * default when there isn't enough history yet.
+   * @param {string} totemId
+   * @param {number} fallbackMs
+   * @returns {Promise<number>}
+   */
+  async getAverageSessionDurationMs(totemId, fallbackMs) {
+    const recent = await this.repo.findRecentFinished(totemId, 5)
+
+    const durations = recent
+      .filter(s => s.createdAt && s.endedAt)
+      .map(s => new Date(s.endedAt).getTime() - new Date(s.createdAt).getTime())
+      .filter(ms => ms > 0)
+
+    if (durations.length === 0) return fallbackMs
+    return Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
   }
 
   // ── Session Timeout ────────────────────────────────────────────────────────

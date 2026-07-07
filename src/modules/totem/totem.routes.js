@@ -12,11 +12,23 @@
 
 import fp    from 'fastify-plugin'
 import QRCode from 'qrcode'
-import { TotemService }  from './totem.service.js'
-import { createLogger }  from '../../lib/logger.js'
-import { env }           from '../../config/env.js'
+import { TotemService }    from './totem.service.js'
+import { createLogger }    from '../../lib/logger.js'
+import { env }             from '../../config/env.js'
+import { createRateLimiter } from '../../lib/rateLimit.js'
+import { createKeyedMutex }  from '../../lib/mutex.js'
 
 const log = createLogger('totem.routes')
+
+// Generous enough for legit retries/reconnects, tight enough to stop a spam loop.
+const queueJoinRateLimit = createRateLimiter({ windowMs: 10_000, max: 8 })
+
+// Serializes "resolve/create session + check capacity + claim a slot" per
+// totemId. Without this, several phones scanning the QR at the same instant
+// can all read "session has a free slot" before any of them actually claims
+// it — handing out the same sessionId past capacity, or racing to create
+// duplicate sessions for the same totem.
+const totemSessionLock = createKeyedMutex()
 
 const totemIdParam = {
   type:       'object',
@@ -42,6 +54,45 @@ async function totemRoutes(fastify) {
     }
   })
 
+  /**
+   * Rough ETA for a queued player: how many "rounds" of the totem they need
+   * to wait through (ceil(position / maxPlayers)) times the average real
+   * duration of that totem's recent rounds.
+   */
+  async function estimateWait(totemId, totem, maxPlayers, position) {
+    if (!fastify.sessionService) return null
+    const fallback = totem.sessionDurationMs ?? env.sessionTimeoutMs
+    const avgMs    = await fastify.sessionService.getAverageSessionDurationMs(totemId, fallback)
+    const mp       = maxPlayers || 1
+    return Math.ceil(position / mp) * avgMs
+  }
+
+  // ── Queue SSE hub ────────────────────────────────────────────────────────────
+  // Lets waiting players get pushed a "something changed" ping instead of only
+  // relying on their own poll interval — they re-check status immediately.
+  // One shared Redis pattern-subscription (queue:event:*) fans out in-process
+  // to whichever totem's SSE clients are currently connected.
+  const queueSseClients = new Map() // totemId → Set<http.ServerResponse>
+
+  function broadcastQueueEvent(totemId) {
+    const clients = queueSseClients.get(totemId)
+    if (!clients || clients.size === 0) return
+    for (const res of clients) {
+      try { res.write('data: {"type":"queue_changed"}\n\n') } catch { /* client gone */ }
+    }
+  }
+
+  if (fastify.redisSubscriber) {
+    fastify.redisSubscriber.psubscribe('queue:event:*').catch(err =>
+      log.error({ err: err.message }, 'Failed to subscribe to queue events'))
+
+    fastify.redisSubscriber.on('pmessage', (pattern, channel) => {
+      if (pattern !== 'queue:event:*') return
+      const totemId = channel.slice('queue:event:'.length)
+      broadcastQueueEvent(totemId)
+    })
+  }
+
   // ── POST /api/totems ─────────────────────────────────────────────────────────
   fastify.post('/api/totems', {
     schema: {
@@ -54,7 +105,8 @@ async function totemRoutes(fastify) {
           ip: { type: 'string' },
           udpPort: { type: 'number' },
           maxPlayers: { type: 'number' },
-          sessionDurationMs: { type: 'number' }
+          sessionDurationMs: { type: 'number' },
+          maxQueueSize: { type: 'number' }
         },
         required: ['name', 'ip', 'udpPort']
       },
@@ -68,6 +120,7 @@ async function totemRoutes(fastify) {
             udpPort: { type: 'number' },
             maxPlayers: { type: 'number', nullable: true },
             sessionDurationMs: { type: 'number', nullable: true },
+            maxQueueSize: { type: 'number', nullable: true },
             currentSessionId: { type: 'string', nullable: true }
           }
         },
@@ -75,7 +128,7 @@ async function totemRoutes(fastify) {
       }
     }
   }, async (request, reply) => {
-    const { name, ip, udpPort, maxPlayers, sessionDurationMs } = request.body ?? {}
+    const { name, ip, udpPort, maxPlayers, sessionDurationMs, maxQueueSize } = request.body ?? {}
 
     const result = await service.createTotem({
       name,
@@ -83,6 +136,7 @@ async function totemRoutes(fastify) {
       udpPort:           Number(udpPort),
       maxPlayers:        maxPlayers        ? Number(maxPlayers)        : undefined,
       sessionDurationMs: sessionDurationMs ? Number(sessionDurationMs) : undefined,
+      maxQueueSize:      maxQueueSize      ? Number(maxQueueSize)      : undefined,
     })
 
     if (!result.ok) return reply.status(400).send({ error: result.error })
@@ -107,6 +161,7 @@ async function totemRoutes(fastify) {
               udpPort: { type: 'number' },
               maxPlayers: { type: 'number', nullable: true },
               sessionDurationMs: { type: 'number', nullable: true },
+              maxQueueSize: { type: 'number', nullable: true },
               currentSessionId: { type: 'string', nullable: true },
               queueSize: { type: 'number' }
             }
@@ -134,6 +189,7 @@ async function totemRoutes(fastify) {
             udpPort: { type: 'number' },
             maxPlayers: { type: 'number', nullable: true },
             sessionDurationMs: { type: 'number', nullable: true },
+            maxQueueSize: { type: 'number', nullable: true },
             currentSessionId: { type: 'string', nullable: true }
           }
         },
@@ -159,7 +215,8 @@ async function totemRoutes(fastify) {
           ip: { type: 'string' },
           udpPort: { type: 'number' },
           maxPlayers: { type: 'number' },
-          sessionDurationMs: { type: 'number' }
+          sessionDurationMs: { type: 'number' },
+          maxQueueSize: { type: 'number', nullable: true }
         }
       },
       response: {
@@ -169,7 +226,7 @@ async function totemRoutes(fastify) {
       }
     }
   }, async (request, reply) => {
-    const { name, ip, udpPort, maxPlayers, sessionDurationMs } = request.body ?? {}
+    const { name, ip, udpPort, maxPlayers, sessionDurationMs, maxQueueSize } = request.body ?? {}
 
     const fields = {}
     if (name              !== undefined) fields.name              = name
@@ -177,6 +234,7 @@ async function totemRoutes(fastify) {
     if (udpPort           !== undefined) fields.udpPort           = Number(udpPort)
     if (maxPlayers        !== undefined) fields.maxPlayers        = Number(maxPlayers)
     if (sessionDurationMs !== undefined) fields.sessionDurationMs = Number(sessionDurationMs)
+    if (maxQueueSize      !== undefined) fields.maxQueueSize      = maxQueueSize
 
     const result = await service.updateTotem(request.params.id, fields)
 
@@ -229,7 +287,9 @@ async function totemRoutes(fastify) {
       }
     }
   }, async (request, reply) => {
-    const result = await service.resolveSession(request.params.id)
+    // Shares the per-totem lock with queue/join — also resolves/creates a
+    // session, so it must not race a concurrent join into a duplicate one.
+    const result = await totemSessionLock(request.params.id, () => service.resolveSession(request.params.id))
 
     if (!result.ok) {
       const status = result.error === 'Totem not found' ? 404 : 500
@@ -258,13 +318,14 @@ async function totemRoutes(fastify) {
    * Enters the queue if session is full, or joins session if space is available.
    */
   fastify.post('/api/totems/:id/queue/join', {
+    preHandler: queueJoinRateLimit,
     schema: {
       tags: ['Totems', 'Queue'],
       summary: 'Join totem queue',
       params: totemIdParam,
       body: {
         type: 'object',
-        properties: { 
+        properties: {
           playerId: { type: 'string' },
           metadata: { type: 'object', additionalProperties: true }
         },
@@ -276,11 +337,14 @@ async function totemRoutes(fastify) {
           properties: {
             status: { type: 'string', enum: ['play', 'queue'] },
             sessionId: { type: 'string' },
-            position: { type: 'number' }
+            position: { type: 'number' },
+            estimatedWaitMs: { type: 'number', nullable: true }
           }
         },
         400: { type: 'object', properties: { error: { type: 'string' } } },
         404: { type: 'object', properties: { error: { type: 'string' } } },
+        409: { type: 'object', properties: { error: { type: 'string' } } },
+        429: { type: 'object', properties: { error: { type: 'string' } } },
         500: { type: 'object', properties: { error: { type: 'string' } } }
       }
     }
@@ -299,37 +363,50 @@ async function totemRoutes(fastify) {
     const totem = await service.findTotem(id)
     if (!totem) return reply.status(404).send({ error: 'Totem not found' })
 
-    const sessionRes = await service.resolveSession(id)
-    if (!sessionRes.ok) return reply.status(500).send({ error: sessionRes.error })
-    const session = sessionRes.session
-    const sid = (session._id ?? session.id).toString()
-    const svc = fastify.sessionService
+    // Whole decide-and-claim flow is serialized per totem so concurrent
+    // joiners can't all see the same "free slot" before any of them claims it.
+    const outcome = await totemSessionLock(id, async () => {
+      const sessionRes = await service.resolveSession(id)
+      if (!sessionRes.ok) return { httpStatus: 500, error: sessionRes.error }
+      const session = sessionRes.session
+      const sid = (session._id ?? session.id).toString()
+      const svc = fastify.sessionService
 
-    const allowed  = session.allowedPlayers || []
-    const players  = session.players || []
-    const queueSize = service._redisPub ? await service._redisPub.llen(`queue:totem:${id}`) : 0
+      const allowed  = session.allowedPlayers || []
+      const players  = session.players || []
+      const queueSize = service._redisPub ? await service._redisPub.llen(`queue:totem:${id}`) : 0
 
-    // 1. Reserved by the queue (was dequeued) → play and claim slot
-    if (allowed.includes(playerId)) {
-      await service.leaveQueue(id, playerId)
-      if (svc) await svc.joinSession(sid, playerId, metadata)
-      return { status: 'play', sessionId: sid }
-    }
+      // 1. Reserved by the queue (was dequeued) → play and claim slot
+      if (allowed.includes(playerId)) {
+        await service.leaveQueue(id, playerId)
+        const joined = svc ? await svc.joinSession(sid, playerId, metadata) : { ok: true }
+        if (joined.ok) return { status: 'play', sessionId: sid }
+        // Slot vanished between the check and the claim — fall through to queue.
+      } else {
+        // 2. Effective occupied = joined players + allowedPlayers not yet connected
+        const unclaimedReservations = allowed.filter(aid => !players.some(p => p.id === aid)).length
+        const occupied = players.length + unclaimedReservations
 
-    // 2. Effective occupied = joined players + allowedPlayers not yet connected
-    const unclaimedReservations = allowed.filter(aid => !players.some(p => p.id === aid)).length
-    const occupied = players.length + unclaimedReservations
+        // 3. No queue and free slots → play directly and claim the slot
+        if (queueSize === 0 && occupied < session.maxPlayers) {
+          const joined = svc ? await svc.joinSession(sid, playerId, metadata) : { ok: true }
+          if (joined.ok) return { status: 'play', sessionId: sid }
+        }
+      }
 
-    // 3. No queue and free slots → play directly and claim the slot
-    if (queueSize === 0 && occupied < session.maxPlayers) {
-      if (svc) await svc.joinSession(sid, playerId, metadata)
-      return { status: 'play', sessionId: sid }
-    }
+      // 4. Full, queue exists, or the claim above failed → wait in line
+      const result = await service.joinQueue(id, playerId, metadata)
+      if (!result.ok) {
+        if (result.full) return { httpStatus: 409, error: result.error }
+        return { httpStatus: 500, error: result.error }
+      }
 
-    // 4. Full or queue exists → wait in line
-    const result = await service.joinQueue(id, playerId, metadata)
-    if (!result.ok) return reply.status(500).send({ error: result.error })
-    return { status: 'queue', position: result.position }
+      const estimatedWaitMs = await estimateWait(id, totem, session.maxPlayers, result.position)
+      return { status: 'queue', position: result.position, estimatedWaitMs }
+    })
+
+    if (outcome.httpStatus) return reply.status(outcome.httpStatus).send({ error: outcome.error })
+    return outcome
   })
 
   /**
@@ -353,7 +430,8 @@ async function totemRoutes(fastify) {
             status: { type: 'string', enum: ['play', 'queue'] },
             sessionId: { type: 'string' },
             position: { type: 'number' },
-            size: { type: 'number' }
+            size: { type: 'number' },
+            estimatedWaitMs: { type: 'number', nullable: true }
           }
         },
         400: { type: 'object', properties: { error: { type: 'string' } } },
@@ -366,41 +444,62 @@ async function totemRoutes(fastify) {
     const { playerId } = request.query
     if (!playerId) return reply.status(400).send({ error: 'playerId requirement missing' })
 
-    // First check if they got selected for the current session!
-    const sessionRes = await service.resolveSession(id)
-    if (sessionRes.ok) {
-      const allowed = sessionRes.session.allowedPlayers || []
-      // If player was called to play (dequeued into allowedPlayers)
-      if (allowed.includes(playerId)) {
-        await service.leaveQueue(id, playerId)
-        const sid = (sessionRes.session._id ?? sessionRes.session.id).toString()
-        const svc = fastify.sessionService
-        if (svc) await svc.joinSession(sid, playerId)
-        return { status: 'play', sessionId: sid }
+    const totem = await service.findTotem(id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+
+    // Same per-totem lock as queue/join — this route can also resolve/create
+    // a session and claim a slot, so it must not race with a concurrent join.
+    const outcome = await totemSessionLock(id, async () => {
+      // First check if they got selected for the current session!
+      const sessionRes = await service.resolveSession(id)
+      if (sessionRes.ok) {
+        const allowed = sessionRes.session.allowedPlayers || []
+        // If player was called to play (dequeued into allowedPlayers)
+        if (allowed.includes(playerId)) {
+          await service.leaveQueue(id, playerId)
+          const sid = (sessionRes.session._id ?? sessionRes.session.id).toString()
+          const svc = fastify.sessionService
+          if (svc) await svc.joinSession(sid, playerId)
+          return { status: 'play', sessionId: sid }
+        }
       }
-    }
 
-    const { ok, error, position, size } = await service.getQueueStatus(id, playerId)
-    if (!ok) return reply.status(error === 'Not in queue' ? 404 : 500).send({ error })
+      const { ok, error, position, size } = await service.getQueueStatus(id, playerId)
+      if (!ok) return { httpStatus: error === 'Not in queue' ? 404 : 500, error }
 
-    return { status: 'queue', position, size }
+      const maxPlayers = sessionRes.ok ? sessionRes.session.maxPlayers : (totem.maxPlayers ?? env.sessionMaxPlayers)
+      const estimatedWaitMs = await estimateWait(id, totem, maxPlayers, position)
+      return { status: 'queue', position, size, estimatedWaitMs }
+    })
+
+    if (outcome.httpStatus) return reply.status(outcome.httpStatus).send({ error: outcome.error })
+    return outcome
   })
 
   // ── POST /api/totems/:id/end-session ─────────────────────────────────────────
-  // Ends the active session for the given totem.
-  // Used by the game/totem itself when the player dies.
+  // Called by the game/totem itself when a player dies.
+  // - Single-player totems (maxPlayers <= 1): ends the whole session and auto-renews
+  //   (unchanged — this is the original, validated behavior).
+  // - Multiplayer totems (maxPlayers > 1) with a playerId in the body: removes only
+  //   that player and backfills their slot from the queue, leaving the rest of the
+  //   session (and any players still alive) untouched.
   fastify.post('/api/totems/:id/end-session', {
     schema: {
       tags: ['Totems'],
-      summary: 'End the active session for a totem',
-      description: 'Resolves the active session for the totem by ID and ends it. Used by the game client on player death.',
+      summary: 'End the active session for a totem, or remove a single player from it',
+      description: 'Resolves the active session for the totem. If the totem allows more than one player and a playerId is given, only that player is removed and backfilled from the queue. Otherwise the whole session ends and auto-renews.',
       params: totemIdParam,
+      body: {
+        type: 'object',
+        properties: { playerId: { type: 'string' } },
+      },
       response: {
         200: {
           type: 'object',
           properties: {
             ok:           { type: 'boolean' },
             newSessionId: { type: 'string' },
+            backfilled:   { type: 'string', nullable: true },
           },
         },
         404: { type: 'object', properties: { error: { type: 'string' } } },
@@ -415,33 +514,19 @@ async function totemRoutes(fastify) {
     const svc = fastify.sessionService
     if (!svc) return reply.status(500).send({ error: 'SessionService not available' })
 
-    const result = await svc.endSession(totem.currentSessionId, 'manual')
+    const { playerId } = request.body || {}
+
+    // With a playerId, let the session decide: solo totems end the whole round,
+    // multiplayer totems remove only that player and backfill from the queue.
+    // Without one (legacy/manual callers), always end the whole session.
+    const result = playerId
+      ? await svc.endPlayerTurn(totem.currentSessionId, playerId, 'player_died')
+      : await svc.endSession(totem.currentSessionId, 'manual')
+
     if (!result.ok) return reply.status(500).send({ error: result.error })
 
-    log.info({ totemId: request.params.id, sessionId: totem.currentSessionId }, 'Session ended via totem end-session route')
-    return { ok: true, newSessionId: result.newSessionId }
-  })
-
-  /**
-   * POST /api/totems/:id/queue/clear
-   */
-  fastify.post('/api/totems/:id/queue/clear', {
-    schema: {
-      tags: ['Totems', 'Queue'],
-      summary: 'Clear totem queue',
-      params: totemIdParam,
-      response: {
-        200: {
-          type: 'object',
-          properties: { ok: { type: 'boolean' } }
-        },
-        500: { type: 'object', properties: { error: { type: 'string' } } }
-      }
-    }
-  }, async (request, reply) => {
-    const result = await service.clearQueue(request.params.id)
-    if (!result.ok) return reply.status(500).send({ error: result.error })
-    return { ok: true }
+    log.info({ totemId: request.params.id, sessionId: totem.currentSessionId, playerId, newSessionId: result.newSessionId, backfilled: result.backfilled }, 'Player turn ended via totem end-session route')
+    return { ok: true, newSessionId: result.newSessionId ?? undefined, backfilled: result.backfilled ?? null }
   })
 
   /**
@@ -458,18 +543,32 @@ async function totemRoutes(fastify) {
         200: {
           type: 'object',
           properties: {
-            queue:          { 
-              type: 'array', 
-              items: { 
+            queue:          {
+              type: 'array',
+              items: {
                 type: 'object',
                 properties: {
-                  id:       { type: 'string' },
-                  metadata: { type: 'object', additionalProperties: true }
+                  id:              { type: 'string' },
+                  metadata:        { type: 'object', additionalProperties: true },
+                  heartbeatTtl:    { type: 'number', nullable: true },
+                  estimatedWaitMs: { type: 'number', nullable: true }
                 }
               }
             },
-            sessionPlayers: { type: 'array', items: { type: 'object' } },
+            sessionPlayers: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id:          { type: 'string' },
+                  connectedAt: { type: 'string' },
+                  metadata:    { type: 'object', additionalProperties: true }
+                },
+                additionalProperties: true
+              }
+            },
             sessionId:      { type: 'string' },
+            maxQueueSize:   { type: 'number', nullable: true },
           },
         },
         404: { type: 'object', properties: { error: { type: 'string' } } },
@@ -486,10 +585,14 @@ async function totemRoutes(fastify) {
       ? await service._redisPub.lrange(`queue:totem:${id}`, 0, -1)
       : []
 
-    // Fetch metadata for each player in queue
-    const queue = await Promise.all(queueIds.map(async (pid) => {
-      const meta = await service.getPlayerMetadata(pid)
-      return { id: pid, metadata: meta }
+    // Fetch metadata + heartbeat TTL + ETA for each player in queue
+    const queue = await Promise.all(queueIds.map(async (pid, i) => {
+      const [meta, heartbeatTtl, estimatedWaitMs] = await Promise.all([
+        service.getPlayerMetadata(pid),
+        service.getHeartbeatTtl(pid),
+        estimateWait(id, totem, totem.maxPlayers ?? env.sessionMaxPlayers, i + 1),
+      ])
+      return { id: pid, metadata: meta, heartbeatTtl, estimatedWaitMs }
     }))
 
     // Session state from Redis cache (or Mongo fallback)
@@ -501,11 +604,48 @@ async function totemRoutes(fastify) {
       sessionPlayers = (session?.players ?? []).filter(p => p && (p.id || p._id || typeof p === 'string'))
     }
 
-    return { 
-      queue, 
-      sessionPlayers, 
-      sessionId: sessionId ? sessionId.toString() : null 
+    return {
+      queue,
+      sessionPlayers,
+      sessionId:    sessionId ? sessionId.toString() : null,
+      maxQueueSize: totem.maxQueueSize ?? null,
     }
+  })
+
+  /**
+   * GET /api/totems/:id/queue/events
+   * Server-Sent Events stream — pushes a ping whenever this totem's queue
+   * changes (join/leave/dequeue/clear), so waiting players can re-check their
+   * status immediately instead of waiting for their next poll tick.
+   */
+  fastify.get('/api/totems/:id/queue/events', {
+    schema: {
+      tags: ['Totems', 'Queue'],
+      summary: 'SSE stream of queue change notifications for this totem',
+      params: totemIdParam,
+    },
+  }, async (request, reply) => {
+    const { id } = request.params
+
+    reply.hijack()
+    reply.raw.writeHead(200, {
+      'Content-Type':  'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection':    'keep-alive',
+    })
+    reply.raw.write('data: {"type":"connected"}\n\n')
+
+    if (!queueSseClients.has(id)) queueSseClients.set(id, new Set())
+    queueSseClients.get(id).add(reply.raw)
+
+    const heartbeat = setInterval(() => {
+      try { reply.raw.write(': ping\n\n') } catch { /* client gone */ }
+    }, 20_000)
+
+    request.raw.on('close', () => {
+      clearInterval(heartbeat)
+      queueSseClients.get(id)?.delete(reply.raw)
+    })
   })
 
   /**
@@ -537,6 +677,37 @@ async function totemRoutes(fastify) {
 
     await service.leaveQueue(id, playerId)
     log.info({ totemId: id, playerId }, 'Player kicked from queue by operator')
+    return { ok: true }
+  })
+
+  /**
+   * POST /api/totems/:id/queue/clear
+   * Clears the entire queue for this totem.
+   */
+  fastify.post('/api/totems/:id/queue/clear', {
+    schema: {
+      tags: ['Totems', 'Queue'],
+      summary: 'Clear the entire queue',
+      params: {
+        type:       'object',
+        properties: {
+          id:       { type: 'string', minLength: 36, maxLength: 36 },
+        },
+        required: ['id'],
+      },
+      response: {
+        200: { type: 'object', properties: { ok: { type: 'boolean' } } },
+        404: { type: 'object', properties: { error: { type: 'string' } } },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params
+
+    const totem = await service.findTotem(id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+
+    await service.clearQueue(id)
+    log.info({ totemId: id }, 'Queue cleared by operator')
     return { ok: true }
   })
 

@@ -213,10 +213,17 @@ evtSource.onmessage = function(event) {
       return;
     }
 
-    if (data.type === 'session_start') {
-      // Nova sessão iniciada — reseta o estado de gameOver de todos os jogadores
-      Object.keys(players).forEach(k => delete players[k]);
-      colorIndex = 0;
+    // Jogadores entram e saem individualmente — nunca há reset de board.
+    if (data.type === 'player_join') {
+      console.log('[SSE] player_join:', data.pid);
+      if (data.tid) currentTotemId = data.tid;
+      return;
+    }
+
+    if (data.type === 'player_leave') {
+      console.log('[SSE] player_leave:', data.pid);
+      delete players[data.pid];
+      updateScoreboard();
       return;
     }
 
@@ -242,10 +249,6 @@ evtSource.onmessage = function(event) {
     
     const p = players[pid];
     if (!p) return;
-
-    if (!p.alive && action === 'btn_A' && state === 1) {
-      if (!p.gameOver) addPlayer(pid);
-    }
 
     if (!p.alive) return;
 

@@ -147,14 +147,14 @@ udpServer.on('message', (msg) => {
     const payload = msg.toString('utf8');
     const data = JSON.parse(payload);
 
-    // Learn totemId from the session_start packet the backend sends on player connect
-    if (data.type === 'session_start') {
+    // Learn totemId from the player_join packet the backend sends on player connect
+    if (data.type === 'player_join') {
       if (data.tid) {
         if (currentTotemId && currentTotemId !== data.tid) {
           console.warn(`[UDP] totemId changed: ${currentTotemId} → ${data.tid}`);
         }
         currentTotemId = data.tid;
-        console.log(`[UDP] Session start — totem: ${data.tid} | session: ${data.sid}`);
+        console.log(`[UDP] Player join — totem: ${data.tid} | session: ${data.sid} | player: ${data.pid}`);
       }
     }
 

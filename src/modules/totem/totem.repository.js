@@ -17,7 +17,6 @@ const log = createLogger('totem.repository')
  *   maxPlayers:        number,      // max players per session (default: 2)
  *   sessionDurationMs: number,      // session TTL in ms (default: 30 min)
  *   maxQueueSize:      number|null, // cap on waiting-list length (default: null = unlimited)
- *   currentSessionId:  string|null, // ID of the currently active session
  *   createdAt:         Date,
  *   updatedAt:         Date,
  * }
@@ -44,7 +43,6 @@ export class TotemRepository {
       maxPlayers:        maxPlayers        ?? 2,
       sessionDurationMs: sessionDurationMs ?? 30 * 60 * 1000, // 30 min default
       maxQueueSize:      maxQueueSize      ?? null,           // null = unlimited
-      currentSessionId:  null,
       createdAt:         now,
       updatedAt:         now,
     }
@@ -80,21 +78,6 @@ export class TotemRepository {
     const result = await this.col.updateOne(
       { _id: id },
       { $set: { ...fields, updatedAt: new Date() } },
-    )
-    return result.matchedCount > 0
-  }
-
-  /**
-   * Sets the currentSessionId on a totem document.
-   * Called by TotemService after starting a new session.
-   * @param {string} totemId
-   * @param {string|null} sessionId
-   * @returns {Promise<boolean>}
-   */
-  async setCurrentSession(totemId, sessionId) {
-    const result = await this.col.updateOne(
-      { _id: totemId },
-      { $set: { currentSessionId: sessionId, updatedAt: new Date() } },
     )
     return result.matchedCount > 0
   }

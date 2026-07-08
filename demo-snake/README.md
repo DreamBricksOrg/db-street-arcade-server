@@ -22,4 +22,4 @@ Ela representa o "Totem" (O Jogo final). O Jogo escuta na porta UDP `9001` event
 4. Escaneie o QR Code com o seu celular (Dica: garanta que o celular consegue enxergar a porta 3000 do servidor através do IP da máquina na sua rede Wi-Fi, configurando o `PUBLIC_URL` no .env do servidor principal).
 5. No celular, aperte os botões do **D-Pad** ou os botões A/B/X/Y.
 6. A cobra respectiva àquele jogador irá spawnar na tela imediatamente e começar a se mover!
-7. Caso o jogador morra, aperte o botão **A** no celular para dar Respawn.
+7. Caso o jogador morra, sua sessão é encerrada e o próximo da fila assume a vaga automaticamente. Para jogar de novo, use o botão "Jogar novamente" no celular (volta pro fim da fila).

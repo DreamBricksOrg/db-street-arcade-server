@@ -175,10 +175,12 @@ function buildTotemCard(totem) {
 }
 
 // ── Session Status Polling ─────────────────────────────────────────────────────
+// One session per player now: the card shows occupancy (X/N) instead of a
+// single "active session", and "Encerrar Todas" resets every slot at once.
 
-async function fetchSessionStatus(totemId) {
+async function fetchTotemState(totemId) {
   try {
-    const res  = await fetch(`${API}/${totemId}/session`)
+    const res = await fetch(`${API}/${totemId}/queue`)
     if (!res.ok) return null
     return res.json()
   } catch {
@@ -191,26 +193,27 @@ function startSessionPoll(totem, card) {
     const area = card.querySelector('[data-status-area]')
     if (!area) return
 
-    const data = await fetchSessionStatus(totem._id)
-
+    const data = await fetchTotemState(totem._id)
     if (!data) {
-      area.innerHTML = '<span class="session-badge badge-inactive">⚫ Sem Sessão</span>'
+      area.innerHTML = '<span class="session-badge badge-inactive">⚫ Indisponível</span>'
       return
     }
 
-    const expiresStr = data.expiresAt ? new Date(data.expiresAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'
+    const { sessions = [], maxPlayers = totem.maxPlayers ?? 2 } = data
+    const active   = sessions.filter(s => s.status === 'active').length
+    const reserved = sessions.filter(s => s.status === 'reserved').length
+
+    if (sessions.length === 0) {
+      area.innerHTML = '<span class="session-badge badge-inactive">⚫ Livre</span>'
+      return
+    }
 
     area.innerHTML = `
-      <span class="session-badge badge-active">🟢 Sessão Ativa</span>
-      <span class="session-badge-info">Expira às ${expiresStr}</span>
-      <button class="btn-end-session" data-sid="${escHtml(data.sessionId)}" data-totem-id="${escHtml(totem._id)}">
-        Encerrar Sessão
-      </button>
+      <span class="session-badge badge-active">🟢 ${active}/${maxPlayers} jogando${reserved ? ` · ${reserved} reservado(s)` : ''}</span>
+      <button class="btn-end-session" data-totem-id="${escHtml(totem._id)}">Encerrar Todas</button>
     `
-
-    area.querySelector('.btn-end-session')?.addEventListener('click', async (e) => {
-      const sid = e.currentTarget.dataset.sid
-      await endSession(sid, totem.name)
+    area.querySelector('.btn-end-session')?.addEventListener('click', async () => {
+      await endAllSessions(totem._id, totem.name)
       await render() // refresh immediately
     })
   }
@@ -293,34 +296,33 @@ async function renderQueueModal(totem) {
     return
   }
 
-  const { queue = [], sessionPlayers = [], sessionId = null, maxQueueSize = null } = data
+  const { queue = [], sessions = [], maxQueueSize = null } = data
   const queueCapLabel = maxQueueSize ? ` / ${maxQueueSize}` : ''
 
-  if (queue.length === 0 && sessionPlayers.length === 0) {
+  if (queue.length === 0 && sessions.length === 0) {
     queueModalBody.innerHTML = `<div class="queue-panel"><div class="queue-panel-header"><span>Controle de Fila</span><span class="queue-count">Vazio${queueCapLabel ? ' · limite' + queueCapLabel : ''}</span></div></div>`
     return
   }
 
-  const shortSessionId = sessionId ? String(sessionId).slice(0, 8) : null
-
-  const playerRows = sessionPlayers.filter(p => p && (typeof p === 'string' || p.id || p._id)).map((p) => {
-    const pid = (typeof p === 'string') ? p : (p.id || p._id)
-    const pidStr = String(pid)
+  // One row per live session (each player owns their own session now)
+  const playerRows = sessions.map((s) => {
+    const pidStr = String(s.playerId)
     const shortId = pidStr.length > 14 ? pidStr.slice(0, 14) : pidStr
-    const metaHtml = formatDeviceMeta(p?.metadata)
+    const metaHtml = formatDeviceMeta(s.metadata)
+    const badge = s.status === 'active' ? '🎮' : '⏳'
+    const shortSid = String(s.sessionId).slice(0, 8)
     return `
       <div class="queue-row queue-row--playing">
-        <span class="queue-pos">🎮</span>
+        <span class="queue-pos">${badge}</span>
         <div style="flex: 1; min-width: 0;">
           <div class="queue-pid" title="${escHtml(pidStr)}">${escHtml(shortId)}${pidStr.length > 14 ? '…' : ''}</div>
           ${metaHtml}
-          ${shortSessionId ? `<div class="queue-device-meta" title="${escHtml(String(sessionId))}">🆔 sessão ${escHtml(shortSessionId)}…</div>` : ''}
+          <div class="queue-device-meta" title="${escHtml(String(s.sessionId))}">🆔 sessão ${escHtml(shortSid)}… · ${s.status === 'active' ? 'jogando' : 'reservada'}</div>
         </div>
         <button class="btn-kick"
-          data-totem-id="${escHtml(totem._id)}"
-          data-session-id="${escHtml(String(sessionId || ''))}"
+          data-session-id="${escHtml(String(s.sessionId))}"
           data-player-id="${escHtml(pidStr)}"
-          title="Remover jogador e encerrar a sessão dele">
+          title="Encerrar a sessão deste jogador">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           Expulsar
         </button>
@@ -363,10 +365,10 @@ async function renderQueueModal(totem) {
     <div class="queue-panel">
       <div class="queue-panel-header">
         <span>Controle de Fila</span>
-        <span class="queue-count">${sessionPlayers.length} jogando · ${queue.length}${queueCapLabel} na fila</span>
+        <span class="queue-count">${sessions.length} jogando · ${queue.length}${queueCapLabel} na fila</span>
       </div>
       ${playerRows}
-      ${queue.length > 0 && sessionPlayers.length > 0 ? `<div class="queue-divider"></div>` : ''}
+      ${queue.length > 0 && sessions.length > 0 ? `<div class="queue-divider"></div>` : ''}
       ${queueRows}
     </div>
   `
@@ -443,12 +445,12 @@ async function kickFromSession(sessionId, playerId, totemName) {
   }
 }
 
-// ── End Session ────────────────────────────────────────────────────────────────
+// ── End All Sessions (operator reset) ─────────────────────────────────────────
 
-async function endSession(sessionId, totemName) {
+async function endAllSessions(totemId, totemName) {
   const result = await Swal.fire({
-    title:              `Encerrar sessão de "${escHtml(totemName)}"?`,
-    text:               'A sessão atual será encerrada e uma nova será criada automaticamente.',
+    title:              `Encerrar TODAS as sessões de "${escHtml(totemName)}"?`,
+    text:               'Todos os jogadores atuais serão desconectados e a fila avançará.',
     icon:               'warning',
     showCancelButton:   true,
     confirmButtonColor: '#ef4444',
@@ -462,18 +464,22 @@ async function endSession(sessionId, totemName) {
   if (!result.isConfirmed) return
 
   try {
-    const res = await fetch(`/api/sessions/${sessionId}/end`, { method: 'POST' })
+    const res = await fetch(`${API}/${totemId}/end-session`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    '{}',
+    })
     if (!res.ok) throw new Error(`Erro ${res.status}`)
 
     Swal.fire({
-      title:             'Encerrada!',
-      text:              'Nova sessão criada automaticamente.',
+      title:             'Encerradas!',
+      text:              'Vagas liberadas — a fila avança automaticamente.',
       icon:              'success',
       timer:             2000,
       showConfirmButton: false,
     })
   } catch (err) {
-    showTotemError(`Erro ao encerrar sessão: ${err.message}`)
+    showTotemError(`Erro ao encerrar sessões: ${err.message}`)
   }
 }
 

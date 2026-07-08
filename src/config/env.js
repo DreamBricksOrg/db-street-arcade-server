@@ -33,6 +33,12 @@ export const env = {
   sessionTimeoutMs:  parseInt(process.env.SESSION_TIMEOUT_MS ?? '300000', 10),
   sessionMaxPlayers: parseInt(process.env.SESSION_MAX_PLAYERS ?? '2', 10),
 
+  // Queue — claim window for called players and sweeper cadence
+  // (overridable so e2e tests can use short values)
+  queueReserveMs:   parseInt(process.env.QUEUE_RESERVE_MS ?? '30000', 10),
+  queueSweepMs:     parseInt(process.env.QUEUE_SWEEP_MS   ?? '10000', 10),
+  queueJoinRateMax: parseInt(process.env.QUEUE_JOIN_RATE_MAX ?? '8', 10),
+
   // Public URL (for QR Code)
   publicUrl: process.env.PUBLIC_URL ?? 'http://localhost:3000',
 

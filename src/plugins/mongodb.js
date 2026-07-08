@@ -40,6 +40,9 @@ async function ensureIndexes(db) {
   // Fast lookup by status (active sessions list)
   await sessions.createIndex({ status: 1 }, { name: 'sessions_status' })
 
+  // Per-player-session model: occupancy counts and player lookups per totem
+  await sessions.createIndex({ totemId: 1, status: 1 }, { name: 'sessions_totem_status' })
+
   log.debug('Indexes verified')
 }
 

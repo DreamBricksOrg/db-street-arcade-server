@@ -1,10 +1,6 @@
 // src/modules/session/session.cache.js
-// Redis cache layer for sessions.
-// Stores a fast-access HASH of the session state so the WebSocket handler
-// doesn't need a MongoDB round-trip on every connection or input event.
-//
-// Key format: session:{sessionId}  (see src/lib/channels.js → SessionKey)
-// TTL mirrors the MongoDB TTL field so both expire at roughly the same time.
+// Redis cache of the per-player session. The UDP dispatcher reads the
+// 'totems' field of this HASH as its 2nd resolution layer — keep that name.
 
 import { SessionKey } from '../../lib/channels.js'
 import { createLogger } from '../../lib/logger.js'
@@ -12,98 +8,43 @@ import { createLogger } from '../../lib/logger.js'
 const log = createLogger('session.cache')
 
 export class SessionCache {
-  /**
-   * @param {import('ioredis').Redis} redis - The publisher client (can run SET/GET commands)
-   */
+  /** @param {import('ioredis').Redis} [redis] */
   constructor(redis) {
-    this.redis = redis
+    this.redis = redis ?? null
   }
 
-  /**
-   * Writes the session snapshot to Redis as a HASH with TTL.
-   * Called after createSession or whenever session state changes.
-   * @param {object} session - Mongo session document
-   */
   async set(session) {
-    const key     = SessionKey(session._id)
-    const ttlSecs = Math.max(
-      1,
-      Math.floor((new Date(session.expiresAt) - Date.now()) / 1000),
-    )
-
-    // HSET accepts alternating field/value pairs
+    if (!this.redis) return
+    const key = SessionKey(session._id)
+    const ttlSecs = Math.max(60, Math.floor((new Date(session.expiresAt) - Date.now()) / 1000))
     await this.redis.hset(key, {
-      id:             session._id,
-      totemId:        session.totemId ?? '',
-      status:         session.status,
-      maxPlayers:     String(session.maxPlayers),
-      gameDurationMs: String(session.gameDurationMs ?? 0),
-      // Serialize arrays as JSON strings — Redis HASH values must be strings
-      totems:         JSON.stringify(session.totems ?? []),
-      players:        JSON.stringify(session.players ?? []),
-      allowedPlayers: JSON.stringify(session.allowedPlayers ?? []),
-      expiresAt:      String(new Date(session.expiresAt).getTime()),
+      id:        session._id,
+      totemId:   session.totemId ?? '',
+      playerId:  session.playerId ?? '',
+      status:    session.status,
+      totems:    JSON.stringify(session.totems ?? []),
+      expiresAt: String(new Date(session.expiresAt).getTime()),
     })
-
     await this.redis.expire(key, ttlSecs)
     log.debug({ sessionId: session._id, ttlSecs }, 'Session cached')
   }
 
-  /**
-   * Retrieves the session snapshot from Redis.
-   * Returns null if the key doesn't exist (expired or never cached).
-   * @param {string} sessionId
-   * @returns {Promise<object|null>}
-   */
   async get(sessionId) {
+    if (!this.redis) return null
     const raw = await this.redis.hgetall(SessionKey(sessionId))
-
-    // hgetall returns {} for missing keys
     if (!raw || !raw.id) return null
-
     return {
-      _id:            raw.id, // return as _id for consistency with Mongo
-      totemId:        raw.totemId || null,
-      status:         raw.status,
-      maxPlayers:     parseInt(raw.maxPlayers, 10),
-      gameDurationMs: parseInt(raw.gameDurationMs || '0', 10),
-      totems:         JSON.parse(raw.totems),
-      players:        JSON.parse(raw.players),
-      allowedPlayers: JSON.parse(raw.allowedPlayers || '[]'),
-      expiresAt:      new Date(parseInt(raw.expiresAt, 10)),
+      _id:       raw.id,
+      totemId:   raw.totemId || null,
+      playerId:  raw.playerId || null,
+      status:    raw.status,
+      totems:    JSON.parse(raw.totems || '[]'),
+      expiresAt: new Date(parseInt(raw.expiresAt, 10)),
     }
   }
 
-  /**
-   * Updates a single field in the session HASH without a full re-write.
-   * Useful for frequent small updates (e.g. status change).
-   * @param {string} sessionId
-   * @param {string} field
-   * @param {string} value
-   */
-  async patch(sessionId, field, value) {
-    const key = SessionKey(sessionId)
-    await this.redis.hset(key, field, value)
-  }
-
-  /**
-   * Extends the session TTL in Redis (called on player input to prevent expiry).
-   * @param {string} sessionId
-   * @param {number} ttlMs
-   */
-  async refreshTtl(sessionId, ttlMs) {
-    const ttlSecs = Math.max(1, Math.floor(ttlMs / 1000))
-    await this.redis.expire(SessionKey(sessionId), ttlSecs)
-    log.debug({ sessionId, ttlSecs }, 'Session TTL refreshed')
-  }
-
-  /**
-   * Removes the session HASH from Redis immediately.
-   * Called when a session ends or is deleted.
-   * @param {string} sessionId
-   */
   async del(sessionId) {
+    if (!this.redis) return
     await this.redis.del(SessionKey(sessionId))
-    log.debug({ sessionId }, 'Session cache cleared')
   }
 }

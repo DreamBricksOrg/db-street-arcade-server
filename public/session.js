@@ -44,8 +44,10 @@ async function boot(sid) {
     return showError(`Falha de rede: ${err.message}`)
   }
 
+  const totemId = session.totemId
+
   if (session.status === 'finished') {
-    return showError('Esta sessão já foi encerrada.')
+    return showEnded(totemId)
   }
 
   // 2. Generate or restore playerId (C9.2: persists across refreshes)
@@ -78,7 +80,7 @@ async function boot(sid) {
       if (code === 1008) {
         // Policy violation — session ended
         destroyAll()
-        showError('Sessão encerrada pelo servidor.')
+        showEnded(totemId)
       }
     },
     onError() {
@@ -114,7 +116,7 @@ async function boot(sid) {
   function handleServerEvent(data) {
     if (data?.data?.event === 'session_ended') {
       destroyAll()
-      showError('Sessão encerrada pelo operador.')
+      showEnded(totemId)
     }
   }
 }
@@ -131,4 +133,22 @@ function showError(msg) {
   $play.style.display    = 'none'
   $error.style.display   = 'flex'
   $errorMsg.textContent  = msg
+}
+
+// "Game over" screen: session ended (death, kick or timeout). Offers a way
+// back to the totem entry page, where the player joins the END of the queue.
+function showEnded(totemId) {
+  showError('Sua sessão acabou. Obrigado por jogar!')
+  if (!totemId) return
+  if (document.getElementById('play-again-btn')) return
+
+  const btn = document.createElement('button')
+  btn.id = 'play-again-btn'
+  btn.textContent = '🎮 Jogar novamente'
+  btn.style.cssText = 'margin-top:16px;padding:12px 28px;font-size:16px;font-weight:700;' +
+    'background:#3b82f6;color:#fff;border:none;border-radius:10px;cursor:pointer;'
+  btn.addEventListener('click', () => {
+    window.location.href = `/play/totem?id=${totemId}`
+  })
+  $error.appendChild(btn)
 }

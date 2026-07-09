@@ -65,7 +65,7 @@ node games/brick-rush/test/match.test.mjs    # partida completa headless + rota�
 
 ## Arquitetura
 
-Padrão do `docs/game-integration.md` (igual ao demo-snake): `server.js` é uma
+Padrão do `docs/game-integration.md` (igual ao games/snake): `server.js` é uma
 ponte UDP:9101→SSE com proxies HTTP (`/end-session`, `/queue-state`) e o jogo
 roda 100% no browser (Canvas 2D, zero dependências).
 

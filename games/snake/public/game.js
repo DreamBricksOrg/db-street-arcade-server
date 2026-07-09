@@ -1,4 +1,4 @@
-// demo-snake/public/game.js
+// games/snake/public/game.js
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreList = document.getElementById('scoreList');
@@ -8,7 +8,13 @@ const debugLog = document.getElementById('debugLog');
 const GRID_SIZE = 20;
 const TILE_COUNT_X = canvas.width / GRID_SIZE;
 const TILE_COUNT_Y = canvas.height / GRID_SIZE;
-const GAME_SPEED = 5; // Velocidade da cobra (quadros por segundo)
+
+// ── Config do jogo (defaults; sobrescrita pelo .env do server via /config) ──
+const CFG = {
+  gameSpeed: 5,       // movimentos da cobra por segundo
+  pointsPerFood: 10,  // pontos por comida
+  boostMoves: 3,      // movimentos por frame segurando B
+};
 
 const PALETTE = ['#f38ba8', '#a6e3a1', '#89b4fa', '#f9e2af', '#cba6f7', '#fab387'];
 let colorIndex = 0;
@@ -40,7 +46,7 @@ function processPlayerMove(p, pid, pids) {
 
   // Checa se comeu a comida
   if (newHead.x === food.x && newHead.y === food.y) {
-    p.score += 10;
+    p.score += CFG.pointsPerFood;
     food = spawnFood();
     updateScoreboard();
   } else {
@@ -77,7 +83,7 @@ function updateGame() {
     let p = players[pid];
     if (!p.alive) continue;
 
-    const moves = p.boosting ? 3 : 1; // "2 pontos mais rápido" = move 3 vezes inves de 1
+    const moves = p.boosting ? CFG.boostMoves : 1;
     for (let i = 0; i < moves; i++) {
       processPlayerMove(p, pid, pids);
       if (!p.alive) break; // se morrer no meio do boost, interrompe
@@ -275,5 +281,15 @@ evtSource.onmessage = function(event) {
   }
 };
 
-// Start Game Loop
-setInterval(updateGame, 1000 / GAME_SPEED);
+// ── Boot: carrega config do server e inicia o loop ───────────────────────────
+let loopTimer = null;
+
+function startLoop() {
+  clearInterval(loopTimer);
+  loopTimer = setInterval(updateGame, 1000 / CFG.gameSpeed);
+}
+
+fetch('/config')
+  .then(r => r.json())
+  .then(cfg => { Object.assign(CFG, cfg); startLoop(); })
+  .catch(() => { console.warn('[config] usando defaults (/config indisponível)'); startLoop(); });

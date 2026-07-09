@@ -1,4 +1,4 @@
-// demo-snake/server.js
+// games/snake/server.js
 import http from 'http';
 import dgram from 'dgram';
 import fs from 'fs';
@@ -71,6 +71,38 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/state') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ totemId: currentTotemId }));
+    return;
+  }
+
+  // Game config from .env — consumed by game.js at boot (same pattern as brick-rush)
+  if (req.method === 'GET' && req.url === '/config') {
+    const num = (v, def) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : def };
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      gameSpeed:     num(process.env.SNAKE_SPEED, 5),     // movimentos da cobra por segundo
+      pointsPerFood: num(process.env.POINTS_PER_FOOD, 10),
+      boostMoves:    num(process.env.BOOST_MOVES, 3),     // movimentos por frame segurando B
+    }));
+    return;
+  }
+
+  // Proxy: totem queue/sessions view (HUD) — same pattern as brick-rush
+  if (req.method === 'GET' && req.url === '/queue-state') {
+    if (!BACKEND_URL || !currentTotemId) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ sessions: [], queue: [], maxPlayers: 0 }));
+      return;
+    }
+    fetch(`${BACKEND_URL}/api/totems/${currentTotemId}/queue`)
+      .then(r => r.json())
+      .then(json => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(json));
+      })
+      .catch(() => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ sessions: [], queue: [], maxPlayers: 0 }));
+      });
     return;
   }
 

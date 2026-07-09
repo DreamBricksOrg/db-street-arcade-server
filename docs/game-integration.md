@@ -2,7 +2,7 @@
 
 Como criar um jogo (Unity/C#, browser, Python, C++…) que se conecta ao backend
 do Street Arcade e reaproveita a fila, as sessões e o gamepad dos celulares.
-Baseado na implementação de referência: **`demo-snake/`**.
+Baseado na implementação de referência: **`games/snake/`**.
 
 ---
 
@@ -51,7 +51,7 @@ na máquina.
 
 ### 2.2 Configuração do jogo
 
-O jogo precisa conhecer duas coisas (no demo-snake ficam em `demo-snake/.env`):
+O jogo precisa conhecer duas coisas (no games/snake ficam em `games/snake/.env`):
 
 | Config | Exemplo | Para quê |
 |---|---|---|
@@ -59,7 +59,7 @@ O jogo precisa conhecer duas coisas (no demo-snake ficam em `demo-snake/.env`):
 | `TOTEM_ID` | `a3743cdc-e8fb-...` | Identificar-se nas chamadas HTTP |
 
 O `TOTEM_ID` também chega dinamicamente no campo `tid` de todo pacote
-`player_join` — dá para aprender em runtime (o demo-snake faz os dois:
+`player_join` — dá para aprender em runtime (o games/snake faz os dois:
 usa o .env e atualiza se o `tid` mudar).
 
 ---
@@ -89,7 +89,7 @@ Todos são JSON < 512 bytes, um datagrama por evento, na `udpPort` do totem.
 ```
 
 Enviado quando o celular conecta o WebSocket (a sessão vira `active`).
-Use para spawnar o avatar — ou, como o demo-snake, spawne no primeiro input
+Use para spawnar o avatar — ou, como o games/snake, spawne no primeiro input
 mesmo e use o `player_join` só para aprender o `tid`.
 
 ### 3.3 `player_leave` — a sessão daquele jogador ACABOU
@@ -164,17 +164,23 @@ on player death:
   HTTP POST {BACKEND_URL}/api/totems/{TOTEM_ID}/end-session { playerId: pid }
 ```
 
-### 5.2 Jogo em browser (padrão demo-snake)
+### 5.2 Jogo em browser (padrão games/snake)
 
 Browser não recebe UDP — use um servidor local mínimo como ponte
-(copie `demo-snake/server.js`, ~100 linhas, zero dependências):
+(copie `games/snake/server.js`, ~100 linhas, zero dependências):
 
 - **UDP :9001 → SSE `/events`**: repassa cada datagrama para o browser via
   Server-Sent Events (`EventSource` no jogo).
 - **POST `/end-session` → backend**: proxy da morte — o browser chama o server
   local com `{ pid }`, o server repassa ao backend com o `TOTEM_ID` (assim o
   jogo em JS não precisa conhecer o totemId).
+- **GET `/queue-state` → backend**: proxy da fila do totem (HUD, rotação).
+- **GET `/config`**: expõe as configurações de gameplay do `.env` pro browser
+  (ex.: velocidade no snake; rounds e timers no brick-rush).
 - **HTTP :9000**: serve os arquivos estáticos do jogo.
+
+Jogos existentes que seguem este padrão: `games/snake/` (ponte mínima) e
+`games/brick-rush/` (com sistema de partidas/rounds) — veja `games/README.md`.
 
 No jogo (`game.js`), o esqueleto de integração é:
 
@@ -220,7 +226,7 @@ function onPlayerDeath(player) {
 
 ## 7. Referências
 
-- Implementação exemplo: [`demo-snake/server.js`](../demo-snake/server.js) (ponte UDP→SSE + proxy) e [`demo-snake/public/game.js`](../demo-snake/public/game.js) (jogo)
+- Implementação exemplo: [`games/snake/server.js`](../games/snake/server.js) (ponte UDP→SSE + proxy) e [`games/snake/public/game.js`](../games/snake/public/game.js) (jogo)
 - Quem envia os pacotes: `src/modules/udp/udp.dispatcher.js` (inputs), `src/modules/game/game.handler.js` (`player_join`), `src/modules/totem/totemQueue.service.js` (`player_leave`)
 - Teste de ponta a ponta da fila: `npm run test:e2e`
 - API completa: `GET /documentation` (Swagger)

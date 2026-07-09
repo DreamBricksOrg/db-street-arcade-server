@@ -1,5 +1,5 @@
 // games/brick-rush/server.js
-// Bridge server for Brick Rush (same pattern as demo-snake):
+// Bridge server for Brick Rush (same pattern as games/snake):
 //   - UDP :9101  → receives backend packets (inputs, player_join, player_leave)
 //   - SSE /events → forwards every UDP packet to the browser game
 //   - POST /end-session → proxies player elimination to the backend

@@ -14,8 +14,7 @@ const API = '/api/totems'
 const totemList      = document.getElementById('totem-list')
 const totemEmpty     = document.getElementById('totem-empty')
 const formName       = document.getElementById('tf-name')
-const formIp         = document.getElementById('tf-ip')
-const formPort       = document.getElementById('tf-port')
+const formUrl        = document.getElementById('tf-url')
 const formMaxPlayers = document.getElementById('tf-max-players')
 const formDuration   = document.getElementById('tf-duration')
 const formMaxQueue   = document.getElementById('tf-max-queue')
@@ -498,8 +497,7 @@ function closeTotemModal() {
 function startEdit(totem) {
   editingTotemId             = totem._id
   formName.value             = totem.name
-  formIp.value               = totem.ip
-  formPort.value             = totem.udpPort
+  formUrl.value              = `${totem.ip}:${totem.udpPort}`
   formMaxPlayers.value       = String(totem.maxPlayers ?? 2)
   formDuration.value         = String(totem.sessionDurationMs ?? 1800000)
   formMaxQueue.value         = totem.maxQueueSize != null ? String(totem.maxQueueSize) : ''
@@ -510,8 +508,7 @@ function startEdit(totem) {
 function resetForm() {
   editingTotemId              = null
   formName.value              = ''
-  formIp.value                = ''
-  formPort.value              = ''
+  formUrl.value               = ''
   formMaxPlayers.value        = '2'
   formDuration.value          = '1800000'
   formMaxQueue.value          = ''
@@ -531,16 +528,21 @@ totemFormModal?.addEventListener('click', (e) => {
 
 btnSaveTotem?.addEventListener('click', async () => {
   const name              = formName.value.trim()
-  const ip                = formIp.value.trim()
-  const udpPort           = parseInt(formPort.value, 10)
   const maxPlayers        = parseInt(formMaxPlayers.value, 10)
   const sessionDurationMs = parseInt(formDuration.value, 10)
   const maxQueueSize      = formMaxQueue.value.trim() ? parseInt(formMaxQueue.value, 10) : null
 
-  if (!name || !ip || !udpPort) {
-    showTotemError('Preencha nome, IP e porta.')
+  if (!name || !formUrl.value.trim()) {
+    showTotemError('Preencha nome e URL do totem.')
     return
   }
+
+  const parsed = parseTotemUrl(formUrl.value)
+  if (!parsed) {
+    showTotemError('URL inválida. Use o formato IP:Porta, ex: 192.168.1.10:9001')
+    return
+  }
+  const { ip, udpPort } = parsed
 
   btnSaveTotem.disabled    = true
   btnSaveTotem.textContent = 'Salvando...'
@@ -657,6 +659,44 @@ function escHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+/**
+ * Parses the totem address field into { ip, udpPort }. Accepts either:
+ *   - "192.168.1.10:9001"                      (IP:porta)
+ *   - "brickrush.dbpe.com.br:9101"              (domínio:porta)
+ *   - "https://brickrush.dbpe.com.br:9101"      (URL completa com porta)
+ * A URL sem porta explícita é inválida — a porta 443/80 implícita do
+ * esquema NÃO é a porta UDP do jogo, então exigimos que venha escrita.
+ * Returns null se o formato não bater com nenhum dos casos acima.
+ */
+function parseTotemUrl(input) {
+  const trimmed = input.trim()
+
+  // Full URL with scheme (http://, https://, udp://...)
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
+    let parsed
+    try {
+      parsed = new URL(trimmed)
+    } catch {
+      return null
+    }
+    const ip = parsed.hostname
+    const udpPort = parseInt(parsed.port, 10)
+    if (!ip || !Number.isInteger(udpPort) || udpPort < 1 || udpPort > 65535) return null
+    return { ip, udpPort }
+  }
+
+  // Bare "host:porta" — host can be an IP or a plain domain name.
+  // Splits on the LAST colon so IPv6 hosts (which contain colons) still work.
+  const sep = trimmed.lastIndexOf(':')
+  if (sep <= 0 || sep === trimmed.length - 1) return null
+
+  const ip = trimmed.slice(0, sep)
+  const udpPort = parseInt(trimmed.slice(sep + 1), 10)
+  if (!ip || !Number.isInteger(udpPort) || udpPort < 1 || udpPort > 65535) return null
+
+  return { ip, udpPort }
 }
 
 function formatDuration(ms) {

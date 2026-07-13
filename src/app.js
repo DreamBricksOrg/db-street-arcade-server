@@ -5,8 +5,8 @@
 import Fastify from 'fastify'
 import { env } from './config/env.js'
 import { logger, createLogger } from './lib/logger.js'
-import redisPlugin     from './plugins/redis.js'
-import mongoPlugin     from './plugins/mongodb.js'
+import redisPlugin, { isRedisReachable } from './plugins/redis.js'
+import mongoPlugin, { isMongoReachable } from './plugins/mongodb.js'
 import websocketPlugin from './plugins/websocket.js'
 import udpPlugin       from './plugins/udp.js'
 import staticPlugin    from './plugins/static.js'
@@ -31,25 +31,27 @@ export async function buildApp() {
   await app.register(staticPlugin)
 
   // ── Phase 3: Redis ────────────────────────────────────────────────────────
-  try {
+  // Reachability is probed BEFORE app.register(): avvio treats any rejected
+  // plugin registration as boot-fatal for the whole instance — once one
+  // register() call fails, every later register() call on this same `app`
+  // rejects with that same cached error too, even inside its own try/catch.
+  // Registering only after confirming the connection works keeps a down
+  // Redis/Mongo an isolated warning in dev instead of a cascading crash.
+  if (await isRedisReachable(env.redisUrl)) {
     await app.register(redisPlugin)
-  } catch (err) {
-    if (env.isDev) {
-      log.warn({ err: err.message }, 'Redis unavailable — pub/sub disabled')
-    } else {
-      throw err
-    }
+  } else if (env.isDev) {
+    log.warn('Redis unavailable — pub/sub disabled')
+  } else {
+    throw new Error(`Redis unreachable: ${env.redisUrl}`)
   }
 
   // ── Phase 2: MongoDB ──────────────────────────────────────────────────────
-  try {
+  if (await isMongoReachable(env.mongoUri)) {
     await app.register(mongoPlugin)
-  } catch (err) {
-    if (env.isDev) {
-      log.warn({ err: err.message }, 'MongoDB unavailable — some features disabled')
-    } else {
-      throw err
-    }
+  } else if (env.isDev) {
+    log.warn('MongoDB unavailable — some features disabled')
+  } else {
+    throw new Error(`MongoDB unreachable: ${env.mongoUri}`)
   }
 
   // ── Phase 4: WebSocket + Game Routes ─────────────────────────────────────

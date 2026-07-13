@@ -79,6 +79,35 @@ function sanitizeUrl(url) {
   }
 }
 
+/**
+ * Standalone reachability probe — deliberately NOT run through
+ * fastify.register(). Fastify/avvio treats a failed plugin registration as a
+ * boot-fatal error: once one register() call rejects, every subsequent
+ * register() on the same instance also rejects with that same cached error,
+ * even if the earlier failure was caught locally. Testing the connection
+ * here first means app.js only ever calls app.register(redisPlugin) when
+ * it's already known to succeed, so a down Redis in development degrades
+ * gracefully instead of cascading into every other plugin failing too.
+ * @param {string} url
+ * @param {number} [timeoutMs]
+ * @returns {Promise<boolean>}
+ */
+export async function isRedisReachable(url, timeoutMs = 3000) {
+  const probe = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 0, retryStrategy: () => null })
+  probe.on('error', () => {}) // swallow — ioredis logs "Unhandled error event" to stderr otherwise
+  try {
+    await Promise.race([
+      probe.connect(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs)),
+    ])
+    return true
+  } catch {
+    return false
+  } finally {
+    probe.disconnect()
+  }
+}
+
 export default fp(redisPlugin, {
   name:         'redis',
   dependencies: [],

@@ -373,6 +373,9 @@ async function totemRoutes(fastify) {
 }
 
 export default fp(totemRoutes, {
-  name:         'totem-routes',
-  dependencies: ['mongodb'],
+  name: 'totem-routes',
+  // No declared `dependencies: ['mongodb']` on purpose: that would make
+  // Fastify hard-assert the mongodb plugin was registered and crash if not,
+  // bypassing the graceful `if (!fastify.mongo) return` guard above that's
+  // meant to handle Mongo being down in development.
 })

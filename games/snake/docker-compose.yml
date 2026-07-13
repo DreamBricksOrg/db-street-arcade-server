@@ -1,0 +1,25 @@
+# Runs the Snake game bridge server (HTTP :9000 for the TV, UDP :9001 for
+# packets from the Street Arcade backend). Run from THIS folder:
+#   cd games/snake && docker compose up -d --build
+#
+# All config comes straight from .env — nothing is overridden here. If the
+# dashboard runs on the same host (natively or via its own docker-compose
+# publishing 3000:3000), set BACKEND_URL=http://host.docker.internal:3000
+# in your .env (see .env.example) — "localhost" from inside this container
+# means the container itself, not your machine.
+#
+# Also register this game's totem in the dashboard with the HOST machine's
+# IP and UDP port 9001 (this file already publishes that port).
+
+services:
+  snake:
+    build: .
+    image: street-arcade-snake
+    ports:
+      - "9000:9000"
+      - "9001:9001/udp"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # no-op on Docker Desktop, needed on Linux
+    restart: unless-stopped

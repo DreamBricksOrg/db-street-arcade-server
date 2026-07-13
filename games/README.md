@@ -25,3 +25,20 @@ Cada jogo é uma aplicação isolada que segue o padrão de integração descrit
 2. Troque as portas (HTTP e UDP) para valores livres
 3. Cadastre um totem no dashboard apontando pra porta UDP escolhida
 4. Siga o checklist do [`docs/game-integration.md`](../docs/game-integration.md)
+
+## Rodando com Docker
+
+Cada jogo tem seu próprio `Dockerfile` + `docker-compose.yml` (independentes
+entre si e do compose do dashboard na raiz do repo):
+
+```bash
+cd games/snake && docker compose up -d --build
+cd games/brick-rush && docker compose up -d --build
+```
+
+Cada compose publica a porta HTTP (TV) e a porta UDP (backend → jogo), e
+sobrescreve `BACKEND_URL` do `.env` pra `http://host.docker.internal:3000` —
+assim funciona out-of-the-box com o dashboard rodando no mesmo host (nativo
+ou via `docker compose` na raiz). Se o dashboard estiver em outra máquina,
+ajuste esse valor no `docker-compose.yml` do jogo. Depois de subir, cadastre
+o totem no dashboard com o IP do host e a porta UDP publicada.

@@ -1,0 +1,62 @@
+# Runs the Street Arcade dashboard/API server plus its MongoDB and Redis.
+# The UDP totem / game servers (games/snake, games/brick-rush) still run on
+# the host — this stack does not include them.
+#
+# All config comes straight from .env — nothing is overridden here. For this
+# to reach the mongo/redis services below, set in your .env (see .env.example):
+#   MONGO_URI=mongodb://mongo:27017/street-arcade
+#   REDIS_URL=redis://redis:6379
+# ("localhost" from inside this container means the container itself, not
+# the "mongo"/"redis" service names on the compose network.)
+
+services:
+  dashboard:
+    build: .
+    image: street-arcade-dashboard
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # no-op on Docker Desktop, needed on Linux
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Published on 27021/6380 (not 27020/6379) — your machine already has
+  # native Mongo/Redis listening on the standard ports (see .env), and
+  # binding those same host ports here would conflict. Use 27021/6380 for
+  # host access (e.g. via Compass/redis-cli); the dashboard itself still
+  # reaches these by service name over the compose network.
+  mongo:
+    image: mongo:7
+    ports:
+      - "27021:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  redis_data:

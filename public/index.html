@@ -851,17 +851,10 @@
           <input id="tf-name" type="text" placeholder="ex: Cabine A" maxlength="80" />
         </div>
 
-        <div class="field-row">
-          <div class="field-group">
-            <label for="tf-ip">Endereço IP</label>
-            <input id="tf-ip" type="text" placeholder="192.168.1.10" maxlength="45" />
-            <span class="field-hint">IP do servidor do jogo</span>
-          </div>
-          <div class="field-group">
-            <label for="tf-port">Porta UDP</label>
-            <input id="tf-port" type="number" min="1" max="65535" placeholder="9001" />
-            <span class="field-hint">Padrão: 9001</span>
-          </div>
+        <div class="field-group">
+          <label for="tf-url">URL do Totem</label>
+          <input id="tf-url" type="text" placeholder="192.168.1.10:9001 ou https://brickrush.dbpe.com.br:9101" maxlength="120" />
+          <span class="field-hint">IP:Porta ou URL:Porta do servidor do jogo (a porta é sempre obrigatória)</span>
         </div>
 
         <div class="field-row">

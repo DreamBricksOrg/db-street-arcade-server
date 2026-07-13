@@ -3,6 +3,7 @@
 // Also ensures required indexes are created on startup.
 
 import fastifyMongodb from '@fastify/mongodb'
+import { MongoClient } from 'mongodb'
 import fp from 'fastify-plugin'
 import { env } from '../config/env.js'
 import { createLogger } from '../lib/logger.js'
@@ -44,6 +45,29 @@ async function ensureIndexes(db) {
   await sessions.createIndex({ totemId: 1, status: 1 }, { name: 'sessions_totem_status' })
 
   log.debug('Indexes verified')
+}
+
+/**
+ * Standalone reachability probe — deliberately NOT run through
+ * fastify.register(). See the matching comment in plugins/redis.js: once one
+ * register() call rejects, avvio poisons every subsequent register() on the
+ * same instance with the same cached error, so app.js only calls
+ * app.register(mongoPlugin) once this probe has already confirmed success.
+ * @param {string} uri
+ * @param {number} [timeoutMs]
+ * @returns {Promise<boolean>}
+ */
+export async function isMongoReachable(uri, timeoutMs = 3000) {
+  const client = new MongoClient(uri, { serverSelectionTimeoutMS: timeoutMs, connectTimeoutMS: timeoutMs })
+  try {
+    await client.connect()
+    await client.db().command({ ping: 1 })
+    return true
+  } catch {
+    return false
+  } finally {
+    await client.close().catch(() => {})
+  }
 }
 
 /** Removes credentials from the URI before logging */

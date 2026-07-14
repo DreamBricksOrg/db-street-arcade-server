@@ -1,5 +1,9 @@
 # Street Arcade Backend — Contexto do Projeto
 
+## Design Context
+
+Frontend UI work (`public/`) follows `PRODUCT.md` (strategy: users, purpose, brand personality) and `DESIGN.md` (visual system: colors, typography, components — "The Control Room" north star). Read both before touching operator dashboard, queue, or gamepad screens. Managed by the `impeccable` skill; run `/impeccable` for design commands (critique, audit, polish, live, etc.).
+
 ## Visão Geral
 
 Backend Node.js + Fastify para um sistema de arcade real-time chamado **Street Arcade** (DreamBricks). Gerencia sessões de jogo via QR codes, conexões WebSocket para controles de jogo nos celulares dos jogadores, e comunicação UDP com totens de arcade físicos (máquinas Unity/C#).

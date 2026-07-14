@@ -1,14 +1,24 @@
 // public/totems-tab.js
-// Totem management tab — CRUD + session status + QR Code modal.
+// Totem management tab — CRUD + session status + queue control.
 //
 // Features:
 //   - CRUD against /api/totems (now with maxPlayers, sessionDurationMs)
-//   - Totem cards show live session status badge (polls every 15s)
-//   - "QR Code" button opens permanent QR modal for each totem
+//   - Totem cards show live session status badge (polls every 15s) and an
+//     inline QR code image (no modal — the QR is always visible on the card)
 //   - "Encerrar Sessão" button (with SweetAlert2 confirm) → POST /api/sessions/:id/end
 //   - Emits 'totems:updated' event for other modules
 
 const API = '/api/totems'
+
+// Card-level status/meta icons share the hand-drawn stroke style used by the
+// action buttons (stroke=currentColor, 2.2 weight, round caps), instead of
+// emoji glyphs, so one icon vocabulary reads across the whole card.
+const ICON_PLAYERS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+const ICON_CLOCK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+const ICON_QUEUE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+const ICON_PHONE   = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>'
+const ICON_DESKTOP = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
+const ICON_GLOBE   = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const totemList      = document.getElementById('totem-list')
@@ -35,8 +45,7 @@ const queueModalBody     = document.getElementById('queue-modal-body')
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let editingTotemId    = null
-let sessionPollTimers = {}  // totemId → intervalId
-let queuePollTimers   = {}  // totemId → intervalId
+let cardPollTimers    = {}  // totemId → intervalId (session status + queue count, shared poll)
 let queueModalTotemId = null
 let queueModalTimer   = null
 
@@ -51,14 +60,66 @@ async function apiFetch(url, options = {}) {
   return res.json()
 }
 
+// ── Modal accessibility (focus trap + Escape) ────────────────────────────────
+// Shared by every modal-overlay in the dashboard: traps Tab cycling inside the
+// dialog, closes on Escape, and restores focus to whatever opened it.
+const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/** @type {WeakMap<Element, { keydownHandler: (e: KeyboardEvent) => void, lastFocused: Element | null }>} */
+const modalA11yState = new WeakMap()
+
+function openModalA11y(modalEl, onClose, initialFocusEl) {
+  const lastFocused = document.activeElement
+
+  function keydownHandler(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      onClose()
+      return
+    }
+    if (e.key !== 'Tab') return
+
+    const focusable = Array.from(modalEl.querySelectorAll(FOCUSABLE_SELECTOR))
+      .filter(el => el.offsetParent !== null) // skip hidden elements
+    if (focusable.length === 0) return
+
+    const first = focusable[0]
+    const last  = focusable[focusable.length - 1]
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
+  document.addEventListener('keydown', keydownHandler)
+  modalA11yState.set(modalEl, { keydownHandler, lastFocused })
+
+  // Focus the requested element (or the first focusable one) once visible.
+  requestAnimationFrame(() => {
+    const target = initialFocusEl ?? modalEl.querySelector(FOCUSABLE_SELECTOR)
+    target?.focus()
+  })
+}
+
+function closeModalA11y(modalEl) {
+  const state = modalA11yState.get(modalEl)
+  if (!state) return
+  document.removeEventListener('keydown', state.keydownHandler)
+  modalA11yState.delete(modalEl)
+  // Restore focus to whatever triggered the modal (e.g. the card's "Editar" button).
+  if (state.lastFocused instanceof HTMLElement) state.lastFocused.focus()
+}
+
 // ── Load & Render ──────────────────────────────────────────────────────────────
 
 export async function loadTotems() {
   // Clean up old polls
-  Object.values(sessionPollTimers).forEach(clearInterval)
-  Object.values(queuePollTimers).forEach(clearInterval)
-  sessionPollTimers = {}
-  queuePollTimers   = {}
+  Object.values(cardPollTimers).forEach(clearInterval)
+  cardPollTimers = {}
 
   totemList.innerHTML = ''
   const totems = await apiFetch(API).catch(() => [])
@@ -74,8 +135,7 @@ export async function loadTotems() {
   for (const t of totems) {
     const card = buildTotemCard(t)
     totemList.appendChild(card)
-    startSessionPoll(t, card)
-    startQueuePoll(t, card)
+    startCardPoll(t, card)
   }
 
   dispatchTotemsUpdated(totems)
@@ -107,12 +167,12 @@ function buildTotemCard(totem) {
         </div>
 
         <div class="totem-card-meta" style="margin-top: 8px;">
-          <span>👥 ${totem.maxPlayers ?? 2} jogadores</span>
-          <span>⏱ ${durationLabel}</span>
-          <span data-queue-count style="color: ${queueCount > 0 ? 'var(--accent)' : 'inherit'}; font-weight: ${queueCount > 0 ? '600' : 'normal'}">🧍‍♂️ Fila: ${queueCount}</span>
+          <span>${ICON_PLAYERS} ${totem.maxPlayers ?? 2} jogadores</span>
+          <span>${ICON_CLOCK} ${durationLabel}</span>
+          <span data-queue-count style="color: ${queueCount > 0 ? 'var(--accent)' : 'inherit'}; font-weight: ${queueCount > 0 ? '600' : 'normal'}">${ICON_QUEUE} Fila: ${queueCount}</span>
         </div>
         <div class="totem-session-status" data-status-area style="margin-top: 12px; margin-bottom: 0;">
-          <span class="session-badge badge-loading">⏳ Verificando…</span>
+          <span class="session-badge badge-loading"><span class="mini-dot mini-dot--loading"></span> Verificando…</span>
         </div>
 
         <div style="flex: 1;"></div>
@@ -173,9 +233,12 @@ function buildTotemCard(totem) {
   return card
 }
 
-// ── Session Status Polling ─────────────────────────────────────────────────────
+// ── Card Polling ─────────────────────────────────────────────────────────────
 // One session per player now: the card shows occupancy (X/N) instead of a
 // single "active session", and "Encerrar Todas" resets every slot at once.
+// Session status and queue count both come from the same /queue payload, so a
+// single poll per card feeds both renders instead of two independent fetches
+// hitting the same endpoint on separate timers.
 
 async function fetchTotemState(totemId) {
   try {
@@ -187,62 +250,53 @@ async function fetchTotemState(totemId) {
   }
 }
 
-function startSessionPoll(totem, card) {
-  const render = async () => {
-    const area = card.querySelector('[data-status-area]')
-    if (!area) return
+function renderSessionStatus(totem, card, data) {
+  const area = card.querySelector('[data-status-area]')
+  if (!area) return
 
-    const data = await fetchTotemState(totem._id)
-    if (!data) {
-      area.innerHTML = '<span class="session-badge badge-inactive">⚫ Indisponível</span>'
-      return
-    }
-
-    const { sessions = [], maxPlayers = totem.maxPlayers ?? 2 } = data
-    const active   = sessions.filter(s => s.status === 'active').length
-    const reserved = sessions.filter(s => s.status === 'reserved').length
-
-    if (sessions.length === 0) {
-      area.innerHTML = '<span class="session-badge badge-inactive">⚫ Livre</span>'
-      return
-    }
-
-    area.innerHTML = `
-      <span class="session-badge badge-active">🟢 ${active}/${maxPlayers} jogando${reserved ? ` · ${reserved} reservado(s)` : ''}</span>
-      <button class="btn-end-session" data-totem-id="${escHtml(totem._id)}">Encerrar Todas</button>
-    `
-    area.querySelector('.btn-end-session')?.addEventListener('click', async () => {
-      await endAllSessions(totem._id, totem.name)
-      await render() // refresh immediately
-    })
+  if (!data) {
+    area.innerHTML = '<span class="session-badge badge-inactive"><span class="mini-dot mini-dot--muted"></span> Indisponível</span>'
+    return
   }
 
-  render()
-  sessionPollTimers[totem._id] = setInterval(render, 15_000)
+  const { sessions = [], maxPlayers = totem.maxPlayers ?? 2 } = data
+  const active   = sessions.filter(s => s.status === 'active').length
+  const reserved = sessions.filter(s => s.status === 'reserved').length
+
+  if (sessions.length === 0) {
+    area.innerHTML = '<span class="session-badge badge-inactive"><span class="mini-dot mini-dot--muted"></span> Livre</span>'
+    return
+  }
+
+  area.innerHTML = `
+    <span class="session-badge badge-active"><span class="mini-dot mini-dot--success"></span> ${active}/${maxPlayers} jogando${reserved ? ` · ${reserved} reservado(s)` : ''}</span>
+    <button class="btn-end-session" data-totem-id="${escHtml(totem._id)}">Encerrar Todas</button>
+  `
+  area.querySelector('.btn-end-session')?.addEventListener('click', async () => {
+    await endAllSessions(totem._id, totem.name)
+    await pollCardState(totem, card) // refresh immediately
+  })
 }
 
-// ── Queue Poll ───────────────────────────────────────────────────────────────
+function renderQueueCount(card, data) {
+  const countEl = card.querySelector('[data-queue-count]')
+  if (!countEl || !data) return
 
-function startQueuePoll(totem, card) {
-  const updateCount = async () => {
-    const countEl = card.querySelector('[data-queue-count]')
-    if (!countEl) return
+  const queueCount = data.queue?.length ?? 0
+  countEl.innerHTML = `${ICON_QUEUE} Fila: ${queueCount}`
+  countEl.style.color = queueCount > 0 ? 'var(--accent)' : 'inherit'
+  countEl.style.fontWeight = queueCount > 0 ? '600' : 'normal'
+}
 
-    let data
-    try {
-      const res = await fetch(`${API}/${totem._id}/queue`)
-      data = res.ok ? await res.json() : null
-    } catch { data = null }
-    if (!data) return
+async function pollCardState(totem, card) {
+  const data = await fetchTotemState(totem._id)
+  renderSessionStatus(totem, card, data)
+  renderQueueCount(card, data)
+}
 
-    const queueCount = data.queue?.length ?? 0
-    countEl.textContent = `🧍‍♂️ Fila: ${queueCount}`
-    countEl.style.color = queueCount > 0 ? 'var(--accent)' : 'inherit'
-    countEl.style.fontWeight = queueCount > 0 ? '600' : 'normal'
-  }
-
-  updateCount()
-  queuePollTimers[totem._id] = setInterval(updateCount, 10_000)
+function startCardPoll(totem, card) {
+  pollCardState(totem, card)
+  cardPollTimers[totem._id] = setInterval(() => pollCardState(totem, card), 10_000)
 }
 
 // ── Queue Modal ───────────────────────────────────────────────────────────────
@@ -250,23 +304,25 @@ function startQueuePoll(totem, card) {
 function formatDeviceMeta(meta) {
   if (!meta) return ''
 
-  let device = '🌐 Desconhecido'
+  let deviceIcon = ICON_GLOBE
+  let deviceText = 'Desconhecido'
   if (meta.ua) {
     const ua = meta.ua.toLowerCase()
 
-    if (ua.includes('iphone')) device = '📱 iPhone'
-    else if (ua.includes('ipad')) device = '📱 iPad'
+    if (ua.includes('iphone')) { deviceIcon = ICON_PHONE; deviceText = 'iPhone' }
+    else if (ua.includes('ipad')) { deviceIcon = ICON_PHONE; deviceText = 'iPad' }
     else if (ua.includes('android')) {
-      device = '📱 Android'
+      deviceIcon = ICON_PHONE
+      deviceText = 'Android'
       const parts = meta.ua.split(';')
       if (parts.length > 2) {
         const model = parts[2].split(')')[0].trim()
-        if (model.length < 20) device += ` (${model})`
+        if (model.length < 20) deviceText += ` (${model})`
       }
     }
-    else if (ua.includes('windows')) device = '💻 Windows'
-    else if (ua.includes('macintosh')) device = '💻 Mac'
-    else if (ua.includes('linux')) device = '🐧 Linux'
+    else if (ua.includes('windows'))   { deviceIcon = ICON_DESKTOP; deviceText = 'Windows' }
+    else if (ua.includes('macintosh')) { deviceIcon = ICON_DESKTOP; deviceText = 'Mac' }
+    else if (ua.includes('linux'))     { deviceIcon = ICON_DESKTOP; deviceText = 'Linux' }
 
     let browser = ''
     if (ua.includes('edg'))      browser = 'Edge'
@@ -274,13 +330,13 @@ function formatDeviceMeta(meta) {
     else if (ua.includes('firefox'))  browser = 'Firefox'
     else if (ua.includes('safari'))   browser = 'Safari'
 
-    if (browser) device += ` · ${browser}`
+    if (browser) deviceText += ` · ${browser}`
   }
 
-  const ip   = meta.ip ? ` · 🌐 ${meta.ip}` : ''
-  const lang = meta.lang ? ` · ${meta.lang.split('-')[0].toUpperCase()}` : ''
+  const ip   = meta.ip ? ` · ${ICON_GLOBE} ${escHtml(meta.ip)}` : ''
+  const lang = meta.lang ? ` · ${escHtml(meta.lang.split('-')[0].toUpperCase())}` : ''
 
-  return `<div class="queue-device-meta">${escHtml(device)}${escHtml(ip)}${escHtml(lang)}</div>`
+  return `<div class="queue-device-meta">${deviceIcon} ${escHtml(deviceText)}${ip}${lang}</div>`
 }
 
 async function renderQueueModal(totem) {
@@ -308,7 +364,9 @@ async function renderQueueModal(totem) {
     const pidStr = String(s.playerId)
     const shortId = pidStr.length > 14 ? pidStr.slice(0, 14) : pidStr
     const metaHtml = formatDeviceMeta(s.metadata)
-    const badge = s.status === 'active' ? '🎮' : '⏳'
+    const badge = s.status === 'active'
+      ? '<span class="mini-dot mini-dot--success"></span>'
+      : '<span class="mini-dot mini-dot--loading"></span>'
     const shortSid = String(s.sessionId).slice(0, 8)
     return `
       <div class="queue-row queue-row--playing">
@@ -396,6 +454,7 @@ function openQueueModal(totem) {
 
   clearInterval(queueModalTimer)
   queueModalTimer = setInterval(() => renderQueueModal(totem), 5_000)
+  openModalA11y(queueModal, closeQueueModal)
 }
 
 function closeQueueModal() {
@@ -403,6 +462,7 @@ function closeQueueModal() {
   queueModalTotemId = null
   clearInterval(queueModalTimer)
   queueModalTimer = null
+  closeModalA11y(queueModal)
 }
 
 queueModalClose?.addEventListener('click', closeQueueModal)
@@ -486,12 +546,13 @@ async function endAllSessions(totemId, totemName) {
 
 function openTotemModal() {
   totemFormModal.style.display = 'flex'
-  formName.focus()
+  openModalA11y(totemFormModal, closeTotemModal, formName)
 }
 
 function closeTotemModal() {
   totemFormModal.style.display = 'none'
   resetForm()
+  closeModalA11y(totemFormModal)
 }
 
 function startEdit(totem) {

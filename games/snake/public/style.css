@@ -1,12 +1,31 @@
+/* Street Arcade design system tokens — shared with the operator dashboard
+   and player screens (see /DESIGN.md at the repo root). Same names, same
+   values, so this game reads as part of the same project, not a bolted-on
+   demo. Only the UI chrome below uses these; the game canvas itself
+   (game.js draw()) keeps its own gameplay palette untouched. */
+:root {
+  --bg:         #f8fafc;
+  --surface:    #ffffff;
+  --surface2:   #f1f5f9;
+  --border:     #e2e8f0;
+  --accent:     #3b82f6;
+  --text:       #0f172a;
+  --text-muted: #64748b;
+  --success:    #10b981;
+  --danger:     #ef4444;
+  --waiting:    #f59e0b;
+  --radius:     8px;
+}
+
 * {
   box-sizing: border-box;
   margin: 0; padding: 0;
 }
 
 body {
-  background: #f8fafc;
-  color: #0f172a;
-  font-family: 'Fira Code', monospace;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Fira Sans', sans-serif;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -19,14 +38,15 @@ header {
 }
 
 header h1 {
-  font-size: 32px;
-  background: linear-gradient(90deg, #3b82f6, #f97316);
-  -webkit-background-clip: text;  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 26px;
+  font-family: 'Fira Code', monospace;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--accent);
 }
 
 header p {
-  color: #64748b;
+  color: var(--text-muted);
   margin-top: 5px;
 }
 
@@ -35,32 +55,37 @@ main {
   gap: 20px;
   background: transparent;
   padding: 20px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   box-shadow: none;
 }
 
 canvas {
   background: #ffffff;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
 }
 
 #sidePanel {
   width: 250px;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
   padding: 15px;
 }
 
 #sidePanel h2 {
   font-size: 18px;
+  font-family: 'Fira Code', monospace;
   margin-bottom: 15px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
-  color: #0f172a;
+  color: var(--text);
+}
+
+.debug-heading {
+  margin-top: 2rem;
 }
 
 #scoreList {
@@ -75,7 +100,8 @@ canvas {
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  background: #f1f5f9;
+  background: var(--surface2);
+  border: 1px solid var(--border);
   padding: 8px 12px;
   border-radius: 6px;
 }
@@ -85,3 +111,36 @@ canvas {
   height: 14px;
   border-radius: 50%;
 }
+
+/* ── Connection status & debug log ──────────────────────────────────────────
+   Was a dark terminal-style box dropped into an otherwise light page (plus
+   text with no explicit color on a dark background — effectively invisible).
+   Restyled as a recessed Surface Slate panel, matching the totem dashboard's
+   queue-panel convention, with the same semantic colors used for connection
+   state everywhere else in the system (Success Emerald / Danger Red). */
+.conn-status {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  font-family: 'Fira Code', monospace;
+}
+
+.conn-status--connecting { color: var(--waiting); }
+.conn-status--connected  { color: var(--success); }
+.conn-status--error      { color: var(--danger); }
+
+#debugLog {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 10px;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  font-family: 'Fira Code', monospace;
+  color: var(--text);
+  height: 200px;
+  overflow-y: hidden;
+  word-break: break-all;
+}
+
+.debug-log-line { margin-bottom: 4px; }
+.debug-log-time  { color: var(--text-muted); }
+.debug-log-value { color: var(--accent); }

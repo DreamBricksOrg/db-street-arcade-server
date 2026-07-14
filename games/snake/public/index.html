@@ -2,9 +2,12 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <meta name="theme-color" content="#f8fafc">
   <title>🐍 Demo: Arcade Snake</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600;700&family=Fira+Sans:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet" />
 </head>
 <body>
 
@@ -20,10 +23,9 @@
       <h2>Scoreboard</h2>
       <ul id="scoreList"></ul>
 
-      <h2 style="margin-top: 2rem;">Debug Log</h2>
-      <div id="connStatus" style="color: #f9e2af; margin-bottom: 0.5rem; font-size: 0.9rem;">🟡 Conectando SSE...</div>
-      <div id="debugLog" style="background: #1e1e2e; padding: 10px; border-radius: 8px; font-size: 0.8rem; font-family: monospace; height: 200px; overflow-y: hidden; word-break: break-all;">
-      </div>
+      <h2 class="debug-heading">Debug Log</h2>
+      <div id="connStatus" class="conn-status conn-status--connecting">🟡 Conectando SSE...</div>
+      <div id="debugLog"></div>
     </div>
   </main>
 

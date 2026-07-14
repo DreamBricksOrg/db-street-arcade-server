@@ -24,6 +24,22 @@ const BUTTON_MAP = {
   'btn-Y':     'btn_Y',
 }
 
+/**
+ * Keyboard scheme: arrow keys drive the D-Pad, I/J/K/L drive the ABXY
+ * diamond in the same spatial layout (I=top/Y, J=left/X, L=right/B, K=bottom/A).
+ * Lets a keyboard user hold multiple buttons at once, same as multi-touch.
+ */
+const KEY_TO_BUTTON_ID = {
+  ArrowUp:    'btn-up',
+  ArrowDown:  'btn-down',
+  ArrowLeft:  'btn-left',
+  ArrowRight: 'btn-right',
+  KeyI: 'btn-Y',
+  KeyJ: 'btn-X',
+  KeyL: 'btn-B',
+  KeyK: 'btn-A',
+}
+
 /** Haptic feedback duration in ms (increase for stronger feel) */
 const VIBRATION_DURATION = 40;
 
@@ -90,24 +106,45 @@ export function initGamepad(onInput) {
     }
   }
 
-  function onTouchMove(e) {
-    for (const touch of e.changedTouches) {
-      // If we aren't tracking this touch, ignore it
-      if (!activeTouches.has(touch.identifier)) continue
+  // touchmove can fire far faster than the display refreshes. buttonAt() calls
+  // elementFromPoint(), which forces a synchronous layout — doing that per raw
+  // event (possibly per touch) risks dropped frames during fast multi-touch
+  // play. Coalesce to the latest position per touch and resolve once a frame.
+  /** @type {Map<number, {x: number, y: number}>} */
+  const pendingMoves = new Map()
+  let moveRafId = null
 
-      const currentEl = activeTouches.get(touch.identifier)
-      const newEl = buttonAt(touch.clientX, touch.clientY)
+  function flushPendingMoves() {
+    moveRafId = null
+    for (const [touchId, { x, y }] of pendingMoves) {
+      if (!activeTouches.has(touchId)) continue
+
+      const currentEl = activeTouches.get(touchId)
+      const newEl = buttonAt(x, y)
 
       if (newEl !== currentEl) {
         if (currentEl) release(currentEl)
         if (newEl) press(newEl)
-        activeTouches.set(touch.identifier, newEl)
+        activeTouches.set(touchId, newEl)
       }
+    }
+    pendingMoves.clear()
+  }
+
+  function onTouchMove(e) {
+    for (const touch of e.changedTouches) {
+      // If we aren't tracking this touch, ignore it
+      if (!activeTouches.has(touch.identifier)) continue
+      pendingMoves.set(touch.identifier, { x: touch.clientX, y: touch.clientY })
+    }
+    if (pendingMoves.size > 0 && moveRafId === null) {
+      moveRafId = requestAnimationFrame(flushPendingMoves)
     }
   }
 
   function onTouchEnd(e) {
     for (const touch of e.changedTouches) {
+      pendingMoves.delete(touch.identifier) // drop any move still queued for this frame
       if (!activeTouches.has(touch.identifier)) continue
 
       const el = activeTouches.get(touch.identifier)
@@ -139,6 +176,62 @@ export function initGamepad(onInput) {
     if (mouseEl) { release(mouseEl); mouseEl = null }
   })
 
+  // ── Keyboard support ─────────────────────────────────────────────────────────
+  // Two independent paths so both AT users and keyboard players are covered:
+  //   1. Global key scheme (arrows + IJKL) — supports holding multiple buttons
+  //      at once, tracked by e.code like activeTouches tracks touch identifiers.
+  //   2. Space/Enter on a focused button — standard button activation for
+  //      anyone tabbing through the controls (screen readers, switch access).
+  /** @type {Map<string, Element>} */
+  const activeKeys = new Map()
+
+  function onKeyDown(e) {
+    const mappedId = KEY_TO_BUTTON_ID[e.code]
+    if (mappedId) {
+      if (e.repeat) return // ignore OS key-repeat; button is already "held"
+      const el = document.getElementById(mappedId)
+      if (!el || activeKeys.has(e.code)) return
+      e.preventDefault() // stop arrow-key page scroll
+      activeKeys.set(e.code, el)
+      press(el)
+      return
+    }
+
+    // Focused-button activation (Space/Enter)
+    if (e.key === ' ' || e.key === 'Enter') {
+      const el = e.target.closest?.('[data-btn]')
+      if (!el || e.repeat) return
+      e.preventDefault()
+      press(el)
+    }
+  }
+
+  function onKeyUp(e) {
+    const mappedId = KEY_TO_BUTTON_ID[e.code]
+    if (mappedId) {
+      const el = activeKeys.get(e.code)
+      if (el) release(el)
+      activeKeys.delete(e.code)
+      return
+    }
+
+    if (e.key === ' ' || e.key === 'Enter') {
+      const el = e.target.closest?.('[data-btn]')
+      if (el) release(el)
+    }
+  }
+
+  // Release everything if the window loses focus mid-press (alt-tab, etc.)
+  // so a button can never get stuck "pressed" with no keyup to clear it.
+  function onWindowBlur() {
+    for (const el of activeKeys.values()) release(el)
+    activeKeys.clear()
+  }
+
+  window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('keyup',   onKeyUp)
+  window.addEventListener('blur',    onWindowBlur)
+
   // ── Destroy ─────────────────────────────────────────────────────────────────
   return {
     destroy() {
@@ -147,9 +240,16 @@ export function initGamepad(onInput) {
       container.removeEventListener('touchend',    preventDefaults)
       container.removeEventListener('touchcancel', preventDefaults)
       container.removeEventListener('touchstart',  onTouchStart)
+      container.removeEventListener('touchmove',   onTouchMove)
       container.removeEventListener('touchend',    onTouchEnd)
       container.removeEventListener('touchcancel', onTouchCancel)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup',   onKeyUp)
+      window.removeEventListener('blur',    onWindowBlur)
+      if (moveRafId !== null) cancelAnimationFrame(moveRafId)
+      pendingMoves.clear()
       activeTouches.clear()
+      activeKeys.clear()
     },
   }
 }

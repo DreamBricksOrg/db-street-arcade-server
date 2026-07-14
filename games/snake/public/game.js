@@ -196,12 +196,12 @@ const evtSource = new EventSource('/events');
 
 evtSource.onopen = function() {
   connStatus.textContent = "🟢 SSE Conectado ao Demo Server";
-  connStatus.style.color = "#a6e3a1"; // Green
+  connStatus.className = "conn-status conn-status--connected";
 };
 
 evtSource.onerror = function() {
   connStatus.textContent = "🔴 SSE Erro/Desconectado";
-  connStatus.style.color = "#f38ba8"; // Red
+  connStatus.className = "conn-status conn-status--error";
 };
 
 evtSource.onmessage = function(event) {
@@ -237,8 +237,8 @@ evtSource.onmessage = function(event) {
     const d = new Date();
     const time = `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}.${d.getMilliseconds().toString().padStart(3,'0')}`;
     const logLine = document.createElement('div');
-    logLine.style.marginBottom = '4px';
-    logLine.innerHTML = `<span style="color:#89b4fa">[${time}]</span> pid: <b>${data.pid?.slice(0,6)}</b> act: <b style="color:#f9e2af">${data.a}</b> s: <b>${data.s}</b>`;
+    logLine.className = 'debug-log-line';
+    logLine.innerHTML = `<span class="debug-log-time">[${time}]</span> pid: <b>${data.pid?.slice(0,6)}</b> act: <b class="debug-log-value">${data.a}</b> s: <b>${data.s}</b>`;
     debugLog.prepend(logLine);
     
     // Limit log to max 30 items

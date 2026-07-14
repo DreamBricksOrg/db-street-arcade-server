@@ -3,23 +3,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
   <title>🧱 Brick Rush — Street Arcade</title>
   <style>
+    /* Frame only — the canvas's own rendering (render.js) is the game itself
+       and is untouched. Background is the same "Ink" dark token used
+       elsewhere in the system (its darkest neutral step), not an unrelated
+       dark theme. A plain 1px Arcade Blue border, not a glow, ties the
+       cabinet frame to the brand — a colored box-shadow glow on a dark bg is
+       exactly the "gamer/cyberpunk" look PRODUCT.md rules out.
+       See /DESIGN.md at the repo root for the shared token set. */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       height: 100%;
-      background: #0b0d14;
+      background: #0f172a; /* Ink — darkest step of the shared neutral ramp */
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      font-family: 'Courier New', monospace;
+      font-family: 'Fira Code', monospace;
     }
     canvas {
       max-width: 100vw;
       max-height: 100vh;
       aspect-ratio: 1280 / 704;
       image-rendering: pixelated;
+      border: 1px solid rgba(59, 130, 246, 0.3); /* Arcade Blue, faint */
       box-shadow: 0 0 60px rgba(0,0,0,0.8);
       border-radius: 4px;
     }

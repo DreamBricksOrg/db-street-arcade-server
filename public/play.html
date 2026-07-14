@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Street Arcade</title>
   <meta name="description" content="Controle do Street Arcade. Escaneie o QR Code para jogar." />
   <meta name="theme-color" content="#0a0a12" />
@@ -40,9 +40,14 @@
       background: var(--bg);
       color: var(--text);
       font-family: 'Fira Sans', sans-serif;
-      touch-action: none;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
+    }
+
+    /* touch-action:none is scoped to the gamepad itself, not the whole page,
+       so pinch-zoom (WCAG 1.4.4) still works everywhere else on this screen. */
+    #gamepad {
+      touch-action: none;
     }
 
     /* ── Utility screens ─────────────────────────────────────────────────── */
@@ -75,9 +80,7 @@
     .loading-title {
       font-size: 26px; font-weight: 700;
       font-family: 'Fira Code', monospace;
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text; background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--accent);
     }
 
     .loading-sub { font-size: 15px; color: var(--muted); }
@@ -129,9 +132,7 @@
     .play-title {
       font-size: 16px; font-weight: 700;
       font-family: 'Fira Code', monospace;
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text; background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--accent);
     }
 
     .header-center {
@@ -182,6 +183,11 @@
     }
 
     .dpad-btn {
+      appearance: none;
+      -webkit-appearance: none;
+      margin: 0;
+      font: inherit;
+      color: inherit;
       background: var(--dpad);
       border: 1px solid rgba(0,0,0,0.1);
       border-radius: 10px;
@@ -198,6 +204,12 @@
       transform: scale(0.9);
       border-color: var(--accent);
       box-shadow: var(--glow);
+    }
+
+    .dpad-btn:focus-visible,
+    .face-btn:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
     }
 
     /* Hide center cell */
@@ -230,6 +242,10 @@
     }
 
     .face-btn {
+      appearance: none;
+      -webkit-appearance: none;
+      margin: 0;
+      font: inherit;
       border-radius: 50%;
       border: none;
       display: flex; align-items: center; justify-content: center;
@@ -319,35 +335,35 @@
     <!-- Gamepad (G8.1) -->
     <div id="gamepad">
 
-      <!-- D-Pad (left side) -->
+      <!-- D-Pad (left side). Keyboard: arrow keys (global) or Tab+Space/Enter per button. -->
       <div class="dpad">
         <!-- Row 1 -->
         <div></div>
-        <div id="btn-up" class="dpad-btn" data-btn aria-label="Cima">▲</div>
+        <button type="button" id="btn-up" class="dpad-btn" data-btn aria-label="Cima (seta ↑)">▲</button>
         <div></div>
         <!-- Row 2 -->
-        <div id="btn-left"  class="dpad-btn" data-btn aria-label="Esquerda">◀</div>
+        <button type="button" id="btn-left"  class="dpad-btn" data-btn aria-label="Esquerda (seta ←)">◀</button>
         <div class="dpad-center"></div>
-        <div id="btn-right" class="dpad-btn" data-btn aria-label="Direita">▶</div>
+        <button type="button" id="btn-right" class="dpad-btn" data-btn aria-label="Direita (seta →)">▶</button>
         <!-- Row 3 -->
         <div></div>
-        <div id="btn-down" class="dpad-btn" data-btn aria-label="Baixo">▼</div>
+        <button type="button" id="btn-down" class="dpad-btn" data-btn aria-label="Baixo (seta ↓)">▼</button>
         <div></div>
       </div>
 
-      <!-- Face buttons — Cruz Xbox: Y(topo) X(esq) B(dir) A(baixo) -->
+      <!-- Face buttons — Cruz Xbox: Y(topo) X(esq) B(dir) A(baixo). Keyboard: I/J/K/L (global) or Tab+Space/Enter. -->
       <div class="face-buttons">
         <!-- Row 1: _ Y _ -->
         <div class="face-empty"></div>
-        <div id="btn-Y" class="face-btn" data-btn aria-label="Y">Y</div>
+        <button type="button" id="btn-Y" class="face-btn" data-btn aria-label="Y (tecla I)">Y</button>
         <div class="face-empty"></div>
         <!-- Row 2: X _ B -->
-        <div id="btn-X" class="face-btn" data-btn aria-label="X">X</div>
+        <button type="button" id="btn-X" class="face-btn" data-btn aria-label="X (tecla J)">X</button>
         <div class="face-empty"></div>
-        <div id="btn-B" class="face-btn" data-btn aria-label="B">B</div>
+        <button type="button" id="btn-B" class="face-btn" data-btn aria-label="B (tecla L)">B</button>
         <!-- Row 3: _ A _ -->
         <div class="face-empty"></div>
-        <div id="btn-A" class="face-btn" data-btn aria-label="A">A</div>
+        <button type="button" id="btn-A" class="face-btn" data-btn aria-label="A (tecla K)">A</button>
         <div class="face-empty"></div>
       </div>
 

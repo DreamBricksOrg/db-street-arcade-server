@@ -22,7 +22,20 @@
       "Bash(node *)",
       "Bash(tasklist *)",
       "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Select-Object Id,ProcessName\")",
-      "Skill(impeccable)"
+      "Skill(impeccable)",
+      "Bash(node \"C:\\\\Users\\\\db\\\\.claude\\\\skills\\\\impeccable\\\\scripts\\\\context.mjs\")",
+      "Bash(node \"C:\\\\Users\\\\db\\\\.claude\\\\skills\\\\impeccable\\\\scripts\\\\context-signals.mjs\")",
+      "Bash(node \"C:\\\\Users\\\\db\\\\.claude\\\\skills\\\\impeccable\\\\scripts\\\\detect.mjs\" --json src public)",
+      "Read(//c/Users/db/.claude/skills/impeccable/reference/**)",
+      "Bash(node /tmp/refactor_tokens.mjs \"public/play.html\")",
+      "Bash(node /tmp/refactor_tokens.mjs \"public/totem-entry.html\")",
+      "Bash(node /tmp/refactor_tokens.mjs \"games/snake/public/style.css\")",
+      "Bash(cat)",
+      "Bash(node /tmp/refactor_swal.mjs)",
+      "Bash(echo \"---exit $?---\")",
+      "Bash(node \"C:\\\\Users\\\\db\\\\.claude\\\\skills\\\\impeccable\\\\scripts\\\\detect.mjs\" --json src public games/snake/public games/brick-rush/public)",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/health)"
     ]
   },
   "hooks": {

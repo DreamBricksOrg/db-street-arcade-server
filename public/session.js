@@ -146,7 +146,7 @@ function showEnded(totemId) {
   btn.id = 'play-again-btn'
   btn.textContent = '🎮 Jogar novamente'
   btn.style.cssText = 'margin-top:16px;padding:12px 28px;font-size:15px;font-weight:700;' +
-    'background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;'
+    'background:var(--accent);color:#fff;border:none;border-radius:10px;cursor:pointer;'
   btn.addEventListener('click', () => {
     window.location.href = `/play/totem?id=${totemId}`
   })

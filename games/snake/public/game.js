@@ -14,6 +14,7 @@ const CFG = {
   gameSpeed: 5,       // movimentos da cobra por segundo
   pointsPerFood: 10,  // pontos por comida
   boostMoves: 3,      // movimentos por frame segurando B
+  debugPanel: true,   // coluna de debug (conexão SSE + log de inputs) — controlada por SHOW_DEBUG_PANEL no .env
 };
 
 const PALETTE = ['#f38ba8', '#a6e3a1', '#89b4fa', '#f9e2af', '#cba6f7', '#fab387'];
@@ -233,17 +234,19 @@ evtSource.onmessage = function(event) {
       return;
     }
 
-    // Add to debug log
-    const d = new Date();
-    const time = `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}.${d.getMilliseconds().toString().padStart(3,'0')}`;
-    const logLine = document.createElement('div');
-    logLine.className = 'debug-log-line';
-    logLine.innerHTML = `<span class="debug-log-time">[${time}]</span> pid: <b>${data.pid?.slice(0,6)}</b> act: <b class="debug-log-value">${data.a}</b> s: <b>${data.s}</b>`;
-    debugLog.prepend(logLine);
-    
-    // Limit log to max 30 items
-    if (debugLog.childNodes.length > 30) {
-      debugLog.removeChild(debugLog.lastChild);
+    // Add to debug log (skipped entirely when the debug column is disabled via .env)
+    if (CFG.debugPanel) {
+      const d = new Date();
+      const time = `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}.${d.getMilliseconds().toString().padStart(3,'0')}`;
+      const logLine = document.createElement('div');
+      logLine.className = 'debug-log-line';
+      logLine.innerHTML = `<span class="debug-log-time">[${time}]</span> pid: <b>${data.pid?.slice(0,6)}</b> act: <b class="debug-log-value">${data.a}</b> s: <b>${data.s}</b>`;
+      debugLog.prepend(logLine);
+
+      // Limit log to max 30 items
+      if (debugLog.childNodes.length > 30) {
+        debugLog.removeChild(debugLog.lastChild);
+      }
     }
     
     // Formato Street Arcade: { sid, pid, a: "dpad_up", s: 1 }
@@ -289,7 +292,16 @@ function startLoop() {
   loopTimer = setInterval(updateGame, 1000 / CFG.gameSpeed);
 }
 
+function applyDebugPanelVisibility() {
+  const debugPanel = document.getElementById('debugPanel');
+  if (debugPanel) debugPanel.style.display = CFG.debugPanel ? '' : 'none';
+}
+
 fetch('/config')
   .then(r => r.json())
-  .then(cfg => { Object.assign(CFG, cfg); startLoop(); })
-  .catch(() => { console.warn('[config] usando defaults (/config indisponível)'); startLoop(); });
+  .then(cfg => { Object.assign(CFG, cfg); applyDebugPanelVisibility(); startLoop(); })
+  .catch(() => {
+    console.warn('[config] usando defaults (/config indisponível)');
+    applyDebugPanelVisibility();
+    startLoop();
+  });

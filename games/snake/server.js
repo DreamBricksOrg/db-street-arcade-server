@@ -82,6 +82,7 @@ const server = http.createServer((req, res) => {
       gameSpeed:     num(process.env.SNAKE_SPEED, 5),     // movimentos da cobra por segundo
       pointsPerFood: num(process.env.POINTS_PER_FOOD, 10),
       boostMoves:    num(process.env.BOOST_MOVES, 3),     // movimentos por frame segurando B
+      debugPanel:    process.env.SHOW_DEBUG_PANEL !== 'false', // coluna de debug (conexão SSE + log de inputs) — default visível
     }));
     return;
   }

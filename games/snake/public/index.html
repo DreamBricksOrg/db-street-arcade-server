@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="theme-color" content="#f4f9fc">
-  <title>🐍 Demo: Arcade Snake</title>
+  <title>Arcade Snake</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -12,8 +12,8 @@
 <body>
 
   <header>
-    <h1>Arcade Snake Multi-Player</h1>
-    <p>Escaneie o QR Code no Totem com seu celular. D-PAD Move.</p>
+    <h1>Arcade Snake</h1>
+    <p>Escaneie o QR Code no Totem com seu celular.</p>
   </header>
 
   <main>
@@ -23,9 +23,11 @@
       <h2>Scoreboard</h2>
       <ul id="scoreList"></ul>
 
-      <h2 class="debug-heading">Debug Log</h2>
-      <div id="connStatus" class="conn-status conn-status--connecting">🟡 Conectando SSE...</div>
-      <div id="debugLog"></div>
+      <div id="debugPanel">
+        <h2 class="debug-heading">Debug Log</h2>
+        <div id="connStatus" class="conn-status conn-status--connecting">🟡 Conectando SSE...</div>
+        <div id="debugLog"></div>
+      </div>
     </div>
   </main>
 

@@ -646,6 +646,60 @@
 
     @keyframes fadeInModal { from { opacity: 0; } to { opacity: 1; } }
 
+    /* ── QR Lightbox ─────────────────────────────────────────────────────── */
+    /* Reuses .modal-overlay for the dark blurred backdrop — the point is to
+       isolate the totem's QR from every other one on screen so an operator
+       testing with their own phone can't scan the wrong totem by accident. */
+    .qr-lightbox-content {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      max-width: 420px;
+      width: 90%;
+      position: relative;
+      box-shadow: 0 16px 64px oklch(0.16 0.028 230 / 0.4);
+      animation: slideUp 0.3s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    .qr-lightbox-name {
+      font-size: 16px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--text);
+      text-align: center;
+    }
+
+    .qr-lightbox-image {
+      width: 320px; height: 320px;
+      max-width: 100%;
+      background: #fff;
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+
+    .qr-lightbox-image img { width: 100%; height: 100%; object-fit: contain; }
+
+    .qr-lightbox-hint {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .totem-card-qr-img {
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .totem-card-qr-img:hover {
+      transform: scale(1.04);
+      box-shadow: 0 4px 14px oklch(0.16 0.028 230 / 0.15);
+    }
+
     /* ── Responsive ──────────────────────────────────────────────────────── */
     @media (max-width: 800px) {
       section.content { padding: 24px 16px; }
@@ -906,6 +960,16 @@
           Salvar Totem
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── QR Lightbox (amplia o QR para evitar escaneio errado) ────────────── -->
+  <div id="qrLightbox" class="modal-overlay" role="dialog" aria-modal="true" aria-label="QR Code Ampliado" style="display:none;">
+    <div class="qr-lightbox-content">
+      <button class="modal-close" id="qrLightboxClose" aria-label="Fechar">&times;</button>
+      <div class="qr-lightbox-name" id="qr-lightbox-name"></div>
+      <div class="qr-lightbox-image"><img id="qr-lightbox-img" src="" alt="QR Code Ampliado" /></div>
+      <div class="qr-lightbox-hint">Aponte a câmera do celular para este QR Code</div>
     </div>
   </div>
 

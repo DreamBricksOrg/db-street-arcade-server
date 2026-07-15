@@ -43,6 +43,12 @@ const queueModalClose    = document.getElementById('queueModalClose')
 const queueModalTotemName = document.getElementById('queue-modal-totem-name')
 const queueModalBody     = document.getElementById('queue-modal-body')
 
+// QR lightbox refs
+const qrLightbox      = document.getElementById('qrLightbox')
+const qrLightboxClose = document.getElementById('qrLightboxClose')
+const qrLightboxImg   = document.getElementById('qr-lightbox-img')
+const qrLightboxName  = document.getElementById('qr-lightbox-name')
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let editingTotemId    = null
 let cardPollTimers    = {}  // totemId → intervalId (session status + queue count, shared poll)
@@ -197,7 +203,7 @@ function buildTotemCard(totem) {
       </div>
       <!-- Right QR Code Column -->
       <div style="width: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; padding: 10px; border-radius: 10px; border: 1px solid var(--border);">
-         <img style="width:100%; height:auto; object-fit:contain;" src="${API}/${totem._id}/qr" alt="QR Code do Totem" />
+         <img class="totem-card-qr-img" style="width:100%; height:auto; object-fit:contain;" src="${API}/${totem._id}/qr" alt="QR Code do Totem" title="Clique para ampliar" />
          <a href="${entryUrl}" target="_blank" style="margin-top: 8px; font-size: 11px; text-decoration: none; color: var(--accent); font-family: monospace; display: block; overflow: hidden; text-overflow: ellipsis; max-width: 100%;" title="${entryUrl}">Copiar Link</a>
       </div>
     </div>
@@ -218,6 +224,7 @@ function buildTotemCard(totem) {
   card.querySelector('.btn-delete').addEventListener('click', () => deleteTotem(totem._id, totem.name))
   card.querySelector('.btn-clear-queue').addEventListener('click', () => clearTotemQueue(totem._id, totem.name))
   card.querySelector('.btn-queue-toggle').addEventListener('click', () => openQueueModal(totem))
+  card.querySelector('.totem-card-qr-img').addEventListener('click', () => openQrLightbox(totem))
 
   // Allow clicking the copy link to copy to clipboard
   const linkRef = card.querySelector('a')
@@ -468,6 +475,29 @@ function closeQueueModal() {
 queueModalClose?.addEventListener('click', closeQueueModal)
 queueModal?.addEventListener('click', (e) => {
   if (e.target === queueModal) closeQueueModal()
+})
+
+// ── QR Lightbox ───────────────────────────────────────────────────────────────
+// Enlarges a single totem's QR over a darkened, blurred backdrop so an
+// operator scanning with their own phone can't accidentally pick up a
+// neighboring totem's code from the card grid.
+
+function openQrLightbox(totem) {
+  qrLightboxName.textContent = totem.name
+  qrLightboxImg.src = `${API}/${totem._id}/qr`
+  qrLightbox.style.display = 'flex'
+  openModalA11y(qrLightbox, closeQrLightbox, qrLightboxClose)
+}
+
+function closeQrLightbox() {
+  qrLightbox.style.display = 'none'
+  qrLightboxImg.src = ''
+  closeModalA11y(qrLightbox)
+}
+
+qrLightboxClose?.addEventListener('click', closeQrLightbox)
+qrLightbox?.addEventListener('click', (e) => {
+  if (e.target === qrLightbox) closeQrLightbox()
 })
 
 // ── Kick from Queue ───────────────────────────────────────────────────────────

@@ -35,7 +35,11 @@
       "Bash(echo \"---exit $?---\")",
       "Bash(node \"C:\\\\Users\\\\db\\\\.claude\\\\skills\\\\impeccable\\\\scripts\\\\detect.mjs\" --json src public games/snake/public games/brick-rush/public)",
       "Bash(node -e ' *)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/health)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:9000/config)",
+      "Bash(curl -s http://localhost:9000/config)",
+      "Bash(node --check games/snake/server.js)",
+      "Bash(node --check games/snake/public/game.js)"
     ]
   },
   "hooks": {

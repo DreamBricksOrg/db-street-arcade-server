@@ -196,7 +196,7 @@ function buildTotemCard(totem) {
         </div>
       </div>
       <!-- Right QR Code Column -->
-      <div style="width: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+      <div style="width: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; padding: 10px; border-radius: 10px; border: 1px solid var(--border);">
          <img style="width:100%; height:auto; object-fit:contain;" src="${API}/${totem._id}/qr" alt="QR Code do Totem" />
          <a href="${entryUrl}" target="_blank" style="margin-top: 8px; font-size: 11px; text-decoration: none; color: var(--accent); font-family: monospace; display: block; overflow: hidden; text-overflow: ellipsis; max-width: 100%;" title="${entryUrl}">Copiar Link</a>
       </div>
@@ -512,8 +512,8 @@ async function endAllSessions(totemId, totemName) {
     text:               'Todos os jogadores atuais serão desconectados e a fila avançará.',
     icon:               'warning',
     showCancelButton:   true,
-    confirmButtonColor: '#ef4444',
-    cancelButtonColor:  '#64748b',
+    confirmButtonColor: 'oklch(0.58 0.20 25)',
+    cancelButtonColor:  'oklch(0.52 0.022 230)',
     confirmButtonText:  'Sim, encerrar',
     cancelButtonText:   'Cancelar',
     reverseButtons:     true,
@@ -639,8 +639,8 @@ async function deleteTotem(id, name) {
     text:               'Esta ação não pode ser desfeita.',
     icon:               'warning',
     showCancelButton:   true,
-    confirmButtonColor: '#ef4444',
-    cancelButtonColor:  '#64748b',
+    confirmButtonColor: 'oklch(0.58 0.20 25)',
+    cancelButtonColor:  'oklch(0.52 0.022 230)',
     confirmButtonText:  'Sim, excluir',
     cancelButtonText:   'Cancelar',
     reverseButtons:     true,
@@ -680,8 +680,8 @@ async function clearTotemQueue(id, name) {
     text:               'Todos os jogadores na fila perderão suas vagas.',
     icon:               'warning',
     showCancelButton:   true,
-    confirmButtonColor: '#ef4444',
-    cancelButtonColor:  '#64748b',
+    confirmButtonColor: 'oklch(0.58 0.20 25)',
+    cancelButtonColor:  'oklch(0.52 0.022 230)',
     confirmButtonText:  'Sim, limpar',
     cancelButtonText:   'Cancelar',
     reverseButtons:     true,

@@ -1,20 +1,22 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-13T00:00:00.000Z",
+  "generatedAt": "2026-07-14T00:00:00.000Z",
   "title": "Design System: Street Arcade",
   "extensions": {
     "colorMeta": {
-      "arcade-blue": { "role": "primary", "displayName": "Arcade Blue", "canonical": "oklch(62% 0.19 260)", "tonalRamp": ["#0c1e3d", "#173a6e", "#22569e", "#2d6fc7", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"] },
-      "arcade-blue-light": { "role": "primary-variant", "displayName": "Arcade Blue Light", "canonical": "oklch(75% 0.13 255)", "tonalRamp": ["#173a6e", "#22569e", "#2d6fc7", "#3b82f6", "#60a5fa", "#93c5fd", "#c3ddfd", "#eff6ff"] },
+      "db-blue": { "role": "primary", "displayName": "DreamBricks Blue", "canonical": "#42b0d5", "tonalRamp": ["#034a5d", "#42b0d5", "#52cdef", "#c7f1ff", "#ffffff"] },
+      "db-blue-light": { "role": "primary-variant", "displayName": "DreamBricks Blue Light", "canonical": "#52cdef", "tonalRamp": ["#42b0d5", "#52cdef", "#c7f1ff"] },
+      "db-blue-ink": { "role": "primary-strong", "displayName": "DreamBricks Ink", "canonical": "#034a5d", "tonalRamp": ["#034a5d", "#42b0d5"] },
       "cta-orange": { "role": "secondary", "displayName": "CTA Orange", "canonical": "oklch(70% 0.19 45)", "tonalRamp": ["#431a05", "#7c3209", "#b4490d", "#dc5e12", "#f97316", "#fb9d4b", "#fdc38a", "#fee7cf"] },
-      "slate-bg": { "role": "neutral-bg", "displayName": "Slate Background", "canonical": "oklch(98% 0.005 245)", "tonalRamp": ["#0f172a", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f1f5f9", "#f8fafc"] },
-      "surface-white": { "role": "neutral-surface", "displayName": "Surface White", "canonical": "oklch(100% 0 0)", "tonalRamp": ["#f8fafc", "#ffffff"] },
-      "surface-slate": { "role": "neutral-surface-recessed", "displayName": "Surface Slate", "canonical": "oklch(96% 0.006 245)", "tonalRamp": ["#e2e8f0", "#f1f5f9"] },
-      "border-slate": { "role": "neutral-border", "displayName": "Border Slate", "canonical": "oklch(92% 0.008 245)", "tonalRamp": ["#cbd5e1", "#e2e8f0"] },
-      "ink": { "role": "neutral-text", "displayName": "Ink", "canonical": "oklch(19% 0.03 260)", "tonalRamp": ["#0f172a"] },
-      "ink-muted": { "role": "neutral-text-muted", "displayName": "Ink Muted", "canonical": "oklch(55% 0.02 255)", "tonalRamp": ["#334155", "#475569", "#64748b", "#94a3b8"] },
-      "success-emerald": { "role": "success", "displayName": "Success Emerald", "canonical": "oklch(70% 0.15 165)", "tonalRamp": ["#022c22", "#065f46", "#059669", "#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5"] },
-      "danger-red": { "role": "danger", "displayName": "Danger Red", "canonical": "oklch(62% 0.21 25)", "tonalRamp": ["#450a0a", "#991b1b", "#dc2626", "#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fee2e2"] },
+      "slate-bg": { "role": "neutral-bg", "displayName": "Slate Background", "canonical": "oklch(0.97 0.006 230)", "tonalRamp": ["oklch(0.16 0.028 230)", "oklch(0.33 0.026 230)", "oklch(0.52 0.022 230)", "oklch(0.65 0.020 230)", "oklch(0.80 0.018 230)", "oklch(0.89 0.014 230)", "oklch(0.94 0.010 230)", "oklch(0.97 0.006 230)"] },
+      "surface-white": { "role": "neutral-surface", "displayName": "Surface White", "canonical": "#ffffff", "tonalRamp": ["oklch(0.97 0.006 230)", "#ffffff"] },
+      "surface-slate": { "role": "neutral-surface-recessed", "displayName": "Surface Slate", "canonical": "oklch(0.94 0.010 230)", "tonalRamp": ["oklch(0.89 0.014 230)", "oklch(0.94 0.010 230)"] },
+      "border-slate": { "role": "neutral-border", "displayName": "Border Slate", "canonical": "oklch(0.89 0.014 230)", "tonalRamp": ["oklch(0.80 0.018 230)", "oklch(0.89 0.014 230)"] },
+      "ink": { "role": "neutral-text", "displayName": "Ink", "canonical": "oklch(0.16 0.028 230)", "tonalRamp": ["oklch(0.16 0.028 230)"] },
+      "ink-muted": { "role": "neutral-text-muted", "displayName": "Ink Muted", "canonical": "oklch(0.52 0.022 230)", "tonalRamp": ["oklch(0.33 0.026 230)", "oklch(0.42 0.024 230)", "oklch(0.52 0.022 230)", "oklch(0.65 0.020 230)"] },
+      "success": { "role": "success", "displayName": "Success", "canonical": "oklch(0.62 0.14 155)", "tonalRamp": ["oklch(0.62 0.14 155)", "oklch(0.94 0.05 155)"] },
+      "danger": { "role": "danger", "displayName": "Danger", "canonical": "oklch(0.58 0.20 25)", "tonalRamp": ["oklch(0.58 0.20 25)", "oklch(0.94 0.06 25)"] },
+      "warning": { "role": "warning", "displayName": "Warning", "canonical": "oklch(0.78 0.15 80)", "tonalRamp": ["oklch(0.78 0.15 80)", "oklch(0.95 0.06 80)"] },
       "xbox-green": { "role": "gamepad-accent", "displayName": "Xbox Green", "canonical": "oklch(48% 0.12 145)" },
       "xbox-red": { "role": "gamepad-accent", "displayName": "Xbox Red", "canonical": "oklch(55% 0.19 27)" },
       "xbox-blue": { "role": "gamepad-accent", "displayName": "Xbox Blue", "canonical": "oklch(53% 0.16 250)" },
@@ -22,26 +24,27 @@
     },
     "typographyMeta": {
       "hero": { "displayName": "Hero", "purpose": "The single largest text in the system — play.html's in-game loading title only." },
-      "display": { "displayName": "Display", "purpose": "Loading-screen and hero panel titles, rendered in solid Arcade Blue." },
+      "display": { "displayName": "Display", "purpose": "Loading-screen and hero panel titles, rendered in solid DreamBricks Blue." },
       "subtitle": { "displayName": "Subtitle", "purpose": "Sessions-header h2, error-screen titles." },
       "headline": { "displayName": "Headline", "purpose": "Modal titles and section headers." },
       "title": { "displayName": "Title", "purpose": "Card titles, totem names, button labels." },
       "body": { "displayName": "Body", "purpose": "Form inputs, descriptions, hint text." },
       "caption": { "displayName": "Caption", "purpose": "Secondary descriptive text — QR captions, form hints, session meta." },
-      "label": { "displayName": "Label", "purpose": "Field labels, tab labels, uppercase Fira Sans." },
+      "label": { "displayName": "Label", "purpose": "Field labels, tab labels, uppercase Poppins." },
       "mono-label": { "displayName": "Mono Label", "purpose": "Panel titles, queue headers, status badges." },
       "micro": { "displayName": "Micro", "purpose": "Floor of the scale — queue-row device meta, ETA text, timestamp chips. Always paired with an icon or adjacent larger text." }
     },
     "shadows": [
-      { "name": "hover-glow", "value": "0 4px 14px rgba(59, 130, 246, 0.4)", "purpose": "Primary button hover response." },
-      { "name": "card-lift", "value": "0 10px 40px rgba(0,0,0,0.1)", "purpose": "QR card and single-focus panels animating into view." },
-      { "name": "modal-lift", "value": "0 16px 64px rgba(0,0,0,0.4)", "purpose": "Modal content over the dimmed/blurred overlay." },
-      { "name": "gamepad-key-rest", "value": "0 5px 0 rgba(0,0,0,0.15)", "purpose": "Face button resting key-press shadow." },
-      { "name": "gamepad-key-pressed", "value": "0 2px 0 rgba(0,0,0,0.15)", "purpose": "Face button pressed-state shadow." }
+      { "name": "hover-glow", "value": "0 4px 14px oklch(from var(--accent) l c h / 0.4)", "purpose": "Primary button hover response." },
+      { "name": "card-lift", "value": "0 10px 40px oklch(0.16 0.028 230 / 0.1)", "purpose": "QR card and single-focus panels animating into view." },
+      { "name": "modal-lift", "value": "0 16px 64px oklch(0.16 0.028 230 / 0.4)", "purpose": "Modal content over the dimmed/blurred overlay." },
+      { "name": "gamepad-key-rest", "value": "0 5px 0 oklch(0.16 0.028 230 / 0.15)", "purpose": "Face button resting key-press shadow." },
+      { "name": "gamepad-key-pressed", "value": "0 2px 0 oklch(0.16 0.028 230 / 0.15)", "purpose": "Face button pressed-state shadow." }
     ],
     "motion": [
       { "name": "ease-standard", "value": "0.2s ease", "purpose": "Default transition for hover/active state changes across buttons and cards." },
       { "name": "ease-modal", "value": "0.2s (fade), cubic-bezier(0.16,1,0.3,1) 0.4s (slideUp)", "purpose": "Modal fade-in and QR card slide-up entrance." },
+      { "name": "reveal-in", "value": "0.5s cubic-bezier(0.16,1,0.3,1)", "purpose": "Logo-mark entrance on loading/queue screens — ease-out fade+scale, not bounce/elastic." },
       { "name": "pulse-live", "value": "2s ease-in-out infinite scale(1→0.7)+opacity(1→0.4)", "purpose": "Ambient 'live' status dot in the operator header — the one resting-state animation in the system." },
       { "name": "gamepad-press", "value": "0.08s ease", "purpose": "Face/D-pad button press feedback — tuned fast for thumb input." }
     ],
@@ -56,7 +59,7 @@
       "refersTo": "button-primary",
       "description": "Main call-to-action across the operator dashboard (Salvar Totem, Adicionar Totem).",
       "html": "<button class=\"ds-btn-primary\">Adicionar Totem</button>",
-      "css": ".ds-btn-primary { background: #3b82f6; color: #fff; font-family: 'Fira Sans', sans-serif; font-size: 15px; font-weight: 700; padding: 13px 18px; border: none; border-radius: 8px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; } .ds-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4); } .ds-btn-primary:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(0); } .ds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }"
+      "css": ".ds-btn-primary { background: #42b0d5; color: #fff; font-family: 'Poppins', sans-serif; font-size: 15px; font-weight: 700; padding: 13px 18px; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; } .ds-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 14px oklch(from #42b0d5 l c h / 0.4); } .ds-btn-primary:focus-visible { outline: 2px solid #52cdef; outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(0); } .ds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }"
     },
     {
       "name": "Secondary Button",
@@ -64,7 +67,7 @@
       "refersTo": "button-secondary",
       "description": "Cancel / dismiss actions inside modals and forms.",
       "html": "<button class=\"ds-btn-secondary\">Cancelar</button>",
-      "css": ".ds-btn-secondary { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; font-family: 'Fira Sans', sans-serif; font-size: 13px; font-weight: 700; padding: 9px 14px; border-radius: 8px; cursor: pointer; transition: background 0.2s, color 0.2s; } .ds-btn-secondary:hover { background: #e2e8f0; color: #0f172a; } .ds-btn-secondary:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }"
+      "css": ".ds-btn-secondary { background: oklch(0.94 0.010 230); color: oklch(0.52 0.022 230); border: 1px solid oklch(0.89 0.014 230); font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700; padding: 9px 14px; border-radius: 10px; cursor: pointer; transition: background 0.2s, color 0.2s; } .ds-btn-secondary:hover { background: oklch(0.89 0.014 230); color: oklch(0.16 0.028 230); } .ds-btn-secondary:focus-visible { outline: 2px solid #52cdef; outline-offset: 2px; }"
     },
     {
       "name": "Text Input",
@@ -72,7 +75,7 @@
       "refersTo": "input-field",
       "description": "Standard text/number/select field used across totem and session forms.",
       "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"ex: Cabine A\" />",
-      "css": ".ds-input { background: #f1f5f9; border: 1px solid #e2e8f0; color: #0f172a; font-family: 'Fira Sans', sans-serif; font-size: 15px; padding: 11px 14px; border-radius: 10px; width: 100%; outline: none; transition: border-color 0.2s, box-shadow 0.2s; } .ds-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18); } .ds-input::placeholder { color: #64748b; opacity: 0.7; }"
+      "css": ".ds-input { background: oklch(0.94 0.010 230); border: 1px solid oklch(0.89 0.014 230); color: oklch(0.16 0.028 230); font-family: 'Poppins', sans-serif; font-size: 15px; padding: 11px 14px; border-radius: 10px; width: 100%; outline: none; transition: border-color 0.2s, box-shadow 0.2s; } .ds-input:focus { border-color: #42b0d5; box-shadow: 0 0 0 2px oklch(from #42b0d5 l c h / 0.18); } .ds-input::placeholder { color: oklch(0.52 0.022 230); opacity: 0.7; }"
     },
     {
       "name": "Status Badge",
@@ -80,7 +83,7 @@
       "refersTo": "badge-status",
       "description": "Semantic status pill (active/finished/waiting/live) used on session cards and the QR panel.",
       "html": "<span class=\"ds-badge ds-badge--success\">Ativo</span>",
-      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 6px; font-family: 'Fira Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; padding: 2px 10px; border-radius: 999px; } .ds-badge--success { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.3); } .ds-badge--danger { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }"
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 6px; font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; padding: 2px 10px; border-radius: 999px; } .ds-badge--success { background: oklch(0.62 0.14 155 / 0.12); color: oklch(0.62 0.14 155); border: 1px solid oklch(0.62 0.14 155 / 0.3); } .ds-badge--danger { background: oklch(0.58 0.20 25 / 0.12); color: oklch(0.58 0.20 25); border: 1px solid oklch(0.58 0.20 25 / 0.3); }"
     },
     {
       "name": "Session Card",
@@ -88,15 +91,15 @@
       "refersTo": "card",
       "description": "Individual live-session card in the operator dashboard grid.",
       "html": "<div class=\"ds-card\"><div class=\"ds-card-id\">SID a1b2c3d4</div><div class=\"ds-card-players\"><strong>2</strong> jogadores</div></div>",
-      "css": ".ds-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; transition: border-color 0.2s, transform 0.2s; } .ds-card:hover { border-color: #3b82f6; transform: translateY(-2px); } .ds-card-id { font-size: 13px; font-family: 'Fira Code', monospace; color: #64748b; } .ds-card-players { font-size: 14px; color: #64748b; } .ds-card-players strong { color: #0f172a; }"
+      "css": ".ds-card { background: #ffffff; border: 1px solid oklch(0.89 0.014 230); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; transition: border-color 0.2s, transform 0.2s; } .ds-card:hover { border-color: #42b0d5; transform: translateY(-2px); } .ds-card-id { font-size: 13px; font-family: 'IBM Plex Mono', monospace; color: oklch(0.52 0.022 230); } .ds-card-players { font-size: 14px; color: oklch(0.52 0.022 230); } .ds-card-players strong { color: oklch(0.16 0.028 230); }"
     },
     {
       "name": "Gamepad Face Button",
       "kind": "custom",
       "refersTo": null,
-      "description": "The signature ABXY face button — Xbox palette, skeuomorphic key-press shadow, tuned for thumb input on the player's phone.",
+      "description": "The signature ABXY face button — Xbox palette, skeuomorphic key-press shadow, tuned for thumb input on the player's phone. Explicitly excluded from the DreamBricks brand migration (Xbox Quarantine Rule).",
       "html": "<button class=\"ds-face-btn ds-face-btn--a\">A</button>",
-      "css": ".ds-face-btn { border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; font-size: 20px; font-weight: 700; font-family: 'Fira Code', monospace; cursor: pointer; box-shadow: 0 5px 0 rgba(0,0,0,0.15); transition: transform 0.08s, box-shadow 0.08s, filter 0.08s; } .ds-face-btn--a { background: #107c10; color: #fff; } .ds-face-btn:active, .ds-face-btn.pressed { transform: scale(0.87) translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,0.15); filter: brightness(1.35); }"
+      "css": ".ds-face-btn { border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; font-size: 20px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; cursor: pointer; box-shadow: 0 5px 0 oklch(0.16 0.028 230 / 0.15); transition: transform 0.08s, box-shadow 0.08s, filter 0.08s; } .ds-face-btn--a { background: #107c10; color: #fff; } .ds-face-btn:active, .ds-face-btn.pressed { transform: scale(0.87) translateY(3px); box-shadow: 0 2px 0 oklch(0.16 0.028 230 / 0.15); filter: brightness(1.35); }"
     },
     {
       "name": "Live Status Dot",
@@ -104,40 +107,42 @@
       "refersTo": null,
       "description": "Ambient pulsing dot in the operator header signaling the dashboard is live-connected — the one resting-state animation in the system.",
       "html": "<div class=\"ds-badge-live\"><div class=\"ds-dot-pulse\"></div>OPERADOR</div>",
-      "css": ".ds-badge-live { display: flex; align-items: center; gap: 6px; font-family: 'Fira Sans', sans-serif; font-size: 13px; color: #10b981; font-weight: 600; } .ds-dot-pulse { width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: ds-pulse 2s ease-in-out infinite; } @keyframes ds-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }"
+      "css": ".ds-badge-live { display: flex; align-items: center; gap: 6px; font-family: 'Poppins', sans-serif; font-size: 13px; color: oklch(0.62 0.14 155); font-weight: 600; } .ds-dot-pulse { width: 8px; height: 8px; background: oklch(0.62 0.14 155); border-radius: 50%; animation: ds-pulse 2s ease-in-out infinite; } @keyframes ds-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }"
     }
   ],
   "narrative": {
-    "northStar": "The Control Room",
-    "overview": "Street Arcade reads like an instrument panel wearing arcade colors. The base layer — layout, type, borders, status indicators — is control-room precision: light slate surfaces, thin 1px borders, monospace labels for anything that is data (IDs, timers, status codes), and a single confident accent (Arcade Blue) doing all the 'this is interactive' signaling. The playful half of the brand doesn't come from decoration; it comes from the Xbox-style button palette on the gamepad and the pulsing live dot in the operator header. Reliable first, playful second, exactly as PRODUCT.md states.\n\nThis system explicitly rejects both of PRODUCT.md's anti-references: it is not a gray enterprise SaaS panel, and it is not neon/cyberpunk gamer aesthetic. Saturated color is spent deliberately on the few places it earns its keep: buttons, badges, and the four gamepad face buttons.",
+    "northStar": "The Control Room, on DreamBricks Blue",
+    "overview": "Street Arcade is built on the DreamBricks Design System — DreamBricks' own brand tokens — merged with the arcade-specific signature this product depends on: monospace labels for anything that is live system data, and the Xbox-style ABXY button palette on the gamepad. The base layer reads like an instrument panel wearing the DreamBricks brand: light, blue-tinted slate surfaces, thin 1px borders, and a single confident accent (DreamBricks Blue) doing all the 'this is interactive' signaling. The playful half of the brand doesn't come from decoration; it comes from the Xbox-style button palette on the gamepad and the pulsing live dot in the operator header. Reliable first, playful second, exactly as PRODUCT.md states.\n\nThis system explicitly rejects both of PRODUCT.md's anti-references: it is not a gray enterprise SaaS panel, and it is not neon/cyberpunk gamer aesthetic. Saturated color is spent deliberately on the few places it earns its keep: buttons, badges, and the four gamepad face buttons.\n\nThe DreamBricks brandbook is a generic 'project dashboard' brand with no gamepad or real-time-queue guidance of its own. Street Arcade adopts its color/type/radius tokens wholesale for the base chrome, but keeps the Xbox gamepad palette and the mono-for-live-data rule (now carried by DreamBricks' own IBM Plex Mono token) as the two elements PRODUCT.md treats as essential and the DreamBricks system has no answer for.",
     "keyCharacteristics": [
-      "Light slate base (#f8fafc) with white surface cards, never dark-mode-by-default",
-      "One accent color (Arcade Blue) carrying all primary CTAs, focus states, and active-tab indicators",
-      "Fira Code reserved for anything that reads as data or a system label; Fira Sans for everything conversational",
-      "Flat surfaces at rest; shadows and glow appear only as a response to hover, focus, or an open modal",
+      "Light, blue-tinted slate base (oklch(0.97 0.006 230)) with white surface cards, never dark-mode-by-default",
+      "One accent color (DreamBricks Blue #42b0d5) carrying all primary CTAs, focus states, and active-tab indicators",
+      "IBM Plex Mono reserved for anything that reads as data or a system label; Poppins for everything conversational",
+      "Flat surfaces at rest; shadows and glow appear only as a response to hover, focus, or an open modal — tinted with Ink, never pure black",
       "Saturated color bursts are scoped tightly: session status badges, the Xbox-palette gamepad buttons, the pulsing live dot — never the base chrome"
     ],
     "rules": [
-      { "name": "The One Accent Rule", "body": "Arcade Blue is the only color allowed to mean 'primary action' or 'focused/active.' If a second action needs color, it borrows CTA Orange — never a second blue, never a gradient invented on the spot.", "section": "colors" },
+      { "name": "The One Accent Rule", "body": "DreamBricks Blue is the only color allowed to mean 'primary action' or 'focused/active.' If a second action needs color, it borrows CTA Orange — never a second blue, never a gradient invented on the spot.", "section": "colors" },
       { "name": "The Xbox Quarantine Rule", "body": "The Xbox four-color palette exists only inside the gamepad's face buttons. It never appears on a badge, a button in the dashboard, or a status indicator.", "section": "colors" },
-      { "name": "The Data-Is-Mono Rule", "body": "Any value that represents live or identifying system state — session IDs, player IDs, timers, IPs, ports, queue positions — renders in Fira Code, regardless of its surrounding context.", "section": "typography" },
+      { "name": "The Data-Is-Mono Rule", "body": "Any value that represents live or identifying system state — session IDs, player IDs, timers, IPs, ports, queue positions — renders in IBM Plex Mono, regardless of its surrounding context.", "section": "typography" },
       { "name": "The Flat-Until-Touched Rule", "body": "Nothing in the system has a resting shadow except the gamepad's face buttons (which are simulating physical keys, not UI chrome). If you're adding a shadow to something that isn't hovered, focused, pressed, or animating in, remove it.", "section": "elevation" }
     ],
     "dos": [
       "Do keep the base UI light and flat — Slate Background, Surface White cards, 1px Border Slate dividers, no shadow at rest.",
-      "Do reserve Fira Code for live/system data (IDs, timers, statuses, panel titles) and Fira Sans for everything else.",
-      "Do let Arcade Blue carry every primary action and focus state; introduce a second color only through the semantic Success/Danger pair or CTA Orange, never a new blue.",
+      "Do reserve IBM Plex Mono for live/system data (IDs, timers, statuses, panel titles) and Poppins for everything else.",
+      "Do let DreamBricks Blue carry every primary action and focus state; introduce a second color only through the semantic Success/Danger/Warning set or CTA Orange, never a new blue.",
       "Do confine the Xbox four-color palette to the gamepad's face buttons — it is the product's signature moment precisely because it doesn't appear anywhere else.",
+      "Do tint every shadow with Ink (oklch(0.16 0.028 230)), never pure black.",
       "Do use shadow and glow only as a response to interaction (hover, focus, press, modal-open) — never as static decoration.",
       "Do keep motion purposeful and quick (0.15–0.4s transitions, the 2s ambient pulse dot) — arcade energy shows up as responsiveness, not ornament."
     ],
     "donts": [
       "Don't build a gray, dense, enterprise-admin-panel screen — per PRODUCT.md, this should never read as generic SaaS.",
       "Don't reach for neon gradients, RGB glow, glitch effects, or a dark-mode-by-default theme — per PRODUCT.md, this should never read as gamer/cyberpunk aesthetic.",
-      "Don't use background-clip: text gradients anywhere — loading/hero titles render in solid Arcade Blue; emphasis comes from weight and size.",
+      "Don't use background-clip: text gradients anywhere — loading/hero titles render in solid DreamBricks Blue; emphasis comes from weight and size.",
       "Don't add a resting shadow to a card, button, or badge that isn't hovered, focused, pressed, or animating in.",
-      "Don't introduce a second accent blue, a new gradient, or an off-palette status color — Success, Danger, Arcade Blue, and CTA Orange are the complete semantic set.",
-      "Don't let the Xbox button palette leak into dashboard badges, tabs, or any non-gamepad control."
+      "Don't introduce a second accent blue, a new gradient, or an off-palette status color — Success, Danger, Warning, DreamBricks Blue, and CTA Orange are the complete semantic set.",
+      "Don't let the Xbox button palette leak into dashboard badges, tabs, or any non-gamepad control.",
+      "Don't reach for Fira Code or Fira Sans in new work — both fonts have been fully retired in favor of the DreamBricks IBM Plex Mono / Poppins pair."
     ]
   }
 }

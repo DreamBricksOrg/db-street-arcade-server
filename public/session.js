@@ -44,10 +44,15 @@ async function boot(sid) {
     return showError(`Falha de rede: ${err.message}`)
   }
 
-  const totemId = session.totemId
+  // Where "Jogar novamente" goes: the same totem AND the same iframe instance.
+  const replayUrl = session.totemId
+    ? `/play/totem?id=${session.totemId}` +
+      (session.instanceId && session.instanceId !== 'default'
+        ? `&instance=${encodeURIComponent(session.instanceId)}` : '')
+    : null
 
   if (session.status === 'finished') {
-    return showEnded(totemId)
+    return showEnded(replayUrl)
   }
 
   // 2. Generate or restore playerId (C9.2: persists across refreshes)
@@ -80,7 +85,7 @@ async function boot(sid) {
       if (code === 1008) {
         // Policy violation — session ended
         destroyAll()
-        showEnded(totemId)
+        showEnded(replayUrl)
       }
     },
     onError() {
@@ -116,7 +121,7 @@ async function boot(sid) {
   function handleServerEvent(data) {
     if (data?.data?.event === 'session_ended') {
       destroyAll()
-      showEnded(totemId)
+      showEnded(replayUrl)
     }
   }
 }
@@ -137,9 +142,9 @@ function showError(msg) {
 
 // "Game over" screen: session ended (death, kick or timeout). Offers a way
 // back to the totem entry page, where the player joins the END of the queue.
-function showEnded(totemId) {
+function showEnded(replayUrl) {
   showError('Sua sessão acabou. Obrigado por jogar!')
-  if (!totemId) return
+  if (!replayUrl) return
   if (document.getElementById('play-again-btn')) return
 
   const btn = document.createElement('button')
@@ -148,7 +153,7 @@ function showEnded(totemId) {
   btn.style.cssText = 'margin-top:16px;padding:12px 28px;font-size:15px;font-weight:700;' +
     'background:var(--accent);color:#fff;border:none;border-radius:10px;cursor:pointer;'
   btn.addEventListener('click', () => {
-    window.location.href = `/play/totem?id=${totemId}`
+    window.location.href = replayUrl
   })
   $error.appendChild(btn)
 }

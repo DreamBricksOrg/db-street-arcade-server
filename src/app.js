@@ -14,7 +14,11 @@ import swaggerPlugin   from './plugins/swagger.js'
 import gameRoutes      from './modules/game/game.routes.js'
 import sessionRoutes   from './modules/session/session.routes.js'
 import totemRoutes     from './modules/totem/totem.routes.js'
+import embedRoutes     from './modules/embed/embed.routes.js'
 import { UdpDispatcher } from './modules/udp/udp.dispatcher.js'
+import { InstanceHub }   from './modules/instance/instance.hub.js'
+import { GameOutput }    from './modules/game/game.output.js'
+import { createInstanceRegistry } from './lib/instances.js'
 
 const log = createLogger('app')
 
@@ -64,9 +68,23 @@ export async function buildApp() {
   // ── Phase 5: UDP ──────────────────────────────────────────────────────────
   await app.register(udpPlugin)
 
-  // ── Phase 6: Session + Totem REST API ──────────────────────────────────────
+  // ── Phase 5.5: n→n instances ─────────────────────────────────────────────
+  // Registry of embedded iframes + their SSE streams, and the single router
+  // that sends game packets via UDP (physical totem) or SSE (iframe).
+  const hub = new InstanceHub()
+  app.decorate('instances', createInstanceRegistry({
+    graceMs:     env.instanceGraceMs,
+    maxPerIp:    env.maxInstancesPerIp,
+    maxPerTotem: env.maxInstancesPerTotem,
+  }))
+  app.decorate('instanceHub', hub)
+  app.decorate('gameOutput', new GameOutput({ udpSend: app.udpSend, hub }))
+  app.addHook('onClose', async () => hub.close())
+
+  // ── Phase 6: Session + Totem REST API + Embed ──────────────────────────────
   await app.register(sessionRoutes)
   await app.register(totemRoutes)
+  await app.register(embedRoutes)
 
   // Start UDP dispatcher after all plugins are ready.
   // onReady fires after app.listen() completes — all decorators are available.

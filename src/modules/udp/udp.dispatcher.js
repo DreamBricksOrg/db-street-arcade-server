@@ -1,8 +1,10 @@
 // src/modules/udp/udp.dispatcher.js
-// TASK-U5.3 — Subscriber Redis → UDP Dispatcher
-// TASK-U5.4 — Mapa Sessão → IP do Totem
+// TASK-U5.3 — Subscriber Redis → game input dispatcher
+// TASK-U5.4 — Mapa Sessão → destino do jogo
 //
-// Bridges Redis Pub/Sub (game:input:*) → UDP datagrams → Totem Unity.
+// Bridges Redis Pub/Sub (game:input:*) → GameOutput, which delivers to the
+// physical totem over UDP (instance 'default') or to the embedded iframe over
+// SSE (any other instance). Name kept for history — it is no longer UDP-only.
 //
 // Packet format per PLAN TASK-U5.2 — JSON compacto < 512 bytes:
 //   { sid, pid, a, s, ts }
@@ -12,41 +14,35 @@
 //   s    = 1 (pressed) | 0 (released)
 //   ts   = timestamp truncado (últimos 7 dígitos de Date.now())
 //
-// Totem address resolution (3-layer, in-memory cache first):
+// Session target resolution (3-layer, in-memory cache first):
 //   1. In-memory Map (fastest)
 //   2. Redis HASH cache
 //   3. MongoDB fallback
 
-import { parseMessage } from '../../lib/channels.js'
-import { SessionKey }   from '../../lib/channels.js'
+import { parseMessage, SessionKey } from '../../lib/channels.js'
 import { createLogger } from '../../lib/logger.js'
 
 const log = createLogger('udp.dispatcher')
 
 export class UdpDispatcher {
   /**
-   * @param {import('fastify').FastifyInstance} fastify
+   * @param {import('fastify').FastifyInstance} fastify  (redisSubscriber, redisPublisher, mongo, gameOutput)
    */
   constructor(fastify) {
-    this.udpSend    = fastify.udpSend
+    this.output     = fastify.gameOutput
     this.subscriber = fastify.redisSubscriber
-    this.redis      = fastify.redisPublisher  // used for HGET (read-only commands ok on publisher)
+    this.redis      = fastify.redisPublisher  // used for HGETALL (read-only commands ok on publisher)
     this.mongo      = fastify.mongo ?? null
 
     /**
-     * In-memory totem registry.
-     * sessionId → Array<{ ip: string, udpPort: number }>
-     * @type {Map<string, Array<{ip: string, udpPort: number}>>}
+     * sessionId → { totemId, instanceId, totems }
+     * @type {Map<string, {totemId: string|null, instanceId: string, totems: Array<{ip: string, udpPort: number}>}>}
      */
-    this.totemMap = new Map()
+    this.targets = new Map()
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────────────────
 
-  /**
-   * Subscribes to game:input:* via pattern subscription.
-   * Called once after all plugins are ready.
-   */
   async start() {
     await Promise.all([
       this.subscriber.psubscribe('game:input:*'),
@@ -69,32 +65,33 @@ export class UdpDispatcher {
   }
 
   /**
-   * Registers totem addresses for a session.
-   * Called by GameHandler.onConnect() when a player joins.
+   * Caches where a session's packets go. Called by GameHandler.onConnect().
    * @param {string} sessionId
-   * @param {Array<{id?: string, ip: string, udpPort: number}>} totems
+   * @param {{ totemId?: string, instanceId?: string, totems?: Array }} session
    */
-  registerSession(sessionId, totems) {
-    if (!Array.isArray(totems) || !totems.length) return
-    this.totemMap.set(sessionId, totems)
-    log.debug({ sessionId, count: totems.length }, 'Totems registered')
+  registerSession(sessionId, session) {
+    this.targets.set(sessionId, this._toTarget(session))
+    log.debug({ sessionId, instanceId: session.instanceId }, 'Session target registered')
   }
 
-  /**
-   * Removes totem registration when a session ends.
-   * @param {string} sessionId
-   */
+  /** @param {string} sessionId */
   unregisterSession(sessionId) {
-    this.totemMap.delete(sessionId)
-    log.debug({ sessionId }, 'Totems unregistered')
+    this.targets.delete(sessionId)
+    log.debug({ sessionId }, 'Session target unregistered')
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
 
+  _toTarget(s) {
+    return {
+      totemId:    s.totemId ?? null,
+      instanceId: s.instanceId ?? 'default',
+      totems:     Array.isArray(s.totems) ? s.totems : [],
+    }
+  }
+
   async _handleMessage(raw) {
     const msg = parseMessage(raw)
-
-    // Only process 'input' type messages
     if (!msg || msg.type !== 'input') return
 
     const { sessionId, playerId, data, ts } = msg
@@ -105,25 +102,13 @@ export class UdpDispatcher {
       return
     }
 
-    // Resolve totems for this session
-    const totems = await this._resolveTotems(sessionId)
-
-    if (!totems.length) {
-      log.debug({ sessionId }, 'No totems for session — UDP skipped')
+    const target = await this._resolveTarget(sessionId)
+    if (!target) {
+      log.debug({ sessionId }, 'No target for session — input skipped')
       return
     }
 
-    // Build compact packet per PLAN U5.2
-    const packet = this._buildPacket(sessionId, playerId, action, state, ts)
-
-    // Fire to all totems (usually 1; Promise.allSettled allows partial failure)
-    await Promise.allSettled(
-      totems.map(({ ip, udpPort }) =>
-        this.udpSend(ip, udpPort, packet).catch((err) =>
-          log.error({ ip, udpPort, err: err.message }, 'UDP send error')
-        )
-      )
-    )
+    await this.output.send(target, this._buildPacket(sessionId, playerId, action, state, ts))
   }
 
   async _handleEvent(raw) {
@@ -136,45 +121,36 @@ export class UdpDispatcher {
     }
   }
 
-  /**
-   * Builds the compact JSON packet per PLAN TASK-U5.2.
-   * Always < 512 bytes.
-   */
+  /** Builds the compact packet per PLAN TASK-U5.2 (always < 512 bytes). */
   _buildPacket(sessionId, playerId, action, state, ts) {
-    return JSON.stringify({
+    return {
       sid: sessionId.slice(0, 8),
       pid: (playerId ?? '').slice(0, 8),
       a:   action,
       s:   state === 'pressed' ? 1 : 0,
       ts:  Number(String(ts ?? Date.now()).slice(-7)),
-    })
+    }
   }
 
-  /**
-   * 3-layer totem resolution:
-   *   1. In-memory map
-   *   2. Redis HASH (session:{id})
-   *   3. MongoDB sessions collection
-   */
-  async _resolveTotems(sessionId) {
+  async _resolveTarget(sessionId) {
     // 1. In-memory
-    if (this.totemMap.has(sessionId)) {
-      return this.totemMap.get(sessionId)
-    }
+    if (this.targets.has(sessionId)) return this.targets.get(sessionId)
 
     // 2. Redis HASH
     if (this.redis) {
       try {
-        const raw = await this.redis.hget(SessionKey(sessionId), 'totems')
-        if (raw) {
-          const totems = JSON.parse(raw)
-          if (Array.isArray(totems) && totems.length) {
-            this.totemMap.set(sessionId, totems)
-            return totems
-          }
+        const raw = await this.redis.hgetall(SessionKey(sessionId))
+        if (raw?.id) {
+          const target = this._toTarget({
+            totemId:    raw.totemId || null,
+            instanceId: raw.instanceId || 'default',
+            totems:     JSON.parse(raw.totems || '[]'),
+          })
+          this.targets.set(sessionId, target)
+          return target
         }
       } catch (err) {
-        log.warn({ err: err.message, sessionId }, 'Redis HGET failed — falling back to Mongo')
+        log.warn({ err: err.message, sessionId }, 'Redis HGETALL failed — falling back to Mongo')
       }
     }
 
@@ -183,17 +159,18 @@ export class UdpDispatcher {
       try {
         const doc = await this.mongo.db.collection('sessions').findOne(
           { _id: sessionId },
-          { projection: { totems: 1 } }
+          { projection: { totemId: 1, instanceId: 1, totems: 1 } },
         )
-        if (doc?.totems?.length) {
-          this.totemMap.set(sessionId, doc.totems)
-          return doc.totems
+        if (doc) {
+          const target = this._toTarget(doc)
+          this.targets.set(sessionId, target)
+          return target
         }
       } catch (err) {
         log.warn({ err: err.message, sessionId }, 'MongoDB lookup failed')
       }
     }
 
-    return []
+    return null
   }
 }

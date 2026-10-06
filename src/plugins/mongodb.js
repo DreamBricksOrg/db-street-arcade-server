@@ -44,6 +44,12 @@ async function ensureIndexes(db) {
   // Per-player-session model: occupancy counts and player lookups per totem
   await sessions.createIndex({ totemId: 1, status: 1 }, { name: 'sessions_totem_status' })
 
+  // n→n: occupancy is counted per instance (iframe) of a totem
+  await sessions.createIndex(
+    { totemId: 1, instanceId: 1, status: 1 },
+    { name: 'sessions_totem_instance_status' },
+  )
+
   log.debug('Indexes verified')
 }
 

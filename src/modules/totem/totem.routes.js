@@ -1,8 +1,10 @@
 // src/modules/totem/totem.routes.js
 // REST API for /api/totems: CRUD + queue endpoints (backed by TotemQueueService).
 //
-// Queue model: one session per player. A totem with maxPlayers=N holds up to
-// N live sessions; the waiting list advances one player per freed slot.
+// Queue model: one session per player, per INSTANCE. Instance 'default' is
+// the physical totem; `?instance=<id>` targets an embedded iframe (see
+// src/modules/embed). An instance with maxPlayers=N holds up to N live
+// sessions; its waiting list advances one player per freed slot.
 
 import fp     from 'fastify-plugin'
 import QRCode from 'qrcode'
@@ -11,6 +13,8 @@ import { TotemQueueService } from './totemQueue.service.js'
 import { createLogger }      from '../../lib/logger.js'
 import { env }               from '../../config/env.js'
 import { createRateLimiter } from '../../lib/rateLimit.js'
+import { listGames }         from '../../lib/games.js'
+import { instanceKey, normalizeInstance, isDefaultInstance } from '../../lib/channels.js'
 
 const log = createLogger('totem.routes')
 
@@ -23,10 +27,15 @@ const totemIdParam = {
   required:   ['id'],
 }
 
+const instanceProp = { type: 'string', pattern: '^[A-Za-z0-9_-]{1,64}$' }
+const instanceQuery = { type: 'object', properties: { instance: instanceProp } }
+
 const totemBodyProps = {
   name:              { type: 'string' },
-  ip:                { type: 'string' },
-  udpPort:           { type: 'number' },
+  ip:                { type: 'string', nullable: true },
+  udpPort:           { type: 'number', nullable: true },
+  game:              { type: 'string', nullable: true },
+  gameConfig:        { type: 'object', nullable: true, additionalProperties: true },
   maxPlayers:        { type: 'number' },
   sessionDurationMs: { type: 'number' },
   maxQueueSize:      { type: 'number', nullable: true },
@@ -35,15 +44,23 @@ const totemBodyProps = {
 const totemResponseProps = {
   _id:               { type: 'string' },
   name:              { type: 'string' },
-  ip:                { type: 'string' },
-  udpPort:           { type: 'number' },
+  ip:                { type: 'string', nullable: true },
+  udpPort:           { type: 'number', nullable: true },
+  game:              { type: 'string', nullable: true },
+  gameConfig:        { type: 'object', nullable: true, additionalProperties: true },
   maxPlayers:        { type: 'number', nullable: true },
   sessionDurationMs: { type: 'number', nullable: true },
   maxQueueSize:      { type: 'number', nullable: true },
   queueSize:         { type: 'number' },
+  instances: {
+    type: 'object',
+    properties: { open: { type: 'number' }, online: { type: 'number' } },
+  },
 }
 
 const errorResponse = { type: 'object', properties: { error: { type: 'string' } } }
+
+const instanceOf = (request) => normalizeInstance(request.query?.instance)
 
 async function totemRoutes(fastify) {
   if (!fastify.mongo) {
@@ -51,29 +68,39 @@ async function totemRoutes(fastify) {
     return
   }
 
-  const service = new TotemService(fastify.mongo, fastify.redisPublisher)
-  const queue   = new TotemQueueService(fastify, service)
+  const service   = new TotemService(fastify.mongo, fastify.redisPublisher)
+  const queue     = new TotemQueueService(fastify, service)
+  const instances = fastify.instances
   fastify.decorate('totemQueue', queue)
+  fastify.decorate('totemService', service)
 
-  // Sweeper: expires no_show reservations and timed-out actives.
-  const sweepTimer = setInterval(() => {
-    queue.sweep().catch(err => log.error({ err: err.message }, 'Sweep failed'))
+  // Sweeper: expires no_show reservations and timed-out actives, and drops
+  // embedded instances whose iframe has been gone longer than the grace period.
+  const sweepTimer = setInterval(async () => {
+    try {
+      await queue.sweep()
+      for (const inst of instances.sweep()) {
+        await queue.dropInstance(inst.totemId, inst.id)
+      }
+    } catch (err) {
+      log.error({ err: err.message }, 'Sweep failed')
+    }
   }, env.queueSweepMs)
   fastify.addHook('onClose', () => clearInterval(sweepTimer))
-  log.info({ sweepMs: env.queueSweepMs, reserveMs: env.queueReserveMs }, 'Queue sweeper started')
+  log.info({ sweepMs: env.queueSweepMs, reserveMs: env.queueReserveMs, graceMs: env.instanceGraceMs }, 'Queue sweeper started')
 
   // ── Queue SSE hub ──────────────────────────────────────────────────────────
   // Waiting players get pushed a "something changed" ping so they re-check
   // their status immediately instead of waiting for the next poll tick.
-  const queueSseClients = new Map() // totemId → Set<res>
+  // Keyed by instanceKey — the suffix of the queue:event:* channel.
+  const queueSseClients = new Map() // instanceKey → Set<res>
 
   if (fastify.redisSubscriber) {
     fastify.redisSubscriber.psubscribe('queue:event:*').catch(err =>
       log.error({ err: err.message }, 'Failed to subscribe to queue events'))
     fastify.redisSubscriber.on('pmessage', (pattern, channel) => {
       if (pattern !== 'queue:event:*') return
-      const totemId = channel.slice('queue:event:'.length)
-      const clients = queueSseClients.get(totemId)
+      const clients = queueSseClients.get(channel.slice('queue:event:'.length))
       if (!clients) return
       for (const res of clients) {
         try { res.write('data: {"type":"queue_changed"}\n\n') } catch { /* gone */ }
@@ -81,20 +108,28 @@ async function totemRoutes(fastify) {
     })
   }
 
+  // ── Games ──────────────────────────────────────────────────────────────────
+
+  fastify.get('/api/games', {
+    schema: {
+      tags: ['Totems'], summary: 'Embeddable browser games (folders in games/)',
+      response: { 200: { type: 'array', items: { type: 'string' } } },
+    },
+  }, async () => listGames(env.gamesDir))
+
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
   fastify.post('/api/totems', {
     schema: {
       tags: ['Totems'], summary: 'Create a new totem',
-      body: { type: 'object', properties: totemBodyProps, required: ['name', 'ip', 'udpPort'] },
+      body: { type: 'object', properties: totemBodyProps, required: ['name'] },
       response: {
         201: { type: 'object', properties: totemResponseProps },
         400: errorResponse,
       },
     },
   }, async (request, reply) => {
-    const { name, ip, udpPort, maxPlayers, sessionDurationMs, maxQueueSize } = request.body ?? {}
-    const result = await service.createTotem({ name, ip, udpPort: Number(udpPort), maxPlayers, sessionDurationMs, maxQueueSize })
+    const result = await service.createTotem(request.body ?? {})
     if (!result.ok) return reply.status(400).send({ error: result.error })
     return reply.status(201).send(result.totem)
   })
@@ -104,7 +139,14 @@ async function totemRoutes(fastify) {
       tags: ['Totems'], summary: 'List all totems',
       response: { 200: { type: 'array', items: { type: 'object', properties: totemResponseProps } } },
     },
-  }, async () => service.listTotems())
+  }, async () => {
+    const totems = await service.listTotems()
+    for (const t of totems) {
+      const list = instances.list(t._id)
+      t.instances = { open: list.length, online: list.filter(i => i.online).length }
+    }
+    return totems
+  })
 
   fastify.get('/api/totems/:id', {
     schema: {
@@ -133,15 +175,52 @@ async function totemRoutes(fastify) {
 
   fastify.delete('/api/totems/:id', {
     schema: {
-      tags: ['Totems'], summary: 'Delete a totem', params: totemIdParam,
+      tags: ['Totems'], summary: 'Delete a totem (ends every session of every instance)', params: totemIdParam,
       response: { 204: { type: 'null' }, 404: errorResponse },
     },
   }, async (request, reply) => {
-    await queue.endAllForTotem(request.params.id, 'manual')
-    await queue.clearQueue(request.params.id)
-    const result = await service.deleteTotem(request.params.id)
+    const { id } = request.params
+    for (const inst of instances.list(id)) {
+      await queue.dropInstance(id, inst.id)
+      fastify.instanceHub.closeInstance(id, inst.id)
+      instances.remove(id, inst.id)
+    }
+    await queue.endAllForTotem(id, 'manual')
+    await queue.clearQueue(id)
+    const result = await service.deleteTotem(id)
     if (!result.ok) return reply.status(404).send({ error: result.error })
     return reply.status(204).send()
+  })
+
+  // ── Instances ──────────────────────────────────────────────────────────────
+
+  fastify.get('/api/totems/:id/instances', {
+    schema: {
+      tags: ['Totems'], summary: 'Instances of a totem: default (physical) + open iframes',
+      params: totemIdParam,
+      response: {
+        200: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id:        { type: 'string' },
+              online:    { type: 'boolean', nullable: true },
+              createdAt: { type: 'number', nullable: true },
+              sessions:  { type: 'number' },
+              queueSize: { type: 'number' },
+            },
+          },
+        },
+        404: errorResponse,
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params
+    const totem = await service.findTotem(id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+    const rows = [{ id: 'default', online: null, createdAt: null }, ...instances.list(id)]
+    return Promise.all(rows.map(async (r) => ({ ...r, ...(await queue.instanceCounts(id, r.id)) })))
   })
 
   // ── Queue ──────────────────────────────────────────────────────────────────
@@ -149,8 +228,9 @@ async function totemRoutes(fastify) {
   fastify.post('/api/totems/:id/queue/join', {
     preHandler: queueJoinRateLimit,
     schema: {
-      tags: ['Totems', 'Queue'], summary: 'Join totem: get own session or wait in line',
+      tags: ['Totems', 'Queue'], summary: 'Join totem instance: get own session or wait in line',
       params: totemIdParam,
+      querystring: instanceQuery,
       body: {
         type: 'object',
         properties: { playerId: { type: 'string' }, metadata: { type: 'object', additionalProperties: true } },
@@ -166,13 +246,13 @@ async function totemRoutes(fastify) {
             estimatedWaitMs: { type: 'number', nullable: true },
           },
         },
-        404: errorResponse, 409: errorResponse, 429: errorResponse, 500: errorResponse, 503: errorResponse,
+        404: errorResponse, 409: errorResponse, 410: errorResponse, 429: errorResponse, 500: errorResponse, 503: errorResponse,
       },
     },
   }, async (request, reply) => {
     const { playerId, metadata: clientMeta } = request.body
     const metadata = { ua: request.headers['user-agent'], ip: request.ip, ...(clientMeta || {}) }
-    const result = await queue.join(request.params.id, playerId, metadata)
+    const result = await queue.join(request.params.id, instanceOf(request), playerId, metadata)
     if (!result.ok) return reply.status(result.code ?? 500).send({ error: result.error })
     return result
   })
@@ -181,7 +261,11 @@ async function totemRoutes(fastify) {
     schema: {
       tags: ['Totems', 'Queue'], summary: 'Player queue status (play | queue position)',
       params: totemIdParam,
-      querystring: { type: 'object', properties: { playerId: { type: 'string' } }, required: ['playerId'] },
+      querystring: {
+        type: 'object',
+        properties: { playerId: { type: 'string' }, instance: instanceProp },
+        required: ['playerId'],
+      },
       response: {
         200: {
           type: 'object',
@@ -193,23 +277,25 @@ async function totemRoutes(fastify) {
             estimatedWaitMs: { type: 'number', nullable: true },
           },
         },
-        404: errorResponse, 500: errorResponse,
+        404: errorResponse, 410: errorResponse, 500: errorResponse,
       },
     },
   }, async (request, reply) => {
-    const result = await queue.status(request.params.id, request.query.playerId)
+    const result = await queue.status(request.params.id, instanceOf(request), request.query.playerId)
     if (!result.ok) return reply.status(result.code ?? 500).send({ error: result.error })
     return result
   })
 
   fastify.get('/api/totems/:id/queue', {
     schema: {
-      tags: ['Totems', 'Queue'], summary: 'Operator view: live sessions + waiting list',
+      tags: ['Totems', 'Queue'], summary: 'Operator view of one instance: live sessions + waiting list',
       params: totemIdParam,
+      querystring: instanceQuery,
       response: {
         200: {
           type: 'object',
           properties: {
+            instanceId: { type: 'string' },
             sessions: {
               type: 'array',
               items: {
@@ -244,16 +330,19 @@ async function totemRoutes(fastify) {
       },
     },
   }, async (request, reply) => {
-    const result = await queue.operatorView(request.params.id)
+    const result = await queue.operatorView(request.params.id, instanceOf(request))
     if (!result.ok) return reply.status(result.code ?? 500).send({ error: result.error })
     const { ok, ...view } = result
     return view
   })
 
   fastify.get('/api/totems/:id/queue/events', {
-    schema: { tags: ['Totems', 'Queue'], summary: 'SSE stream of queue change pings', params: totemIdParam },
+    schema: {
+      tags: ['Totems', 'Queue'], summary: 'SSE stream of queue change pings',
+      params: totemIdParam, querystring: instanceQuery,
+    },
   }, async (request, reply) => {
-    const { id } = request.params
+    const key = instanceKey(request.params.id, instanceOf(request))
     reply.hijack()
     reply.raw.writeHead(200, {
       'Content-Type':  'text/event-stream',
@@ -262,8 +351,8 @@ async function totemRoutes(fastify) {
     })
     reply.raw.write('data: {"type":"connected"}\n\n')
 
-    if (!queueSseClients.has(id)) queueSseClients.set(id, new Set())
-    queueSseClients.get(id).add(reply.raw)
+    if (!queueSseClients.has(key)) queueSseClients.set(key, new Set())
+    queueSseClients.get(key).add(reply.raw)
 
     const heartbeat = setInterval(() => {
       try { reply.raw.write(': ping\n\n') } catch { /* gone */ }
@@ -271,7 +360,9 @@ async function totemRoutes(fastify) {
 
     request.raw.on('close', () => {
       clearInterval(heartbeat)
-      queueSseClients.get(id)?.delete(reply.raw)
+      const set = queueSseClients.get(key)
+      set?.delete(reply.raw)
+      if (set && !set.size) queueSseClients.delete(key)
     })
   })
 
@@ -286,36 +377,38 @@ async function totemRoutes(fastify) {
         },
         required: ['id', 'playerId'],
       },
+      querystring: instanceQuery,
       response: { 200: { type: 'object', properties: { ok: { type: 'boolean' } } }, 404: errorResponse },
     },
   }, async (request, reply) => {
     const totem = await service.findTotem(request.params.id)
     if (!totem) return reply.status(404).send({ error: 'Totem not found' })
-    await queue.kickFromQueue(request.params.id, request.params.playerId)
-    log.info({ totemId: request.params.id, playerId: request.params.playerId }, 'Player kicked from queue')
+    await queue.kickFromQueue(request.params.id, instanceOf(request), request.params.playerId)
+    log.info({ totemId: request.params.id, instanceId: instanceOf(request), playerId: request.params.playerId }, 'Player kicked from queue')
     return { ok: true }
   })
 
   fastify.post('/api/totems/:id/queue/clear', {
     schema: {
       tags: ['Totems', 'Queue'], summary: 'Clear the waiting list (live sessions untouched)',
-      params: totemIdParam,
+      params: totemIdParam, querystring: instanceQuery,
       response: { 200: { type: 'object', properties: { ok: { type: 'boolean' } } }, 404: errorResponse },
     },
   }, async (request, reply) => {
     const totem = await service.findTotem(request.params.id)
     if (!totem) return reply.status(404).send({ error: 'Totem not found' })
-    await queue.clearQueue(request.params.id)
+    await queue.clearQueue(request.params.id, instanceOf(request))
     return { ok: true }
   })
 
   // ── Game integration ───────────────────────────────────────────────────────
   // With playerId (from the game, possibly truncated to 8 chars): ends only
-  // that player's session. Without: ends every session of the totem (reset).
+  // that player's session. Without: ends every session of the instance (reset).
   fastify.post('/api/totems/:id/end-session', {
     schema: {
-      tags: ['Totems'], summary: "End one player's session (game death) or all sessions (reset)",
+      tags: ['Totems'], summary: "End one player's session (game death) or all sessions of the instance (reset)",
       params: totemIdParam,
+      querystring: instanceQuery,
       body: { type: 'object', properties: { playerId: { type: 'string' } } },
       response: {
         200: {
@@ -331,43 +424,49 @@ async function totemRoutes(fastify) {
     },
   }, async (request, reply) => {
     const { id } = request.params
+    const inst = instanceOf(request)
     const totem = await service.findTotem(id)
     if (!totem) return reply.status(404).send({ error: 'Totem not found' })
 
     const { playerId } = request.body || {}
     if (playerId) {
-      const session = await queue.findCurrentByPidPrefix(id, playerId)
+      const session = await queue.findCurrentByPidPrefix(id, inst, playerId)
       if (!session) return reply.status(404).send({ error: 'No live session for this player' })
       const result = await queue.endSession(session._id, 'died')
       if (!result.ok) return reply.status(result.code ?? 500).send({ error: result.error })
-      log.info({ totemId: id, playerId, sessionId: session._id }, 'Player died — session ended')
+      log.info({ totemId: id, instanceId: inst, playerId, sessionId: session._id }, 'Player died — session ended')
       return { ok: true, endedSessionId: session._id }
     }
 
-    const result = await queue.endAllForTotem(id, 'manual')
-    log.info({ totemId: id, endedCount: result.endedCount }, 'All sessions ended (operator reset)')
+    const result = await queue.endAllForInstance(id, inst, 'manual')
+    log.info({ totemId: id, instanceId: inst, endedCount: result.endedCount }, 'All sessions ended (operator reset)')
     return { ok: true, endedCount: result.endedCount }
   })
 
   // ── QR ─────────────────────────────────────────────────────────────────────
   fastify.get('/api/totems/:id/qr', {
     schema: {
-      tags: ['Totems'], summary: 'Get totem QR code', params: totemIdParam,
-      querystring: { type: 'object', properties: { format: { type: 'string', enum: ['png', 'dataurl'] } } },
+      tags: ['Totems'], summary: 'Get totem (or instance) QR code', params: totemIdParam,
+      querystring: {
+        type: 'object',
+        properties: { format: { type: 'string', enum: ['png', 'dataurl'] }, instance: instanceProp },
+      },
       response: { 404: errorResponse },
     },
   }, async (request, reply) => {
     const totem = await service.findTotem(request.params.id)
     if (!totem) return reply.status(404).send({ error: 'Totem not found' })
 
-    const entryUrl = `${env.publicUrl}/play/totem?id=${request.params.id}`
+    const inst = instanceOf(request)
+    const entryUrl = `${env.publicUrl}/play/totem?id=${request.params.id}` +
+      (isDefaultInstance(inst) ? '' : `&instance=${encodeURIComponent(inst)}`)
     if ((request.query.format ?? 'png') === 'dataurl') {
       const dataUrl = await QRCode.toDataURL(entryUrl, { width: 300, margin: 2 })
-      return { totemId: request.params.id, entryUrl, qr: dataUrl }
+      return { totemId: request.params.id, instanceId: inst, entryUrl, qr: dataUrl }
     }
     const buffer = await QRCode.toBuffer(entryUrl, { type: 'png', width: 300, margin: 2 })
     reply.header('Content-Type', 'image/png')
-    reply.header('Cache-Control', 'public, max-age=3600')
+    reply.header('Cache-Control', isDefaultInstance(inst) ? 'public, max-age=3600' : 'private, max-age=600')
     return reply.send(buffer)
   })
 }

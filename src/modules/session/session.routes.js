@@ -23,8 +23,9 @@ const sessionShape = {
   type: 'object',
   properties: {
     sessionId: { type: 'string' },
-    totemId:   { type: 'string', nullable: true },
-    playerId:  { type: 'string' },
+    totemId:    { type: 'string', nullable: true },
+    instanceId: { type: 'string' },
+    playerId:   { type: 'string' },
     status:    { type: 'string' },
     createdAt: { type: 'string' },
     expiresAt: { type: 'string' },
@@ -36,8 +37,9 @@ const sessionShape = {
 function toDto(s) {
   return {
     sessionId: s._id,
-    totemId:   s.totemId ?? null,
-    playerId:  s.playerId,
+    totemId:    s.totemId ?? null,
+    instanceId: s.instanceId ?? 'default',
+    playerId:   s.playerId,
     status:    s.status,
     createdAt: s.createdAt,
     expiresAt: s.expiresAt,

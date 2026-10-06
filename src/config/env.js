@@ -3,6 +3,10 @@
 // Fails fast on startup if a required variable is missing.
 
 import 'dotenv/config'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 const required = ['MONGO_URI', 'REDIS_URL', 'UDP_HOST', 'UDP_PORT']
 
@@ -41,6 +45,14 @@ export const env = {
 
   // Public URL (for QR Code)
   publicUrl: process.env.PUBLIC_URL ?? 'http://localhost:3000',
+
+  // Web instances (embedded iframes) — see src/lib/instances.js
+  instanceGraceMs:      parseInt(process.env.INSTANCE_GRACE_MS ?? '120000', 10),
+  maxInstancesPerIp:    parseInt(process.env.MAX_INSTANCES_PER_IP ?? '20', 10),
+  maxInstancesPerTotem: parseInt(process.env.MAX_INSTANCES_PER_TOTEM ?? '2000', 10),
+  trustProxy:           ['true', '1'].includes(String(process.env.TRUST_PROXY ?? '').toLowerCase()),
+  embedFrameAncestors:  process.env.EMBED_FRAME_ANCESTORS ?? '*',
+  gamesDir:             path.resolve(process.env.GAMES_DIR ?? path.join(ROOT_DIR, 'games')),
 
   get isDev() { return this.nodeEnv === 'development' },
   get isProd() { return this.nodeEnv === 'production' },

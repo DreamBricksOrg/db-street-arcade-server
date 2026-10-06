@@ -5,32 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Street Arcade</title>
   <meta name="description" content="Controle do Street Arcade. Escaneie o QR Code para jogar." />
-  <meta name="theme-color" content="#0a0a12" />
+  <meta name="theme-color" content="#ffffff" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="icon" href="/assets/brand/dreambricks-mark-blue.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/components.css" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      /* DreamBricks Design System tokens — see /design-system/dreambricks-manager/DreamBricks-Design-System */
-      --bg:       oklch(0.97 0.006 230);
-      --surface:  #ffffff;
-      --surface2: oklch(0.94 0.010 230);
-      --border:   oklch(0.89 0.014 230);
-      --accent:   #42b0d5;
-      --accent2:  #52cdef;
-      --text:     oklch(0.16 0.028 230);
-      --muted:    oklch(0.52 0.022 230);
-      --success:  oklch(0.62 0.14 155);
-      --danger:   oklch(0.58 0.20 25);
-      --font-body: 'Poppins', ui-sans-serif, system-ui, sans-serif;
-      --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
-      --glow: 0 4px 14px oklch(from var(--accent) l c h / 0.4);
-
-      /* Gamepad button colours — Xbox ABXY palette, quarantined to #gamepad
+      /* Brand tokens come from /css/tokens.css (DreamBricks Design System).
+         Gamepad button colours — Xbox ABXY palette, quarantined to #gamepad
          face buttons only (see DESIGN.md "Xbox Quarantine Rule"). Untouched
          by the DreamBricks migration: this is the product's signature
          moment and PRODUCT.md treats it as essential, not decoration. */
@@ -57,68 +45,8 @@
       touch-action: none;
     }
 
-    /* ── Utility screens ─────────────────────────────────────────────────── */
-    .screen {
-      position: fixed; inset: 0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 20px; padding: 32px;
-      text-align: center;
-    }
-
-    /* Loading */
-    #loading {
-      background: var(--bg);
-      z-index: 10;
-    }
-
-    .logo-mark {
-      width: 140px; height: 140px;
-      display: flex; align-items: center; justify-content: center;
-      animation: revealIn 0.5s cubic-bezier(0.16,1,0.3,1);
-    }
-    .logo-mark img { width: 100%; height: 100%; object-fit: contain; }
-
-    @keyframes revealIn {
-      from { opacity:0; transform:scale(0.5); }
-      to   { opacity:1; transform:scale(1); }
-    }
-
-    .loading-title {
-      font-size: 26px; font-weight: 700;
-      font-family: var(--font-mono);
-      color: var(--accent);
-    }
-
-    .loading-sub { font-size: 15px; color: var(--muted); }
-
-    .loader-bar {
-      width: 180px; height: 3px;
-      background: oklch(0.16 0.028 230 / 0.08);
-      border-radius: 99px; overflow: hidden;
-    }
-
-    .loader-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
-      border-radius: 99px;
-      animation: loaderAnim 1.2s ease-in-out infinite;
-    }
-
-    @keyframes loaderAnim {
-      0%   { width: 0%; margin-left: 0%; }
-      50%  { width: 60%; margin-left: 20%; }
-      100% { width: 0%; margin-left: 100%; }
-    }
-
-    /* Error */
-    #error-screen {
-      background: var(--bg); z-index: 10; display: none;
-    }
-
-    .error-icon { font-size: 64px; }
-    .error-title { font-size: 22px; font-weight: 700; font-family: var(--font-mono); color: var(--danger); }
-    .error-msg { font-size: 15px; font-family: var(--font-body); color: var(--muted); max-width: 280px; line-height: 1.5; }
+    /* ── Utility screens (shared .sa-screen in components.css) ──────────── */
+    #loading, #error-screen { z-index: 10; }
 
     /* ── Play screen ─────────────────────────────────────────────────────── */
     #play-screen {
@@ -137,10 +65,14 @@
     }
 
     .play-title {
-      font-size: 16px; font-weight: 700;
-      font-family: var(--font-mono);
-      color: var(--accent);
+      display: flex; align-items: center; gap: 8px;
+      font-size: 15px; font-weight: 700;
+      color: var(--surface-brand-strong);
     }
+    .play-title img { width: 28px; height: auto; }
+
+    .dpad-btn svg { width: 45%; height: 45%; color: var(--text-secondary); }
+    .dpad-btn.pressed svg { color: var(--surface-brand-strong); }
 
     .header-center {
       display: flex; align-items: center; gap: 6px;
@@ -162,7 +94,7 @@
 
     #conn-status-text { font-size: 11px; color: var(--muted); }
 
-    #sid-label { font-size: 10px; font-family: monospace; color: var(--muted); opacity: 0.6; }
+    #sid-label { font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary); }
 
     /* ── Gamepad area ────────────────────────────────────────────────────── */
     #gamepad {
@@ -278,7 +210,7 @@
     #btn-A { background: #107c10; color: #fff; }   /* Xbox green  — bottom */
     #btn-B { background: #e23c28; color: #fff; }   /* Xbox red    — right  */
     #btn-X { background: #0078d4; color: #fff; }   /* Xbox blue   — left   */
-    #btn-Y { background: #ffb900; color: #000; }   /* Xbox yellow — top    */
+    #btn-Y { background: #ffb900; color: var(--db-slate-900); }   /* Xbox yellow — top    */
 
     /* ── Input log (debug, hidden by default) ──────────────────────────── */
     #input-log {
@@ -287,7 +219,7 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 4px 12px;
-      font-size: 11px; font-family: monospace; color: var(--muted);
+      font-size: 11px; font-family: var(--font-mono); color: var(--muted);
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.5s;
@@ -308,30 +240,31 @@
 <body>
 
   <!-- Loading screen -->
-  <div id="loading" class="screen">
-    <div class="logo-mark">
-      <img src="/assets/images/dreambricks_logo_250x160.png" alt="DreamBricks Logo" />
-    </div>
+  <main id="loading" class="sa-screen" aria-live="polite">
+    <div class="sa-mark"><img src="/assets/brand/dreambricks-mark-blue.svg" alt="DreamBricks" /></div>
     <div>
-      <div class="loading-title">Street Arcade</div>
-      <div class="loading-sub">Conectando à sessão…</div>
+      <h1 class="sa-title sa-title--brand">Street Arcade</h1>
+      <p class="sa-sub">Conectando ao seu controle…</p>
     </div>
-    <div class="loader-bar"><div class="loader-fill"></div></div>
-  </div>
+    <div class="sa-loader" role="progressbar" aria-label="Carregando"></div>
+  </main>
 
-  <!-- Error screen -->
-  <div id="error-screen" class="screen">
-    <div class="error-icon">⚠️</div>
-    <div class="error-title">Sessão Inválida</div>
-    <p class="error-msg" id="error-msg">Não foi possível conectar à sessão.</p>
-  </div>
+  <!-- Error / session-ended screen (session.js fills title, message, action) -->
+  <main id="error-screen" class="sa-screen" style="display: none;" aria-live="assertive">
+    <img class="sa-mascot" src="/assets/brand/jobson-wave.webp" alt="" width="320" height="322" />
+    <div>
+      <h1 class="sa-title" id="error-title">Não deu para conectar</h1>
+      <p class="sa-sub" id="error-msg">Não foi possível conectar à sessão.</p>
+    </div>
+    <div class="sa-actions" id="error-actions"></div>
+  </main>
 
   <!-- Play screen (G8.1 — D-Pad + ABXY + status) -->
   <div id="play-screen">
 
     <!-- Status header -->
     <div class="play-header">
-      <span class="play-title">🕹️ Arcade</span>
+      <span class="play-title"><img src="/assets/brand/dreambricks-mark-blue.svg" alt="" /> Street Arcade</span>
       <div class="header-center">
         <div id="conn-dot" class="status-dot"></div>
         <span id="conn-status-text">Conectando…</span>
@@ -346,15 +279,15 @@
       <div class="dpad">
         <!-- Row 1 -->
         <div></div>
-        <button type="button" id="btn-up" class="dpad-btn" data-btn aria-label="Cima (seta ↑)">▲</button>
+        <button type="button" id="btn-up" class="dpad-btn" data-btn aria-label="Cima (seta ↑)"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 6 21 18H3z"/></svg></button>
         <div></div>
         <!-- Row 2 -->
-        <button type="button" id="btn-left"  class="dpad-btn" data-btn aria-label="Esquerda (seta ←)">◀</button>
+        <button type="button" id="btn-left"  class="dpad-btn" data-btn aria-label="Esquerda (seta ←)"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 12 18 3v18z"/></svg></button>
         <div class="dpad-center"></div>
-        <button type="button" id="btn-right" class="dpad-btn" data-btn aria-label="Direita (seta →)">▶</button>
+        <button type="button" id="btn-right" class="dpad-btn" data-btn aria-label="Direita (seta →)"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 12 6 21V3z"/></svg></button>
         <!-- Row 3 -->
         <div></div>
-        <button type="button" id="btn-down" class="dpad-btn" data-btn aria-label="Baixo (seta ↓)">▼</button>
+        <button type="button" id="btn-down" class="dpad-btn" data-btn aria-label="Baixo (seta ↓)"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 18 3 6h18z"/></svg></button>
         <div></div>
       </div>
 

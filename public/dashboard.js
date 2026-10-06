@@ -18,6 +18,8 @@ const ICON_CLOCK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" 
 const ICON_QUEUE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
 const ICON_PHONE   = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>'
 const ICON_DESKTOP = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
+const ICON_SCREEN  = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'
+const ICON_CODE    = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>'
 const ICON_GLOBE   = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
@@ -28,6 +30,8 @@ const formUrl        = document.getElementById('tf-url')
 const formMaxPlayers = document.getElementById('tf-max-players')
 const formDuration   = document.getElementById('tf-duration')
 const formMaxQueue   = document.getElementById('tf-max-queue')
+const formGame       = document.getElementById('tf-game')
+const formGameConfig = document.getElementById('tf-game-config')
 const btnSaveTotem   = document.getElementById('btn-save-totem')
 const btnCancelEdit  = document.getElementById('btn-cancel-edit')
 const totemFormTitle = document.getElementById('totem-form-title')
@@ -42,6 +46,20 @@ const queueModal         = document.getElementById('queueModal')
 const queueModalClose    = document.getElementById('queueModalClose')
 const queueModalTotemName = document.getElementById('queue-modal-totem-name')
 const queueModalBody     = document.getElementById('queue-modal-body')
+const queueInstanceSel   = document.getElementById('queue-instance')
+
+// Embed dialog refs
+const embedDialog     = document.getElementById('embedDialog')
+const embedTotemName  = document.getElementById('embed-totem-name')
+const embedPreview    = document.getElementById('embed-preview')
+const embedResponsive = document.getElementById('embed-responsive')
+const embedShowQr     = document.getElementById('embed-showqr')
+const embedWidth      = document.getElementById('embed-width')
+const embedHeight     = document.getElementById('embed-height')
+const embedCode       = document.getElementById('embed-code')
+const embedCopy       = document.getElementById('embed-copy')
+const embedOpen       = document.getElementById('embed-open')
+const toastEl         = document.getElementById('toast')
 
 // QR lightbox refs
 const qrLightbox      = document.getElementById('qrLightbox')
@@ -54,6 +72,8 @@ let editingTotemId    = null
 let cardPollTimers    = {}  // totemId → intervalId (session status + queue count, shared poll)
 let queueModalTotemId = null
 let queueModalTimer   = null
+let queueInstance     = 'default'   // instance shown in the queue modal
+let embedTotem        = null
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -63,7 +83,34 @@ async function apiFetch(url, options = {}) {
     ...options,
   })
   if (res.status === 204) return null
-  return res.json()
+  const body = await res.json().catch(() => null)
+  if (!res.ok) throw new Error(body?.error ?? `Erro ${res.status}`)
+  return body
+}
+
+/** `?instance=` suffix for the queue endpoints ('' for the physical totem). */
+function instQs(instanceId, sep = '?') {
+  return instanceId && instanceId !== 'default' ? `${sep}instance=${encodeURIComponent(instanceId)}` : ''
+}
+
+let toastTimer = null
+function toast(msg) {
+  if (!toastEl) return
+  toastEl.textContent = msg
+  toastEl.classList.add('is-visible')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => toastEl.classList.remove('is-visible'), 2200)
+}
+
+// Embeddable games (folders in games/ with a public/index.html)
+async function loadGames() {
+  const games = await apiFetch('/api/games').catch(() => [])
+  for (const g of games ?? []) {
+    const opt = document.createElement('option')
+    opt.value = g
+    opt.textContent = g
+    formGame.appendChild(opt)
+  }
 }
 
 // ── Modal accessibility (focus trap + Escape) ────────────────────────────────
@@ -157,13 +204,21 @@ function buildTotemCard(totem) {
   card.className  = 'totem-card'
   card.dataset.id = totem._id
 
+  const hasPhysical = Boolean(totem.ip)
+  const screens = totem.instances ?? { open: 0, online: 0 }
+
   card.innerHTML = `
     <div style="display: flex; gap: 20px; align-items: stretch;">
       <!-- Left Info Column -->
       <div style="flex: 1; display: flex; flex-direction: column;">
         <div class="totem-card-header">
           <span class="totem-card-name">${escHtml(totem.name)}</span>
-          <span class="totem-card-addr">${escHtml(totem.ip)}:${totem.udpPort}</span>
+          ${hasPhysical ? `<span class="totem-card-addr">${escHtml(totem.ip)}:${totem.udpPort}</span>` : ''}
+        </div>
+
+        <div class="totem-modes">
+          ${hasPhysical ? '<span class="db-badge db-badge--success">Totem físico</span>' : ''}
+          ${totem.game ? `<span class="db-badge db-badge--brand">Web · ${escHtml(totem.game)}</span>` : ''}
         </div>
 
         <!-- Totem ID row -->
@@ -176,6 +231,7 @@ function buildTotemCard(totem) {
           <span>${ICON_PLAYERS} ${totem.maxPlayers ?? 2} jogadores</span>
           <span>${ICON_CLOCK} ${durationLabel}</span>
           <span data-queue-count style="color: ${queueCount > 0 ? 'var(--accent)' : 'inherit'}; font-weight: ${queueCount > 0 ? '600' : 'normal'}">${ICON_QUEUE} Fila: ${queueCount}</span>
+          ${totem.game ? `<span class="totem-screens" data-screens data-live="${screens.online > 0}">${ICON_SCREEN} ${screensLabel(screens.online)}</span>` : ''}
         </div>
         <div class="totem-session-status" data-status-area style="margin-top: 12px; margin-bottom: 0;">
           <span class="session-badge badge-loading"><span class="mini-dot mini-dot--loading"></span> Verificando…</span>
@@ -183,6 +239,7 @@ function buildTotemCard(totem) {
 
         <div style="flex: 1;"></div>
         <div class="totem-card-actions" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+          ${totem.game ? `<button class="btn-icon btn-embed" title="Incorporar em um site" aria-label="Incorporar ${escHtml(totem.name)} em um site">${ICON_CODE} Incorporar</button>` : ''}
           <button class="btn-icon btn-queue-toggle" title="Ver Fila" aria-label="Ver fila do totem ${escHtml(totem.name)}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
             Fila
@@ -201,11 +258,12 @@ function buildTotemCard(totem) {
           </button>
         </div>
       </div>
-      <!-- Right QR Code Column -->
-      <div style="width: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; padding: 10px; border-radius: 10px; border: 1px solid var(--border);">
+      ${hasPhysical ? `
+      <!-- Right QR Code Column (physical totem only — web instances have their own QR) -->
+      <div style="width: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--surface-card); padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border);">
          <img class="totem-card-qr-img" style="width:100%; height:auto; object-fit:contain;" src="${API}/${totem._id}/qr" alt="QR Code do Totem" title="Clique para ampliar" />
-         <a href="${entryUrl}" target="_blank" style="margin-top: 8px; font-size: 11px; text-decoration: none; color: var(--accent); font-family: monospace; display: block; overflow: hidden; text-overflow: ellipsis; max-width: 100%;" title="${entryUrl}">Copiar Link</a>
-      </div>
+         <a class="totem-card-link" href="${entryUrl}" target="_blank" style="margin-top: 8px; font-size: 11px; text-decoration: none; color: var(--text-link); font-family: var(--font-mono); display: block; overflow: hidden; text-overflow: ellipsis; max-width: 100%;" title="${entryUrl}">Copiar Link</a>
+      </div>` : ''}
     </div>
   `
 
@@ -224,11 +282,12 @@ function buildTotemCard(totem) {
   card.querySelector('.btn-delete').addEventListener('click', () => deleteTotem(totem._id, totem.name))
   card.querySelector('.btn-clear-queue').addEventListener('click', () => clearTotemQueue(totem._id, totem.name))
   card.querySelector('.btn-queue-toggle').addEventListener('click', () => openQueueModal(totem))
-  card.querySelector('.totem-card-qr-img').addEventListener('click', () => openQrLightbox(totem))
+  card.querySelector('.btn-embed')?.addEventListener('click', () => openEmbedDialog(totem))
+  card.querySelector('.totem-card-qr-img')?.addEventListener('click', () => openQrLightbox(totem))
 
   // Allow clicking the copy link to copy to clipboard
-  const linkRef = card.querySelector('a')
-  linkRef.addEventListener('click', (e) => {
+  const linkRef = card.querySelector('.totem-card-link')
+  linkRef?.addEventListener('click', (e) => {
     e.preventDefault()
     navigator.clipboard.writeText(entryUrl).then(() => {
       const origText = linkRef.textContent
@@ -247,9 +306,11 @@ function buildTotemCard(totem) {
 // single poll per card feeds both renders instead of two independent fetches
 // hitting the same endpoint on separate timers.
 
+// /instances gives per-instance counts: 'default' (physical totem) + every
+// open iframe. The card sums them so a web totem's activity is visible too.
 async function fetchTotemState(totemId) {
   try {
-    const res = await fetch(`${API}/${totemId}/queue`)
+    const res = await fetch(`${API}/${totemId}/instances`)
     if (!res.ok) return null
     return res.json()
   } catch {
@@ -257,27 +318,35 @@ async function fetchTotemState(totemId) {
   }
 }
 
-function renderSessionStatus(totem, card, data) {
+function screensLabel(n) {
+  return n === 1 ? '1 tela aberta' : `${n} telas abertas`
+}
+
+function renderSessionStatus(totem, card, rows) {
   const area = card.querySelector('[data-status-area]')
   if (!area) return
 
-  if (!data) {
+  if (!rows) {
     area.innerHTML = '<span class="session-badge badge-inactive"><span class="mini-dot mini-dot--muted"></span> Indisponível</span>'
     return
   }
 
-  const { sessions = [], maxPlayers = totem.maxPlayers ?? 2 } = data
-  const active   = sessions.filter(s => s.status === 'active').length
-  const reserved = sessions.filter(s => s.status === 'reserved').length
+  const physical = rows.find(r => r.id === 'default') ?? { sessions: 0 }
+  const web      = rows.filter(r => r.id !== 'default')
+  const webPlayers = web.reduce((n, r) => n + r.sessions, 0)
+  const total    = physical.sessions + webPlayers
 
-  if (sessions.length === 0) {
+  if (total === 0) {
     area.innerHTML = '<span class="session-badge badge-inactive"><span class="mini-dot mini-dot--muted"></span> Livre</span>'
     return
   }
 
+  const parts = []
+  if (totem.ip)  parts.push(`${physical.sessions}/${totem.maxPlayers ?? 2} no totem`)
+  if (webPlayers) parts.push(`${webPlayers} na web`)
   area.innerHTML = `
-    <span class="session-badge badge-active"><span class="mini-dot mini-dot--success"></span> ${active}/${maxPlayers} jogando${reserved ? ` · ${reserved} reservado(s)` : ''}</span>
-    <button class="btn-end-session" data-totem-id="${escHtml(totem._id)}">Encerrar Todas</button>
+    <span class="session-badge badge-active"><span class="mini-dot mini-dot--success"></span> ${parts.join(' · ')}</span>
+    ${totem.ip && physical.sessions > 0 ? `<button class="btn-end-session" data-totem-id="${escHtml(totem._id)}" title="Encerra as sessões do totem físico">Encerrar Todas</button>` : ''}
   `
   area.querySelector('.btn-end-session')?.addEventListener('click', async () => {
     await endAllSessions(totem._id, totem.name)
@@ -285,20 +354,27 @@ function renderSessionStatus(totem, card, data) {
   })
 }
 
-function renderQueueCount(card, data) {
+function renderQueueCount(card, rows) {
   const countEl = card.querySelector('[data-queue-count]')
-  if (!countEl || !data) return
+  if (!countEl || !rows) return
 
-  const queueCount = data.queue?.length ?? 0
+  const queueCount = rows.reduce((n, r) => n + r.queueSize, 0)
   countEl.innerHTML = `${ICON_QUEUE} Fila: ${queueCount}`
-  countEl.style.color = queueCount > 0 ? 'var(--accent)' : 'inherit'
+  countEl.style.color = queueCount > 0 ? 'var(--text-brand)' : 'inherit'
   countEl.style.fontWeight = queueCount > 0 ? '600' : 'normal'
+
+  const screensEl = card.querySelector('[data-screens]')
+  if (screensEl) {
+    const online = rows.filter(r => r.id !== 'default' && r.online).length
+    screensEl.innerHTML = `${ICON_SCREEN} ${screensLabel(online)}`
+    screensEl.dataset.live = String(online > 0)
+  }
 }
 
 async function pollCardState(totem, card) {
-  const data = await fetchTotemState(totem._id)
-  renderSessionStatus(totem, card, data)
-  renderQueueCount(card, data)
+  const rows = await fetchTotemState(totem._id)
+  renderSessionStatus(totem, card, rows)
+  renderQueueCount(card, rows)
 }
 
 function startCardPoll(totem, card) {
@@ -349,7 +425,7 @@ function formatDeviceMeta(meta) {
 async function renderQueueModal(totem) {
   let data
   try {
-    const res = await fetch(`${API}/${totem._id}/queue`)
+    const res = await fetch(`${API}/${totem._id}/queue${instQs(queueInstance)}`)
     data = res.ok ? await res.json() : null
   } catch { data = null }
 
@@ -453,20 +529,52 @@ async function renderQueueModal(totem) {
   })
 }
 
-function openQueueModal(totem) {
+/** Fills the "Tela" selector: physical totem + every open iframe instance. */
+async function refreshInstanceOptions(totem) {
+  const rows = (await fetchTotemState(totem._id)) ?? [{ id: 'default', sessions: 0, queueSize: 0 }]
+  const options = rows
+    .filter(r => r.id === 'default' ? Boolean(totem.ip) || rows.length === 1 : true)
+    .map(r => {
+      const label = r.id === 'default'
+        ? 'Totem físico'
+        : `Tela ${r.id.slice(0, 8)}${r.online ? '' : ' (fechando)'}`
+      return { id: r.id, label: `${label} · ${r.sessions} jogando · ${r.queueSize} na fila` }
+    })
+  if (!options.some(o => o.id === queueInstance)) queueInstance = options[0]?.id ?? 'default'
+
+  queueInstanceSel.innerHTML = options
+    .map(o => `<option value="${escHtml(o.id)}"${o.id === queueInstance ? ' selected' : ''}>${escHtml(o.label)}</option>`)
+    .join('')
+  queueInstanceSel.closest('.queue-instance-bar').style.display = options.length > 1 ? '' : 'none'
+}
+
+let queueModalTotem = null
+queueInstanceSel?.addEventListener('change', () => {
+  queueInstance = queueInstanceSel.value
+  if (queueModalTotem) renderQueueModal(queueModalTotem)
+})
+
+async function openQueueModal(totem) {
   queueModalTotemId = totem._id
+  queueModalTotem   = totem
+  queueInstance     = totem.ip ? 'default' : null
   queueModalTotemName.textContent = totem.name
   queueModal.style.display = 'flex'
+  await refreshInstanceOptions(totem)
   renderQueueModal(totem)
 
   clearInterval(queueModalTimer)
-  queueModalTimer = setInterval(() => renderQueueModal(totem), 5_000)
+  queueModalTimer = setInterval(async () => {
+    await refreshInstanceOptions(totem)
+    renderQueueModal(totem)
+  }, 5_000)
   openModalA11y(queueModal, closeQueueModal)
 }
 
 function closeQueueModal() {
   queueModal.style.display = 'none'
   queueModalTotemId = null
+  queueModalTotem   = null
   clearInterval(queueModalTimer)
   queueModalTimer = null
   closeModalA11y(queueModal)
@@ -504,7 +612,7 @@ qrLightbox?.addEventListener('click', (e) => {
 
 async function kickFromQueue(totemId, playerId, totemName) {
   try {
-    const res = await fetch(`${API}/${totemId}/queue/${encodeURIComponent(playerId)}`, { method: 'DELETE' })
+    const res = await fetch(`${API}/${totemId}/queue/${encodeURIComponent(playerId)}${instQs(queueInstance)}`, { method: 'DELETE' })
     if (!res.ok) throw new Error(`Erro ${res.status}`)
     Swal.fire({
       title:             'Jogador Expulso',
@@ -588,7 +696,9 @@ function closeTotemModal() {
 function startEdit(totem) {
   editingTotemId             = totem._id
   formName.value             = totem.name
-  formUrl.value              = `${totem.ip}:${totem.udpPort}`
+  formUrl.value              = totem.ip ? `${totem.ip}:${totem.udpPort}` : ''
+  formGame.value             = totem.game ?? ''
+  formGameConfig.value       = totem.gameConfig ? JSON.stringify(totem.gameConfig, null, 2) : ''
   formMaxPlayers.value       = String(totem.maxPlayers ?? 2)
   formDuration.value         = String(totem.sessionDurationMs ?? 1800000)
   formMaxQueue.value         = totem.maxQueueSize != null ? String(totem.maxQueueSize) : ''
@@ -600,6 +710,8 @@ function resetForm() {
   editingTotemId              = null
   formName.value              = ''
   formUrl.value               = ''
+  formGame.value              = ''
+  formGameConfig.value        = ''
   formMaxPlayers.value        = '2'
   formDuration.value          = '1800000'
   formMaxQueue.value          = ''
@@ -623,38 +735,55 @@ btnSaveTotem?.addEventListener('click', async () => {
   const sessionDurationMs = parseInt(formDuration.value, 10)
   const maxQueueSize      = formMaxQueue.value.trim() ? parseInt(formMaxQueue.value, 10) : null
 
-  if (!name || !formUrl.value.trim()) {
-    showTotemError('Preencha nome e URL do totem.')
+  const game = formGame.value || null
+  const hasAddr = Boolean(formUrl.value.trim())
+
+  if (!name) {
+    showTotemError('Dê um nome ao totem.')
+    return
+  }
+  if (!game && !hasAddr) {
+    showTotemError('Escolha um jogo para incorporar ou informe o endereço do totem físico.')
     return
   }
 
-  const parsed = parseTotemUrl(formUrl.value)
-  if (!parsed) {
-    showTotemError('URL inválida. Use o formato IP:Porta, ex: 192.168.1.10:9001')
-    return
+  let ip = null, udpPort = null
+  if (hasAddr) {
+    const parsed = parseTotemUrl(formUrl.value)
+    if (!parsed) {
+      showTotemError('Endereço inválido. Use IP:Porta, ex: 192.168.1.10:9001')
+      return
+    }
+    ;({ ip, udpPort } = parsed)
   }
-  const { ip, udpPort } = parsed
+
+  let gameConfig = null
+  if (formGameConfig.value.trim()) {
+    try {
+      gameConfig = JSON.parse(formGameConfig.value)
+      if (typeof gameConfig !== 'object' || Array.isArray(gameConfig) || gameConfig === null) throw new Error()
+    } catch {
+      showTotemError('Configuração do jogo precisa ser um objeto JSON, ex: { "gameSpeed": 6 }')
+      return
+    }
+  }
+
+  const payload = { name, ip, udpPort, game, gameConfig, maxPlayers, sessionDurationMs, maxQueueSize }
 
   btnSaveTotem.disabled    = true
   btnSaveTotem.textContent = 'Salvando...'
 
   try {
     if (editingTotemId) {
-      await apiFetch(`${API}/${editingTotemId}`, {
-        method: 'PUT',
-        body:   JSON.stringify({ name, ip, udpPort, maxPlayers, sessionDurationMs, maxQueueSize }),
-      })
+      await apiFetch(`${API}/${editingTotemId}`, { method: 'PUT', body: JSON.stringify(payload) })
     } else {
-      await apiFetch(API, {
-        method: 'POST',
-        body:   JSON.stringify({ name, ip, udpPort, maxPlayers, sessionDurationMs, maxQueueSize }),
-      })
+      await apiFetch(API, { method: 'POST', body: JSON.stringify(payload) })
     }
 
     closeTotemModal()
     await loadTotems()
-  } catch {
-    showTotemError('Erro ao salvar totem.')
+  } catch (err) {
+    showTotemError(`Não foi possível salvar: ${err.message}`)
   } finally {
     btnSaveTotem.disabled    = false
     btnSaveTotem.textContent = 'Salvar Totem'
@@ -808,5 +937,76 @@ function dispatchTotemsUpdated(totems) {
   window.dispatchEvent(new CustomEvent('totems:updated', { detail: { totems } }))
 }
 
+// ── Embed (n→n) ───────────────────────────────────────────────────────────────
+// Generates the <iframe> a site pastes. /embed/:id hands every page load its
+// own instance, so the same snippet serves any number of visitors.
+
+function embedUrl(totem) {
+  const q = new URLSearchParams()
+  if (!embedShowQr.checked) q.set('showqr', 'false')
+  const pos = embedDialog.querySelector('input[name="embed-pos"]:checked')?.value
+  if (embedShowQr.checked && pos && pos !== 'br') q.set('qrpos', pos)
+  const qs = q.toString()
+  return `${window.location.origin}/embed/${totem._id}${qs ? `?${qs}` : ''}`
+}
+
+function embedSnippet(totem) {
+  const src  = embedUrl(totem)
+  const name = escHtml(totem.name)
+  if (embedResponsive.checked) {
+    return `<div style="position:relative;width:100%;aspect-ratio:16/9;">\n` +
+      `  <iframe src="${src}" title="${name}" allow="fullscreen; autoplay"\n` +
+      `    style="position:absolute;inset:0;width:100%;height:100%;border:0;"></iframe>\n` +
+      `</div>`
+  }
+  const w = Math.max(240, parseInt(embedWidth.value, 10) || 960)
+  const h = Math.max(180, parseInt(embedHeight.value, 10) || 540)
+  return `<iframe src="${src}" title="${name}" width="${w}" height="${h}"\n` +
+    `  allow="fullscreen; autoplay" style="border:0;"></iframe>`
+}
+
+let previewTimer = null
+function refreshEmbed({ reloadPreview = false } = {}) {
+  if (!embedTotem) return
+  embedWidth.disabled  = embedResponsive.checked
+  embedHeight.disabled = embedResponsive.checked
+  embedDialog.querySelectorAll('input[name="embed-pos"]').forEach(r => { r.disabled = !embedShowQr.checked })
+  embedCode.textContent = embedSnippet(embedTotem)
+  embedOpen.href = embedUrl(embedTotem)
+  if (reloadPreview) {
+    // Each preview load opens a real instance — debounce so toggling options
+    // doesn't spawn a burst of them.
+    clearTimeout(previewTimer)
+    previewTimer = setTimeout(() => { embedPreview.src = embedUrl(embedTotem) }, 400)
+  }
+}
+
+function openEmbedDialog(totem) {
+  embedTotem = totem
+  embedTotemName.textContent = `${totem.name} · ${totem.game}`
+  refreshEmbed({ reloadPreview: true })
+  embedDialog.showModal()
+}
+
+embedDialog?.addEventListener('close', () => {
+  clearTimeout(previewTimer)
+  embedPreview.removeAttribute('src')   // closes the preview's instance
+  embedTotem = null
+})
+for (const el of [embedResponsive, embedWidth, embedHeight]) el?.addEventListener('input', () => refreshEmbed())
+embedShowQr?.addEventListener('change', () => refreshEmbed({ reloadPreview: true }))
+embedDialog?.querySelectorAll('input[name="embed-pos"]').forEach(r =>
+  r.addEventListener('change', () => refreshEmbed({ reloadPreview: true })))
+
+embedCopy?.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(embedCode.textContent)
+    toast('Código copiado — cole no HTML do site')
+  } catch {
+    toast('Não deu para copiar. Selecione o código e copie manualmente.')
+  }
+})
+
 // ── Init ──────────────────────────────────────────────────────────────────────
+loadGames()
 loadTotems()

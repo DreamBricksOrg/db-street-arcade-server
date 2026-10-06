@@ -1,0 +1,179 @@
+/* public/css/tokens.css
+   DreamBricks Design System tokens — copied verbatim from docs/design_system/tokens/
+   (colors, typography, spacing). Fonts load via <link> in each page, not @import.
+   Street Arcade aliases live at the end of this file. */
+
+/* DreamBricks — Color tokens
+   Base palette extracted from Brandbook v1.1 (page 4):
+   #ffffff / #c7f1ff / #52cdef / #42b0d5 / #034a5d
+   Neutrals + semantic colors are intentional additions (not in brandbook),
+   derived in oklch from the brand blue so they stay harmonious. */
+
+:root {
+  /* ---- Brand blues (from brandbook) ---- */
+  --db-blue-50: #c7f1ff;   /* lightest tint — "631 C" */
+  --db-blue-300: #52cdef;  /* bright accent — "305 C" */
+  --db-blue-500: #42b0d5;  /* primary brand blue — "4160 C" */
+  --db-blue-900: #034a5d;  /* deep ink blue — "635 C" */
+  --db-white: #ffffff;
+
+  /* Extra mid-steps (intentional addition, interpolated in oklch for UI needs) */
+  --db-blue-100: oklch(from var(--db-blue-50) calc(l - 0.04) c h);
+  --db-blue-200: oklch(from var(--db-blue-300) calc(l + 0.09) calc(c * 0.7) h);
+  --db-blue-400: oklch(from var(--db-blue-300) calc(l - 0.06) c h);
+  --db-blue-600: oklch(from var(--db-blue-500) calc(l - 0.09) c h);
+  --db-blue-700: oklch(from var(--db-blue-500) calc(l - 0.18) c h);
+  --db-blue-800: oklch(from var(--db-blue-900) calc(l + 0.08) c h);
+
+  /* ---- Neutrals (intentional addition): slate tinted toward the brand's deep blue ---- */
+  --db-slate-25:  oklch(0.99 0.003 230);
+  --db-slate-50:  oklch(0.97 0.006 230);
+  --db-slate-100: oklch(0.94 0.010 230);
+  --db-slate-200: oklch(0.89 0.014 230);
+  --db-slate-300: oklch(0.80 0.018 230);
+  --db-slate-400: oklch(0.65 0.020 230);
+  --db-slate-500: oklch(0.52 0.022 230);
+  --db-slate-600: oklch(0.42 0.024 230);
+  --db-slate-700: oklch(0.33 0.026 230);
+  --db-slate-800: oklch(0.24 0.028 230);
+  --db-slate-900: oklch(0.16 0.028 230);
+
+  /* ---- Semantic (intentional addition, harmonized in oklch) ---- */
+  --db-success-500: oklch(0.62 0.14 155);
+  --db-success-100: oklch(0.94 0.05 155);
+  --db-warning-500: oklch(0.78 0.15 80);
+  --db-warning-100: oklch(0.95 0.06 80);
+  --db-danger-500: oklch(0.58 0.20 25);
+  --db-danger-100: oklch(0.94 0.06 25);
+  --db-info-500: var(--db-blue-500);
+  --db-info-100: var(--db-blue-50);
+
+  /* ---- Semantic aliases (what components should consume) ---- */
+  --surface-page: var(--db-slate-50);
+  --surface-card: var(--db-white);
+  --surface-sunken: var(--db-slate-100);
+  --surface-brand: var(--db-blue-500);
+  --surface-brand-strong: var(--db-blue-900);
+  --surface-overlay: oklch(0.16 0.028 230 / 0.5);
+
+  --border-subtle: var(--db-slate-200);
+  --border-default: var(--db-slate-300);
+  --border-strong: var(--db-slate-400);
+  --border-brand: var(--db-blue-500);
+
+  --text-primary: var(--db-slate-900);
+  --text-secondary: var(--db-slate-500);
+  --text-tertiary: var(--db-slate-400);
+  --text-on-brand: var(--db-white);
+  --text-link: var(--db-blue-600);
+  --text-brand: var(--db-blue-600);
+
+  --focus-ring: var(--db-blue-300);
+}
+
+/* DreamBricks — Typography tokens
+   Brandbook specifies "Araboto" (Bold + Light) as the brand typeface — a
+   proprietary geometric-rounded sans not available outside the source
+   foundry. Substituted here with Poppins (Google Fonts), the closest
+   widely-available match in proportions and geometric roundness.
+   ⚠️ FLAG: ask the brand owner for the real Araboto webfont files
+   (.woff2/.woff/.ttf) to swap into tokens/fonts.css when available. */
+
+:root {
+  --font-brand: 'Poppins', 'Century Gothic', ui-sans-serif, sans-serif;
+  --font-body: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* Weights — brandbook only shows Bold + Light; Regular/Medium/SemiBold
+     are intentional additions needed for real UI density. */
+  --weight-light: 300;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-extrabold: 800;
+
+  /* Type scale */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-md: 18px;
+  --text-lg: 21px;
+  --text-xl: 26px;
+  --text-2xl: 32px;
+  --text-3xl: 40px;
+  --text-4xl: 52px;
+  --text-5xl: 68px;
+
+  --leading-tight: 1.1;
+  --leading-snug: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+}
+
+/* DreamBricks — Spacing, radius, shadow, motion tokens (intentional additions —
+   not defined in the brandbook, derived to fit dashboard UI density). */
+
+:root {
+  /* Spacing scale (4px base grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* Radius — brandbook shows soft, generously rounded panels (see logo
+     "protection area" plate corners); UI radii echo that softness. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* Shadows — soft, cool-toned (tinted with brand ink blue, not pure black) */
+  --shadow-sm: 0 1px 2px oklch(0.16 0.028 230 / 0.06), 0 1px 1px oklch(0.16 0.028 230 / 0.04);
+  --shadow-md: 0 4px 10px oklch(0.16 0.028 230 / 0.08), 0 2px 4px oklch(0.16 0.028 230 / 0.05);
+  --shadow-lg: 0 12px 24px oklch(0.16 0.028 230 / 0.12), 0 4px 8px oklch(0.16 0.028 230 / 0.06);
+  --shadow-focus: 0 0 0 3px oklch(0.72 0.13 230 / 0.35);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1); /* @kind other */
+  --duration-fast: 120ms; /* @kind other */
+  --duration-base: 180ms; /* @kind other */
+  --duration-slow: 280ms; /* @kind other */
+}
+
+/* ── Street Arcade aliases ────────────────────────────────────────────────────
+   Short names the pages have always used, now resolved from the DreamBricks
+   semantic layer above. New code should prefer the semantic names
+   (--surface-*, --text-*, --border-*); these exist so the migration keeps
+   visual parity. There is deliberately no --cta: the brandbook is blue-only. */
+:root {
+  --bg:         var(--surface-page);
+  --surface:    var(--surface-card);
+  --surface2:   var(--surface-sunken);
+  --border:     var(--border-subtle);
+  --accent:     var(--surface-brand);
+  --accent2:    var(--db-blue-300);
+  --accent-ink: var(--surface-brand-strong);
+  --text:       var(--text-primary);
+  --text-muted: var(--text-secondary);
+  --muted:      var(--text-secondary);
+  --success:    var(--db-success-500);
+  --danger:     var(--db-danger-500);
+  --warning:    var(--db-warning-500);
+  --radius:     var(--radius-md);
+  --glow:       0 4px 14px oklch(from var(--surface-brand) l c h / 0.4);
+}

@@ -16,6 +16,8 @@ import { initGamepad }    from '/gamepad.js'
 const $loading    = document.getElementById('loading')
 const $error      = document.getElementById('error-screen')
 const $errorMsg   = document.getElementById('error-msg')
+const $errorTitle = document.getElementById('error-title')
+const $errorActs  = document.getElementById('error-actions')
 const $play       = document.getElementById('play-screen')
 const $sidLabel   = document.getElementById('sid-label')
 const $connDot    = document.getElementById('conn-dot')
@@ -133,27 +135,25 @@ function setConnected(connected) {
   if ($statusText) $statusText.textContent = connected ? 'Online' : 'Reconectando…'
 }
 
-function showError(msg) {
+function showError(msg, title = 'Não deu para conectar') {
   $loading.style.display = 'none'
   $play.style.display    = 'none'
   $error.style.display   = 'flex'
   $errorMsg.textContent  = msg
+  if ($errorTitle) $errorTitle.textContent = title
 }
 
 // "Game over" screen: session ended (death, kick or timeout). Offers a way
 // back to the totem entry page, where the player joins the END of the queue.
 function showEnded(replayUrl) {
-  showError('Sua sessão acabou. Obrigado por jogar!')
-  if (!replayUrl) return
+  showError('Valeu por jogar! Quer outra rodada? Você entra no fim da fila.', 'Fim de jogo')
+  if (!replayUrl || !$errorActs) return
   if (document.getElementById('play-again-btn')) return
 
-  const btn = document.createElement('button')
+  const btn = document.createElement('a')
   btn.id = 'play-again-btn'
-  btn.textContent = '🎮 Jogar novamente'
-  btn.style.cssText = 'margin-top:16px;padding:12px 28px;font-size:15px;font-weight:700;' +
-    'background:var(--accent);color:#fff;border:none;border-radius:10px;cursor:pointer;'
-  btn.addEventListener('click', () => {
-    window.location.href = replayUrl
-  })
-  $error.appendChild(btn)
+  btn.className = 'db-btn db-btn--primary db-btn--lg db-btn--block'
+  btn.href = replayUrl
+  btn.textContent = 'Jogar novamente'
+  $errorActs.appendChild(btn)
 }

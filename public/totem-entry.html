@@ -2,160 +2,102 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Street Arcade — Entrando…</title>
   <meta name="description" content="Conectando ao Street Arcade. Aguarde um momento." />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#f3f7f9" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="icon" href="/assets/brand/dreambricks-mark-blue.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/components.css" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      /* DreamBricks Design System tokens — see /design-system/dreambricks-manager/DreamBricks-Design-System */
-      --bg:      oklch(0.97 0.006 230);
-      --surface: #ffffff;
-      --border:  oklch(0.89 0.014 230);
-      --accent:  #42b0d5;
-      --accent2: #52cdef;
-      --text:    oklch(0.16 0.028 230);
-      --muted:   oklch(0.52 0.022 230);
-      --success: oklch(0.62 0.14 155);
-      --danger:  oklch(0.58 0.20 25);
-      --font-body: 'Poppins', ui-sans-serif, system-ui, sans-serif;
-      --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
-    }
 
     html, body {
       height: 100%; width: 100%;
       overflow: hidden;
-      background: var(--bg);
-      color: var(--text);
+      background: var(--surface-page);
+      color: var(--text-primary);
       font-family: var(--font-body);
     }
 
-    .screen {
-      position: fixed; inset: 0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 20px; padding: 32px;
-      text-align: center;
+    #loading, #error-screen { z-index: 10; }
+
+    /* ── Queue: the position number is the whole point of this screen ──────── */
+    .queue-place {
+      display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+      padding: var(--space-6) 0 var(--space-4);
+    }
+    .queue-place__label {
+      font-size: var(--text-sm); color: var(--text-secondary);
+    }
+    .queue-place__num {
+      font: var(--weight-bold) clamp(72px, 26vw, 120px)/0.9 var(--font-mono);
+      letter-spacing: -0.04em;
+      color: var(--surface-brand-strong);
+      font-variant-numeric: tabular-nums;
+    }
+    .queue-place__num.is-bump { animation: bump 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes bump { from { transform: scale(1.18); color: var(--surface-brand); } }
+    .queue-place__eta {
+      min-height: 1.4em;
+      font: var(--weight-medium) var(--text-sm)/1.4 var(--font-mono);
+      color: var(--text-brand);
+    }
+    .queue-note {
+      max-width: 30ch;
+      font-size: var(--text-xs); line-height: 1.5; color: var(--text-secondary);
     }
 
-    /* ── Logo ──────────────────────────────────────────────────────────────── */
-    .logo-mark {
-      width: 120px; height: 120px;
-      display: flex; align-items: center; justify-content: center;
-      animation: revealIn 0.5s cubic-bezier(0.16,1,0.3,1);
+    @media (prefers-reduced-motion: reduce) {
+      .queue-place__num.is-bump { animation: none; }
     }
-    .logo-mark img { width: 100%; height: 100%; object-fit: contain; }
-
-    @keyframes revealIn {
-      from { opacity:0; transform:scale(0.5); }
-      to   { opacity:1; transform:scale(1); }
-    }
-
-    /* ── Loading ───────────────────────────────────────────────────────────── */
-    #loading { background: var(--bg); z-index: 10; }
-
-    .loading-title {
-      font-size: 24px; font-weight: 700;
-      font-family: var(--font-mono);
-      color: var(--accent);
-    }
-
-    .loading-sub { font-size: 14px; color: var(--muted); }
-
-    .loader-bar {
-      width: 180px; height: 3px;
-      background: oklch(0.16 0.028 230 / 0.08);
-      border-radius: 99px; overflow: hidden;
-    }
-    .loader-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
-      border-radius: 99px;
-      animation: loaderAnim 1.2s ease-in-out infinite;
-    }
-    @keyframes loaderAnim {
-      0%   { width: 0%;  margin-left: 0%; }
-      50%  { width: 60%; margin-left: 20%; }
-      100% { width: 0%;  margin-left: 100%; }
-    }
-
-    /* ── Error ─────────────────────────────────────────────────────────────── */
-    #error-screen { background: var(--bg); z-index: 10; display: none; }
-
-    .error-icon  { font-size: 64px; }
-    .error-title {
-      font-size: 20px; font-weight: 700;
-      font-family: var(--font-mono);
-      color: var(--danger);
-    }
-    .error-msg {
-      font-size: 14px; color: var(--muted);
-      max-width: 280px; line-height: 1.6;
-    }
-    .retry-btn {
-      margin-top: 8px;
-      padding: 10px 24px;
-      background: var(--accent);
-      color: #fff;
-      border: none; border-radius: 10px;
-      font-size: 14px; font-weight: 600;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    .retry-btn:hover { background: var(--accent2); }
   </style>
 </head>
 <body>
 
-  <!-- Loading screen -->
-  <div id="loading" class="screen">
-    <div class="logo-mark">
-      <img src="/assets/images/dreambricks_logo_250x160.png" alt="DreamBricks Logo" />
-    </div>
+  <!-- Loading -->
+  <main id="loading" class="sa-screen" aria-live="polite">
+    <div class="sa-mark"><img src="/assets/brand/dreambricks-mark-blue.svg" alt="DreamBricks" /></div>
     <div>
-      <div class="loading-title">Street Arcade</div>
-      <div class="loading-sub" id="loading-sub">Conectando ao totem…</div>
+      <h1 class="sa-title sa-title--brand">Street Arcade</h1>
+      <p class="sa-sub" id="loading-sub">Conectando ao totem…</p>
     </div>
-    <div class="loader-bar"><div class="loader-fill"></div></div>
-  </div>
+    <div class="sa-loader" role="progressbar" aria-label="Carregando"></div>
+  </main>
 
-  <!-- Error screen -->
-  <div id="error-screen" class="screen">
-    <div class="error-icon">⚠️</div>
-    <div class="error-title">Totem Indisponível</div>
-    <p class="error-msg" id="error-msg">Não foi possível conectar a este totem.</p>
-    <button class="retry-btn" id="retry-btn">Tentar novamente</button>
-  </div>
-
-  <!-- Queue screen -->
-  <div id="queue-screen" class="screen" style="display: none;">
-    <div class="logo-mark">
-      <img src="/assets/images/dreambricks_logo_250x160.png" alt="DreamBricks Logo" />
-    </div>
+  <!-- Error -->
+  <main id="error-screen" class="sa-screen" style="display: none;" aria-live="assertive">
+    <img class="sa-mascot" src="/assets/brand/jobson-wave.webp" alt="" width="320" height="322" />
     <div>
-      <div class="loading-title">Fila de Espera</div>
-      <div class="loading-sub" id="queue-sub" style="margin-top: 6px;">Sua vez está chegando...</div>
+      <h1 class="sa-title">Não deu para entrar</h1>
+      <p class="sa-sub" id="error-msg">Não foi possível conectar a este totem.</p>
     </div>
-    
-    <div style="background: oklch(0.16 0.028 230 / 0.05); padding: 16px 24px; border-radius: 16px; margin-top: 10px;">
-      <div style="font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--muted); margin-bottom: 8px;">Sua Posição</div>
-      <div id="queue-pos" style="font-size: 48px; font-weight: 900; color: var(--accent); font-family: var(--font-mono); line-height: 1;">-</div>
-      <div id="queue-eta" style="font-size: 13px; color: var(--muted); margin-top: 8px;"></div>
+    <div class="sa-actions">
+      <button class="db-btn db-btn--primary db-btn--lg db-btn--block" id="retry-btn" type="button">Tentar novamente</button>
+    </div>
+  </main>
+
+  <!-- Queue -->
+  <main id="queue-screen" class="sa-screen" style="display: none;">
+    <div class="sa-mark" style="width: 72px;"><img src="/assets/brand/dreambricks-mark-blue.svg" alt="DreamBricks" /></div>
+    <div>
+      <h1 class="sa-title">Você está na fila</h1>
+      <p class="sa-sub" id="queue-sub">Quando chegar a sua vez, o controle abre sozinho.</p>
     </div>
 
-    <div class="loader-bar" style="margin-top: 10px;"><div class="loader-fill"></div></div>
-    
-    <p style="font-size: 12px; color: var(--muted); max-width: 280px; margin-top: 10px;">
-      Seu lugar está garantido. Não feche esta tela ou você perderá a sua vaga.
-    </p>
-  </div>
+    <div class="queue-place" aria-live="polite">
+      <span class="queue-place__label">Sua posição</span>
+      <span class="queue-place__num" id="queue-pos">–</span>
+      <span class="queue-place__eta" id="queue-eta"></span>
+    </div>
+
+    <div class="sa-loader" role="progressbar" aria-label="Aguardando a sua vez"></div>
+    <p class="queue-note">Deixe esta tela aberta: se fechar, você perde o lugar.</p>
+  </main>
 
   <script type="module" src="/totem-entry.js"></script>
 </body>

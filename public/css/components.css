@@ -1,0 +1,242 @@
+/* public/css/components.css
+   DreamBricks Design System components, ported from the React library in
+   docs/design_system/components/ to plain CSS classes (the frontend is vanilla
+   JS). Requires tokens.css. Prefix `db-` = DS primitive; `sa-` = Street Arcade
+   composition shared by more than one page (player screens).
+
+   Contrast note: white text on --db-blue-500 (#42b0d5) is ~2.6:1, below the
+   floor for 14px labels. Filled buttons therefore sit on --db-blue-700; the
+   brand blue keeps carrying focus rings, borders, links and highlights. */
+
+/* ── Base ───────────────────────────────────────────────────────────────────── */
+.db-mono { font-family: var(--font-mono); }
+
+.db-visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* ── Button ─────────────────────────────────────────────────────────────────── */
+.db-btn {
+  --btn-bg: var(--surface-card);
+  --btn-fg: var(--text-primary);
+  --btn-bd: var(--border-default);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: 40px; padding: 0 var(--space-4);
+  font: var(--weight-semibold) var(--text-sm)/1 var(--font-body);
+  color: var(--btn-fg); background: var(--btn-bg);
+  border: 1px solid var(--btn-bd); border-radius: var(--radius-md);
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-base) var(--ease-standard);
+}
+.db-btn svg { width: 16px; height: 16px; flex: none; }
+.db-btn:hover { border-color: var(--border-strong); }
+.db-btn:active { transform: scale(0.97); }
+.db-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+.db-btn:disabled, .db-btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+.db-btn--primary {
+  --btn-bg: var(--db-blue-700); --btn-fg: var(--text-on-brand); --btn-bd: var(--db-blue-700);
+}
+.db-btn--primary:hover { --btn-bg: var(--db-blue-800); --btn-bd: var(--db-blue-800); box-shadow: var(--shadow-md); }
+
+.db-btn--secondary { --btn-bg: var(--surface-sunken); --btn-fg: var(--text-primary); --btn-bd: var(--border-subtle); }
+.db-btn--secondary:hover { --btn-bg: var(--border-subtle); }
+
+.db-btn--ghost { --btn-bg: transparent; --btn-bd: transparent; --btn-fg: var(--text-brand); }
+.db-btn--ghost:hover { --btn-bg: oklch(from var(--db-blue-500) l c h / 0.08); --btn-bd: transparent; }
+
+.db-btn--danger { --btn-fg: var(--db-danger-500); --btn-bd: oklch(from var(--db-danger-500) l c h / 0.35); }
+.db-btn--danger:hover { --btn-bg: var(--db-danger-100); --btn-bd: var(--db-danger-500); }
+
+.db-btn--sm { min-height: 32px; padding: 0 var(--space-3); font-size: var(--text-xs); }
+.db-btn--sm svg { width: 14px; height: 14px; }
+.db-btn--lg { min-height: 52px; padding: 0 var(--space-6); font-size: var(--text-base); border-radius: var(--radius-lg); }
+.db-btn--block { width: 100%; }
+
+/* ── Badge / Tag ────────────────────────────────────────────────────────────── */
+.db-badge {
+  --badge-c: var(--text-secondary);
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 10px;
+  font: var(--weight-semibold) 11px/1 var(--font-body);
+  color: var(--badge-c);
+  background: oklch(from var(--badge-c) l c h / 0.1);
+  border: 1px solid oklch(from var(--badge-c) l c h / 0.25);
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+.db-badge svg { width: 12px; height: 12px; }
+.db-badge--brand   { --badge-c: var(--db-blue-700); }
+.db-badge--success { --badge-c: oklch(0.48 0.13 155); }
+.db-badge--warning { --badge-c: oklch(0.52 0.12 70); }
+.db-badge--danger  { --badge-c: var(--db-danger-500); }
+
+.db-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
+  font: var(--weight-medium) 11px/1.4 var(--font-mono);
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Fields ─────────────────────────────────────────────────────────────────── */
+.db-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.db-label {
+  font: var(--weight-semibold) var(--text-xs)/1.3 var(--font-body);
+  color: var(--text-primary);
+}
+.db-hint { font-size: var(--text-xs); line-height: 1.45; color: var(--text-secondary); }
+.db-input, .db-select, .db-textarea {
+  width: 100%; min-height: 40px; padding: 9px 12px;
+  font: var(--weight-regular) var(--text-sm)/1.4 var(--font-body);
+  color: var(--text-primary);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default); border-radius: var(--radius-md);
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+.db-textarea { font-family: var(--font-mono); font-size: var(--text-xs); resize: vertical; min-height: 72px; }
+.db-input::placeholder, .db-textarea::placeholder { color: var(--text-tertiary); }
+.db-input:hover, .db-select:hover, .db-textarea:hover { border-color: var(--border-strong); }
+.db-input:focus, .db-select:focus, .db-textarea:focus { outline: none; border-color: var(--border-brand); box-shadow: var(--shadow-focus); }
+
+/* Segmented control — radio group styled as joined buttons */
+.db-seg {
+  display: inline-flex; padding: 3px; gap: 2px;
+  background: var(--surface-sunken); border-radius: var(--radius-md);
+}
+/* Pages may style bare <label> (the dashboard uppercases them) — reset here */
+.db-seg label, .db-switch {
+  margin: 0; text-transform: none; letter-spacing: normal;
+  font-weight: var(--weight-regular); color: var(--text-primary);
+}
+.db-seg label { position: relative; }
+.db-seg input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.db-seg span {
+  display: block; padding: 6px 12px;
+  font: var(--weight-medium) var(--text-xs)/1.2 var(--font-body);
+  color: var(--text-secondary); border-radius: var(--radius-sm);
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+.db-seg input:checked + span { background: var(--surface-card); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+.db-seg input:focus-visible + span { box-shadow: var(--shadow-focus); }
+
+/* Switch — <label class="db-switch"><input type="checkbox"><span></span> Texto</label> */
+.db-switch { display: inline-flex; align-items: center; gap: 10px; font-size: var(--text-sm); cursor: pointer; }
+.db-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.db-switch span {
+  position: relative; width: 36px; height: 20px; flex: none;
+  background: var(--border-default); border-radius: var(--radius-pill);
+  transition: background var(--duration-base) var(--ease-standard);
+}
+.db-switch span::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  background: var(--db-white); border-radius: 50%; box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-base) var(--ease-standard);
+}
+.db-switch input:checked + span { background: var(--db-blue-700); }
+.db-switch input:checked + span::after { transform: translateX(16px); }
+.db-switch input:focus-visible + span { box-shadow: var(--shadow-focus); }
+
+/* ── Code block (copyable snippet) ──────────────────────────────────────────── */
+.db-code {
+  display: block; width: 100%; padding: var(--space-3) var(--space-4);
+  font: var(--weight-regular) 12px/1.6 var(--font-mono);
+  color: var(--db-blue-50); background: var(--db-slate-900);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap; word-break: break-all;
+  max-height: 180px; overflow: auto;
+}
+
+/* ── Dialog (native <dialog>) ───────────────────────────────────────────────── */
+.db-dialog {
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 48px);
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 0; margin: auto;
+  color: var(--text-primary); background: var(--surface-card);
+  border: none; border-radius: var(--radius-lg);
+  box-shadow: 0 24px 64px oklch(0.16 0.028 230 / 0.28);
+}
+.db-dialog::backdrop { background: var(--surface-overlay); }
+.db-dialog[open] { animation: db-dialog-in var(--duration-slow) cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes db-dialog-in { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
+.db-dialog__head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4);
+  padding: var(--space-6) var(--space-6) var(--space-4);
+}
+.db-dialog__title { font: var(--weight-bold) var(--text-md)/1.25 var(--font-body); }
+.db-dialog__desc { margin-top: 4px; font-size: var(--text-sm); color: var(--text-secondary); }
+.db-dialog__body { padding: 0 var(--space-6) var(--space-6); display: grid; gap: var(--space-5); }
+.db-dialog__foot {
+  display: flex; justify-content: flex-end; gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--border-subtle);
+}
+.db-icon-btn {
+  display: inline-grid; place-items: center; width: 36px; height: 36px; flex: none;
+  color: var(--text-secondary); background: transparent;
+  border: none; border-radius: var(--radius-md); cursor: pointer;
+}
+.db-icon-btn:hover { background: var(--surface-sunken); color: var(--text-primary); }
+.db-icon-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+.db-icon-btn svg { width: 18px; height: 18px; }
+
+/* ── Toast ──────────────────────────────────────────────────────────────────── */
+.db-toast {
+  position: fixed; left: 50%; bottom: var(--space-6); z-index: 2000;
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: 10px 16px;
+  font: var(--weight-medium) var(--text-sm)/1.3 var(--font-body);
+  color: var(--db-white); background: var(--db-slate-900);
+  border-radius: var(--radius-pill); box-shadow: var(--shadow-lg);
+  transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out);
+}
+.db-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+/* ── Player screens (totem-entry + play) ────────────────────────────────────── */
+.sa-screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-5); padding: var(--space-8) var(--space-5);
+  text-align: center; background: var(--surface-page);
+}
+.sa-mark { width: 112px; animation: sa-reveal 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+.sa-mark img { display: block; width: 100%; height: auto; }
+.sa-mascot { width: min(200px, 52vw); height: auto; animation: sa-reveal 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes sa-reveal { from { opacity: 0; transform: scale(0.6); } }
+
+.sa-title {
+  font: var(--weight-bold) var(--text-xl)/1.15 var(--font-body);
+  letter-spacing: var(--tracking-tight); color: var(--text-primary);
+  text-wrap: balance;
+}
+.sa-title--brand { color: var(--surface-brand-strong); }
+.sa-title--danger { color: var(--db-danger-500); }
+.sa-sub {
+  margin-top: 6px; max-width: 30ch; margin-inline: auto;
+  font-size: var(--text-sm); line-height: 1.55; color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.sa-actions { display: flex; flex-direction: column; gap: var(--space-3); width: min(280px, 100%); }
+
+.sa-loader {
+  width: 180px; height: 4px; overflow: hidden;
+  background: oklch(0.16 0.028 230 / 0.08); border-radius: var(--radius-pill);
+}
+.sa-loader::before {
+  content: ''; display: block; height: 100%; width: 40%;
+  background: var(--surface-brand); border-radius: inherit;
+  animation: sa-loader 1.2s var(--ease-standard) infinite;
+}
+@keyframes sa-loader { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sa-mark, .sa-mascot, .db-dialog[open] { animation: none; }
+  .sa-loader::before { animation-duration: 3s; }
+}

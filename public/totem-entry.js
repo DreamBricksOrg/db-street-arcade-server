@@ -48,8 +48,14 @@ function showQueue(pos, estimatedWaitMs) {
   $loadScreen.style.display  = 'none'
   $errorScreen.style.display = 'none'
   $queueScreen.style.display = 'flex'
+  // Queue moved: replay the bump so the change is felt, not just read.
+  if ($queuePos.textContent !== String(pos)) {
+    $queuePos.classList.remove('is-bump')
+    void $queuePos.offsetWidth
+    $queuePos.classList.add('is-bump')
+  }
   $queuePos.textContent      = pos
-  $queueEta.textContent      = estimatedWaitMs ? `Tempo estimado: ${formatEta(estimatedWaitMs)}` : ''
+  $queueEta.textContent      = estimatedWaitMs ? `espera ${formatEta(estimatedWaitMs)}` : ''
 }
 
 async function getPlayerId() {
@@ -106,7 +112,7 @@ async function pollQueueStatus(playerId) {
         resolveAndRedirect()
         return
       }
-      showError(data.error ?? 'Falha ao buscar status da fila.')
+      showError('Não conseguimos atualizar sua posição. Tente de novo.')
       return
     }
 
@@ -172,7 +178,9 @@ async function resolveAndRedirect() {
         showError('Muitas tentativas seguidas. Aguarde alguns segundos e tente de novo.')
         return
       }
-      showError(data.error ?? 'Totem não encontrado ou indisponível.')
+      showError(res.status === 404
+        ? 'Este QR não leva a nenhum totem ativo. Confira o código no totem ou no site.'
+        : 'O totem não respondeu agora. Tente de novo em alguns segundos.')
       return
     }
 

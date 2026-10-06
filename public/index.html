@@ -7,32 +7,13 @@
   <meta name="description" content="Painel do operador para gerenciar sessões do Street Arcade, exibir QR Codes e configurar totens." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/assets/brand/dreambricks-mark-blue.svg" type="image/svg+xml" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- DreamBricks Design System (tokens + components) — source: docs/design_system -->
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/components.css" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      /* DreamBricks Design System tokens — see /design-system/dreambricks-manager/DreamBricks-Design-System */
-      --bg:         oklch(0.97 0.006 230);
-      --surface:    #ffffff;
-      --surface2:   oklch(0.94 0.010 230);
-      --border:     oklch(0.89 0.014 230);
-      --accent:     #42b0d5;
-      --accent2:    #52cdef;
-      --accent-ink: #034a5d;
-      --cta:        #f97316;
-      --text:       oklch(0.16 0.028 230);
-      --text-muted: oklch(0.52 0.022 230);
-      --success:    oklch(0.62 0.14 155);
-      --danger:     oklch(0.58 0.20 25);
-      --warning:    oklch(0.78 0.15 80);
-      --radius:     10px;
-      --radius-sm:  6px;
-      --radius-lg:  16px;
-      --glow:       0 4px 14px oklch(from var(--accent) l c h / 0.4);
-      --font-body:  'Poppins', ui-sans-serif, system-ui, sans-serif;
-      --font-mono:  'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
-    }
 
     html, body { height: 100%; }
 
@@ -63,7 +44,7 @@
     }
 
     .logo-icon {
-      height: 48px;
+      height: 40px;
       display: flex; align-items: center; justify-content: center;
     }
 
@@ -74,11 +55,10 @@
     }
 
     .logo-text {
-      font-size: 20px;
+      font-size: var(--text-lg);
       font-weight: 700;
-      font-family: var(--font-mono);
-      letter-spacing: -0.5px;
-      color: var(--text);
+      letter-spacing: var(--tracking-tight);
+      color: var(--surface-brand-strong);
     }
 
     .badge-live {
@@ -240,13 +220,13 @@
       gap: 8px;
     }
 
+    /* Filled on blue-700: white on the #42b0d5 brand blue is ~2.6:1 (see components.css) */
     .btn-primary {
-      background: var(--accent);
-      color: #fff;
-      box-shadow: 0 2px 8px oklch(from var(--accent) l c h / 0.2);
+      background: var(--db-blue-700);
+      color: var(--text-on-brand);
     }
 
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: var(--glow); }
+    .btn-primary:hover { transform: translateY(-2px); background: var(--db-blue-800); box-shadow: var(--shadow-md); }
     .btn-primary:active { transform: translateY(0); }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
@@ -319,10 +299,37 @@
 
     .totem-card-meta {
       display: flex;
+      flex-wrap: wrap;
       gap: 12px;
       font-size: 12px;
       color: var(--text-muted);
     }
+
+    /* n→n: how the totem is reached (physical UDP and/or embedded game) */
+    .totem-modes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .totem-screens[data-live="true"] { color: var(--text-brand); font-weight: 600; }
+
+    .empty-mascot { width: min(280px, 70vw); height: auto; mix-blend-mode: multiply; margin-bottom: var(--space-4); }
+
+    /* Embed dialog */
+    .embed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+    .embed-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .embed-preview {
+      position: relative; overflow: hidden;
+      background: var(--surface-sunken); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+    }
+    .embed-preview iframe { display: block; width: 100%; height: 100%; border: 0; }
+    .embed-preview-wrap { aspect-ratio: 16 / 9; }
+    @media (max-width: 560px) { .embed-grid { grid-template-columns: 1fr; } }
+    /* Phones: stack the physical-totem QR under the card info */
+    @media (max-width: 600px) {
+      .totem-card > div:first-child { flex-direction: column; }
+      .totem-card > div:first-child > div:last-child:not(:first-child) { width: 100% !important; flex-direction: row !important; gap: 12px; }
+      .totem-card-qr-img { width: 96px !important; }
+    }
+
+    .queue-instance-bar { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+    .queue-instance-bar .db-select { flex: 1; min-height: 34px; padding: 6px 10px; font-size: var(--text-xs); }
 
     .totem-session-status {
       display: flex;
@@ -854,7 +861,7 @@
   <header>
     <a class="logo" href="/">
       <div class="logo-icon">
-        <img src="/assets/images/dreambricks_logo_250x160.png" alt="DreamBricks Logo">
+        <img src="/assets/brand/dreambricks-mark-blue.svg" alt="DreamBricks" width="67" height="40">
       </div>
       <span class="logo-text">Street Arcade</span>
     </a>
@@ -881,8 +888,8 @@
       <div id="totem-list"></div>
       
       <div id="totem-empty" style="display: none; flex-direction: column; align-items: center; justify-content: center; padding: 80px 20px; color: var(--text-muted);">
-        <div class="emoji" style="font-size: 64px; margin-bottom: 16px;">🎮</div>
-        <p>Nenhum totem cadastrado. Adicione um totem para começar.</p>
+        <img class="empty-mascot" src="/assets/brand/jobson-with-cat.webp" alt="" width="480" height="348" />
+        <p>Nenhum totem ainda. Cadastre um totem físico ou um jogo para incorporar em sites.</p>
       </div>
     </section>
   </main>
@@ -893,6 +900,10 @@
       <button class="modal-close" id="queueModalClose" aria-label="Fechar">&times;</button>
       <h2 style="margin-bottom:4px; font-size:18px; font-family:var(--font-mono);">Fila do Totem</h2>
       <p id="queue-modal-totem-name" style="font-size:13px; color:var(--text-muted); margin-bottom:16px;"></p>
+      <div class="queue-instance-bar">
+        <label class="db-label" for="queue-instance">Tela</label>
+        <select id="queue-instance" class="db-select"></select>
+      </div>
       <div id="queue-modal-body"></div>
     </div>
   </div>
@@ -904,7 +915,7 @@
 
       <div class="modal-header">
         <h2 id="totem-form-title">Novo Totem</h2>
-        <p>Configure o endereço de rede e as regras de sessão.</p>
+        <p>Escolha o jogo para incorporar em sites e, se houver, o endereço do totem físico.</p>
       </div>
 
       <div class="modal-body">
@@ -914,9 +925,17 @@
         </div>
 
         <div class="field-group">
-          <label for="tf-url">URL do Totem</label>
+          <label for="tf-game">Jogo para incorporar</label>
+          <select id="tf-game">
+            <option value="">Nenhum (só totem físico)</option>
+          </select>
+          <span class="field-hint">Cada visitante que abrir o iframe ganha a própria partida, com QR e fila próprios.</span>
+        </div>
+
+        <div class="field-group">
+          <label for="tf-url">Endereço do totem físico <span style="font-weight:400; text-transform:none; letter-spacing:0;">(opcional)</span></label>
           <input id="tf-url" type="text" placeholder="192.168.1.10:9001 ou https://brickrush.dbpe.com.br:9101" maxlength="120" />
-          <span class="field-hint">IP:Porta ou URL:Porta do servidor do jogo (a porta é sempre obrigatória)</span>
+          <span class="field-hint">IP:Porta ou URL:Porta da máquina do jogo (UDP). Deixe vazio se for só web.</span>
         </div>
 
         <div class="field-row">
@@ -950,6 +969,12 @@
           <span class="field-hint">Deixe em branco para fila ilimitada</span>
         </div>
 
+        <div class="field-group">
+          <label for="tf-game-config">Configuração do jogo <span style="font-weight:400; text-transform:none; letter-spacing:0;">(JSON, opcional)</span></label>
+          <textarea id="tf-game-config" class="db-textarea" rows="3" spellcheck="false" placeholder='{ "gameSpeed": 6 }'></textarea>
+          <span class="field-hint">Enviado ao jogo incorporado em <code>/config</code>. Ex.: snake <code>gameSpeed</code>; brick-rush <code>rounds</code>, <code>roundMs</code>.</span>
+        </div>
+
         <div id="totem-error"></div>
       </div>
 
@@ -968,10 +993,70 @@
     <div class="qr-lightbox-content">
       <button class="modal-close" id="qrLightboxClose" aria-label="Fechar">&times;</button>
       <div class="qr-lightbox-name" id="qr-lightbox-name"></div>
-      <div class="qr-lightbox-image"><img id="qr-lightbox-img" src="" alt="QR Code Ampliado" /></div>
+      <div class="qr-lightbox-image"><img id="qr-lightbox-img" alt="QR Code Ampliado" /></div>
       <div class="qr-lightbox-hint">Aponte a câmera do celular para este QR Code</div>
     </div>
   </div>
+
+  <!-- ── Incorporar (n→n): gera o <iframe> do jogo ──────────────────────── -->
+  <dialog id="embedDialog" class="db-dialog" aria-labelledby="embed-title">
+    <form method="dialog">
+      <div class="db-dialog__head">
+        <div>
+          <h2 class="db-dialog__title" id="embed-title">Incorporar em um site</h2>
+          <p class="db-dialog__desc" id="embed-totem-name"></p>
+        </div>
+        <button class="db-icon-btn" value="close" aria-label="Fechar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="db-dialog__body">
+        <div class="embed-preview embed-preview-wrap">
+          <iframe id="embed-preview" title="Prévia do jogo incorporado" loading="lazy"></iframe>
+        </div>
+
+        <div class="embed-row">
+          <label class="db-switch"><input type="checkbox" id="embed-responsive" checked /><span></span> Responsivo (16:9)</label>
+          <label class="db-switch"><input type="checkbox" id="embed-showqr" checked /><span></span> Mostrar QR</label>
+        </div>
+
+        <div class="embed-grid">
+          <div class="db-field">
+            <label class="db-label" for="embed-width">Largura (px)</label>
+            <input class="db-input" id="embed-width" type="number" min="240" max="3840" value="960" disabled />
+          </div>
+          <div class="db-field">
+            <label class="db-label" for="embed-height">Altura (px)</label>
+            <input class="db-input" id="embed-height" type="number" min="180" max="2160" value="540" disabled />
+          </div>
+        </div>
+
+        <div class="db-field">
+          <span class="db-label" id="embed-pos-label">Posição do QR</span>
+          <div class="db-seg" role="radiogroup" aria-labelledby="embed-pos-label">
+            <label><input type="radio" name="embed-pos" value="br" checked /><span>Inferior direito</span></label>
+            <label><input type="radio" name="embed-pos" value="bl" /><span>Inferior esquerdo</span></label>
+            <label><input type="radio" name="embed-pos" value="tr" /><span>Superior direito</span></label>
+          </div>
+        </div>
+
+        <div class="db-field">
+          <span class="db-label">Código</span>
+          <code class="db-code" id="embed-code"></code>
+          <span class="db-hint">Cada visitante que abrir a página recebe uma partida própria, com QR, fila e controles só dele.</span>
+        </div>
+      </div>
+      <div class="db-dialog__foot">
+        <a class="db-btn db-btn--ghost" id="embed-open" target="_blank" rel="noopener">Abrir em nova aba</a>
+        <button class="db-btn db-btn--primary" type="button" id="embed-copy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copiar código
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="db-toast" id="toast" role="status" aria-live="polite"></div>
 
   <!-- SweetAlert2 (confirmation dialogs) -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>

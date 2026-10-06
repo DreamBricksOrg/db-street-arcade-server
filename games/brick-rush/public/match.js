@@ -299,7 +299,7 @@ export function createMatch() {
       // advances into the freed slots for the next match.
       for (const p of this.players.values()) {
         this.pendingLeaves.add(p.pid)
-        fetch('/end-session', {
+        fetch('end-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pid: p.pid }),

@@ -55,23 +55,17 @@ export class GameHandler {
     socket.on('pong',    ()    => this._markAlive(socket))
     socket.on('error',   (err) => log.error({ err: err.message, sessionId, playerId }, 'WS error'))
 
-    const dispatcher = this.fastify.udpDispatcher
-    if (dispatcher && session.totems?.length) {
-      dispatcher.registerSession(sessionId, session.totems)
-    }
+    this.fastify.udpDispatcher?.registerSession(sessionId, session)
 
-    // Tell the game this player is in. pid is truncated to 8 chars — the
-    // same convention the input dispatcher uses, so the game can key by it.
-    const joinPacket = JSON.stringify({
+    // Tell the game this player is in (UDP for the physical totem, SSE for an
+    // embedded iframe). pid is truncated to 8 chars — the same convention the
+    // input dispatcher uses, so the game can key by it.
+    this.fastify.gameOutput?.send(session, {
       type: 'player_join',
       sid:  sessionId.slice(0, 8),
       pid:  playerId.slice(0, 8),
       tid:  session.totemId ?? null,
-    })
-    for (const t of session.totems ?? []) {
-      this.fastify.udpSend(t.ip, t.udpPort, joinPacket).catch(err =>
-        log.warn({ err: err.message, totemIp: t.ip }, 'UDP player_join send failed'))
-    }
+    }).catch(err => log.warn({ err: err.message, sessionId }, 'player_join send failed'))
 
     await this._publish(Channels.sessionSync(sessionId), 'sync', sessionId, playerId, {
       event: 'player_connected', playerId,

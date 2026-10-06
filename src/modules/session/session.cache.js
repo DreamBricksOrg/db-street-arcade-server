@@ -19,8 +19,9 @@ export class SessionCache {
     const ttlSecs = Math.max(60, Math.floor((new Date(session.expiresAt) - Date.now()) / 1000))
     await this.redis.hset(key, {
       id:        session._id,
-      totemId:   session.totemId ?? '',
-      playerId:  session.playerId ?? '',
+      totemId:    session.totemId ?? '',
+      instanceId: session.instanceId ?? 'default',
+      playerId:   session.playerId ?? '',
       status:    session.status,
       totems:    JSON.stringify(session.totems ?? []),
       expiresAt: String(new Date(session.expiresAt).getTime()),
@@ -35,8 +36,9 @@ export class SessionCache {
     if (!raw || !raw.id) return null
     return {
       _id:       raw.id,
-      totemId:   raw.totemId || null,
-      playerId:  raw.playerId || null,
+      totemId:    raw.totemId || null,
+      instanceId: raw.instanceId || 'default',
+      playerId:   raw.playerId || null,
       status:    raw.status,
       totems:    JSON.parse(raw.totems || '[]'),
       expiresAt: new Date(parseInt(raw.expiresAt, 10)),

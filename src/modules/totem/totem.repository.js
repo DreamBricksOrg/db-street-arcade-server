@@ -12,8 +12,10 @@ const log = createLogger('totem.repository')
  * {
  *   _id:               string,      // UUID v4
  *   name:              string,      // ex: "Totem Cabine A"
- *   ip:                string,      // ex: "192.168.1.10"
- *   udpPort:           number,      // ex: 9001
+ *   ip:                string|null, // physical totem only, ex: "192.168.1.10"
+ *   udpPort:           number|null, // physical totem only, ex: 9001
+ *   game:              string|null, // folder in games/ served at /embed (null = not embeddable)
+ *   gameConfig:        object|null, // returned to the game by /embed/.../config
  *   maxPlayers:        number,      // max players per session (default: 2)
  *   sessionDurationMs: number,      // session TTL in ms (default: 30 min)
  *   maxQueueSize:      number|null, // cap on waiting-list length (default: null = unlimited)
@@ -33,13 +35,15 @@ export class TotemRepository {
    * @param {{ name: string, ip: string, udpPort: number, maxPlayers?: number, sessionDurationMs?: number, maxQueueSize?: number }} data
    * @returns {Promise<object>}
    */
-  async create({ name, ip, udpPort, maxPlayers, sessionDurationMs, maxQueueSize }) {
+  async create({ name, ip, udpPort, game, gameConfig, maxPlayers, sessionDurationMs, maxQueueSize }) {
     const now   = new Date()
     const totem = {
       _id:               uuidv4(),
       name,
-      ip,
-      udpPort,
+      ip:                ip      ?? null,
+      udpPort:           udpPort ?? null,
+      game:              game       ?? null,
+      gameConfig:        gameConfig ?? null,
       maxPlayers:        maxPlayers        ?? 2,
       sessionDurationMs: sessionDurationMs ?? 30 * 60 * 1000, // 30 min default
       maxQueueSize:      maxQueueSize      ?? null,           // null = unlimited

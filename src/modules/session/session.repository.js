@@ -1,16 +1,24 @@
 // src/modules/session/session.repository.js
 // Raw database operations for the sessions collection.
-// A session is ONE player's connection to ONE totem:
+// A session is ONE player's connection to ONE instance of a totem:
 //   reserved → active → finished        (normal flow)
 //   reserved → finished (no_show/kick)  (never claimed)
 // Finished sessions persist forever for historical records.
+//
+// instanceId: 'default' = physical totem; anything else = an embedded iframe.
+// Docs created before n→n have no instanceId and count as 'default'.
 
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '../../lib/logger.js'
+import { normalizeInstance, isDefaultInstance, DEFAULT_INSTANCE } from '../../lib/channels.js'
 
 const log = createLogger('session.repository')
 
 const CURRENT = ['reserved', 'active']
+
+const instFilter = (instanceId) => (isDefaultInstance(instanceId)
+  ? { instanceId: { $in: [DEFAULT_INSTANCE, null] } }
+  : { instanceId: String(instanceId) })
 
 export class SessionRepository {
   /** @param {import('@fastify/mongodb').FastifyMongoObject} mongo */
@@ -20,14 +28,15 @@ export class SessionRepository {
 
   /**
    * Creates a session in 'reserved' state for a single player.
-   * @param {{ totemId: string, playerId: string, totems: Array<{id, ip, udpPort}>,
+   * @param {{ totemId: string, instanceId?: string, playerId: string, totems: Array<{id, ip, udpPort}>,
    *           metadata?: object|null, reserveMs: number, playMs: number }} data
    */
-  async create({ totemId, playerId, totems, metadata = null, reserveMs, playMs }) {
+  async create({ totemId, instanceId, playerId, totems, metadata = null, reserveMs, playMs }) {
     const now = new Date()
     const session = {
       _id:            uuidv4(),
       totemId,
+      instanceId:     normalizeInstance(instanceId),
       playerId,
       status:         'reserved',
       totems,
@@ -40,7 +49,7 @@ export class SessionRepository {
       endReason:      null,
     }
     await this.col.insertOne(session)
-    log.debug({ sessionId: session._id, totemId, playerId }, 'Session created (reserved)')
+    log.debug({ sessionId: session._id, totemId, instanceId: session.instanceId, playerId }, 'Session created (reserved)')
     return session
   }
 
@@ -48,18 +57,26 @@ export class SessionRepository {
     return this.col.findOne({ _id: id })
   }
 
-  /** The player's live (reserved or active) session on this totem, if any. */
-  async findCurrentByPlayer(totemId, playerId) {
-    return this.col.findOne({ totemId, playerId, status: { $in: CURRENT } })
+  /** The player's live (reserved or active) session on this instance, if any. */
+  async findCurrentByPlayer(totemId, instanceId, playerId) {
+    return this.col.findOne({ totemId, ...instFilter(instanceId), playerId, status: { $in: CURRENT } })
   }
 
-  /** All live sessions of a totem, oldest first. */
+  /** All live sessions of one instance, oldest first. */
+  async listCurrentByInstance(totemId, instanceId) {
+    return this.col.find(
+      { totemId, ...instFilter(instanceId), status: { $in: CURRENT } },
+      { sort: { createdAt: 1 } },
+    ).toArray()
+  }
+
+  /** All live sessions of a totem across every instance, oldest first. */
   async listCurrentByTotem(totemId) {
     return this.col.find({ totemId, status: { $in: CURRENT } }, { sort: { createdAt: 1 } }).toArray()
   }
 
-  async countCurrent(totemId) {
-    return this.col.countDocuments({ totemId, status: { $in: CURRENT } })
+  async countCurrent(totemId, instanceId) {
+    return this.col.countDocuments({ totemId, ...instFilter(instanceId), status: { $in: CURRENT } })
   }
 
   /** All live sessions across every totem (operator listing). */

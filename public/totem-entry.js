@@ -8,8 +8,12 @@
 //   3. If 'play', redirect to /play/:sessionId
 //   4. If 'queue', display queue UI and poll GET /api/totems/:id/queue/status
 
-const params  = new URLSearchParams(window.location.search)
-const totemId = params.get('id')
+const params     = new URLSearchParams(window.location.search)
+const totemId    = params.get('id')
+// Embedded iframe instance (n→n). Absent = the physical totem ('default').
+const instanceId = params.get('instance')
+const instQs     = instanceId ? `instance=${encodeURIComponent(instanceId)}` : ''
+const CLOSED_MSG = 'Essa tela foi fechada. Abra o jogo de novo no site e escaneie o QR novo.'
 
 const $loadingSub  = document.getElementById('loading-sub')
 const $errorScreen = document.getElementById('error-screen')
@@ -49,7 +53,7 @@ function showQueue(pos, estimatedWaitMs) {
 }
 
 async function getPlayerId() {
-  const storageKey = `sa_queue_pid_${totemId}`
+  const storageKey = `sa_queue_pid_${totemId}${instanceId ? `_${instanceId}` : ''}`
   let pid = sessionStorage.getItem(storageKey)
   if (!pid) {
     pid = 'qp_' + crypto.randomUUID().slice(0, 8)
@@ -67,7 +71,7 @@ let eventSrc   = null
 function startQueueEvents(playerId) {
   if (eventSrc || !totemId) return
   try {
-    eventSrc = new EventSource(`/api/totems/${totemId}/queue/events`)
+    eventSrc = new EventSource(`/api/totems/${totemId}/queue/events${instQs ? `?${instQs}` : ''}`)
     eventSrc.onmessage = (e) => {
       let msg
       try { msg = JSON.parse(e.data) } catch { return }
@@ -91,10 +95,11 @@ function stopQueueEvents() {
 
 async function pollQueueStatus(playerId) {
   try {
-    const res = await fetch(`/api/totems/${totemId}/queue/status?playerId=${playerId}`)
+    const res = await fetch(`/api/totems/${totemId}/queue/status?playerId=${playerId}${instQs ? `&${instQs}` : ''}`)
     const data = await res.json()
 
     if (!res.ok) {
+      if (res.status === 410) { showError(CLOSED_MSG); return }
       if (data.error === 'Not in queue') {
         // Did we get kicked? Or maybe the session opened and we lost connection?
         // Let's just try to join again
@@ -147,7 +152,7 @@ async function resolveAndRedirect() {
       plat: navigator.platform
     }
 
-    const res = await fetch(`/api/totems/${totemId}/queue/join`, {
+    const res = await fetch(`/api/totems/${totemId}/queue/join${instQs ? `?${instQs}` : ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerId, metadata })
@@ -157,6 +162,10 @@ async function resolveAndRedirect() {
     if (!res.ok) {
       if (res.status === 409 && data.error === 'Queue is full') {
         showError('A fila deste totem está cheia no momento. Tente novamente em alguns minutos.')
+        return
+      }
+      if (res.status === 410) {
+        showError(CLOSED_MSG)
         return
       }
       if (res.status === 429) {

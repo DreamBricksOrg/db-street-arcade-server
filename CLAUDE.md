@@ -10,6 +10,8 @@ Backend Node.js + Fastify para um sistema de arcade real-time chamado **Street A
 
 **Fluxo central**: Jogador escaneia QR → entra na fila → recebe sessão → abre gamepad no celular → inputs WebSocket → Redis Pub/Sub → UDP → Totem.
 
+**n→n (iframes)**: o mesmo totem pode ser incorporado em sites via `<iframe src="/embed/:totemId">`. Cada carregamento vira uma **instância** própria (fila, sessões, QR e celulares só dela) e o jogo roda no navegador do visitante, recebendo os inputs por SSE em vez de UDP. Regra de ouro: **configuração é do totem; fila/sessões/tempo real são da instância.** O totem físico é a instância `default`. Spec: `docs/superpowers/specs/2026-10-06-n-para-n-instancias-design.md`.
+
 ---
 
 ## Stack & Dependências Principais
@@ -37,8 +39,10 @@ src/
 ├── lib/
 │   ├── logger.js              # Pino logger factory
 │   ├── channels.js            # Nomes de canais Redis + builders de mensagem
-│   ├── mutex.js               # Mutex por chave (serializa fila por totem)
-│   └── rateLimit.js           # Rate limiter fixed-window em memória
+│   ├── mutex.js               # Mutex por chave (serializa fila por instância)
+│   ├── rateLimit.js           # Rate limiter fixed-window em memória
+│   ├── instances.js           # Registro em memória das instâncias web (iframes) + limites
+│   └── games.js               # Jogos incorporáveis (pastas em games/ com public/index.html)
 ├── plugins/
 │   ├── redis.js               # fastify.redisPublisher + fastify.redisSubscriber
 │   ├── mongodb.js             # Conexão + criação de índices
@@ -49,7 +53,12 @@ src/
 └── modules/
     ├── game/
     │   ├── game.routes.js     # WebSocket endpoint: /ws/game
-    │   └── game.handler.js    # Lifecycle: connect, message, close, heartbeat
+    │   ├── game.handler.js    # Lifecycle: connect, message, close, heartbeat
+    │   └── game.output.js     # ÚNICO ponto que entrega pacote ao jogo: UDP (default) ou SSE (iframe)
+    ├── instance/
+    │   └── instance.hub.js    # Streams SSE abertos por instância (o "socket UDP" do iframe)
+    ├── embed/
+    │   └── embed.routes.js    # /embed/:totemId[/:instanceId/*] — serve o jogo + contrato da ponte
     ├── session/
     │   ├── session.routes.js  # REST read/end /api/sessions (criação é via fila)
     │   ├── session.repository.js  # MongoDB CRUD (sessão por-jogador)
@@ -60,17 +69,24 @@ src/
     │   ├── totemQueue.service.js  # DONO do ciclo fila→sessão→vaga (mutex por totem)
     │   └── totem.repository.js    # MongoDB CRUD
     └── udp/
-        └── udp.dispatcher.js  # Subscriber Redis game:input:* → envia UDP
+        └── udp.dispatcher.js  # Subscriber Redis game:input:* → GameOutput (UDP ou SSE)
 
 tests/
-└── e2e/queue.e2e.mjs          # npm run test:e2e — 8 cenários da fila (server real)
+├── unit/instances.test.mjs    # npm run test:unit — registro de instâncias (relógio falso)
+├── e2e/queue.e2e.mjs          # npm run test:e2e — 8 cenários da fila (totem físico)
+└── e2e/instances.e2e.mjs      # npm run test:e2e — 8 cenários n→n (iframes)
 
 public/
-├── index.html / dashboard.js      # Painel do operador (CRUD totens, sessões)
+├── css/tokens.css + components.css    # DreamBricks Design System (fonte: docs/design_system)
+├── assets/brand/                      # Marca DreamBricks + mascote J0Bson
+├── embed-assets/overlay.{js,css}      # Cartão de QR injetado sobre o jogo incorporado
+├── index.html / dashboard.js      # Painel do operador (CRUD totens, sessões, Incorporar)
 ├── play.html / session.js         # Gamepad do jogador
 ├── gamepad.js                     # Handler de touch multi-touch
-├── totem-entry.html / totem-entry.js  # Tela de fila do totem
+├── totem-entry.html / totem-entry.js  # Tela de fila do totem (aceita ?instance=)
 └── websocket-client.js            # ArcadeWsClient com reconexão exponencial
+
+games/                               # Jogos browser; servidos pelo backend em /embed (URLs RELATIVAS)
 ```
 
 ---
@@ -84,8 +100,10 @@ public/
 5. Game Routes
 6. Swagger
 7. UDP
+7.5. Instâncias: `fastify.instances` (registro), `instanceHub` (SSE), `gameOutput` (UDP ou SSE)
 8. Session Routes
-9. Totem Routes
+9. Totem Routes (+ sweeper de sessões e de instâncias)
+9.5. Embed Routes (`/embed/*`)
 10. **onReady**: inicia `UdpDispatcher`
 
 `TotemQueueService` é criado e decorado (`fastify.totemQueue`) no registro das rotas de totem, junto com o sweeper. Não há mais dependência circular entre serviços.
@@ -109,6 +127,12 @@ public/
 | `QUEUE_RESERVE_MS` | ❌ | 30000 | Prazo do chamado da fila conectar |
 | `QUEUE_SWEEP_MS` | ❌ | 10000 | Intervalo do sweeper (no_show/timeout) |
 | `QUEUE_JOIN_RATE_MAX` | ❌ | 8 | Máx. de queue/join por IP a cada 10s |
+| `INSTANCE_GRACE_MS` | ❌ | 120000 | Folga antes de encerrar instância (iframe) sem SSE |
+| `MAX_INSTANCES_PER_IP` | ❌ | 20 | Iframes simultâneos por IP (loopback não conta) |
+| `MAX_INSTANCES_PER_TOTEM` | ❌ | 2000 | Iframes simultâneos por totem |
+| `TRUST_PROXY` | ❌ | false | Usar `X-Forwarded-For` para o IP do visitante |
+| `EMBED_FRAME_ANCESTORS` | ❌ | `*` | Valor do `frame-ancestors` (CSP) em `/embed/*` |
+| `GAMES_DIR` | ❌ | `./games` | Pasta dos jogos servidos no embed |
 
 Em `development`, Redis/MongoDB indisponíveis geram warning (não fatal). Em `production`, falham na inicialização.
 
@@ -147,7 +171,25 @@ Sessões são criadas SOMENTE pelo fluxo de fila (`queue/join`) — não há rot
 | GET | `/api/totems/:id/queue/events` | SSE — ping quando a fila muda |
 | DELETE | `/api/totems/:id/queue/:playerId` | Remove jogador da fila |
 | POST | `/api/totems/:id/queue/clear` | Limpa SÓ a lista de espera |
-| POST | `/api/totems/:id/end-session` | Com `{playerId}` (aceita pid truncado 8 chars): encerra a sessão daquele jogador (morte no jogo). Sem body: encerra TODAS (reset) |
+| POST | `/api/totems/:id/end-session` | Com `{playerId}` (aceita pid truncado 8 chars): encerra a sessão daquele jogador (morte no jogo). Sem body: encerra TODAS da instância (reset) |
+| GET | `/api/totems/:id/instances` | `default` + iframes abertos, com nº de sessões e fila |
+| GET | `/api/games` | Jogos incorporáveis (pastas de `games/`) |
+
+Todas as rotas de fila (`queue/*`, `end-session`, `qr`) aceitam `?instance=<id>`; sem ele = instância `default` (totem físico). Instância web fechada → `410`.
+
+### Embed `/embed` (n→n)
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/embed/:totemId` | 302 para `/embed/:totemId/<uuid novo>/` (uma instância por carregamento; preserva query) |
+| GET | `/embed/:totemId/:inst/` | `index.html` do jogo com o overlay de QR injetado |
+| GET | `/embed/:totemId/:inst/events` | SSE com `connected`, `init`, `player_join`, inputs, `player_leave` (429 se limite) |
+| POST | `/embed/:totemId/:inst/end-session` | `{ pid }` — jogador morreu nesta instância |
+| GET | `/embed/:totemId/:inst/queue-state` | HUD (sessões + fila da instância) |
+| GET | `/embed/:totemId/:inst/config` | `{ debugPanel: false, ...totem.gameConfig }` |
+| GET | `/embed/:totemId/:inst/*` | Estáticos de `games/<totem.game>/public` |
+
+Query do iframe: `showqr=false`, `qrpos=br|bl|tr|tl`, `qrmin=true`.
 
 ### WebSocket
 
@@ -176,6 +218,7 @@ Sessões são criadas SOMENTE pelo fluxo de fila (`queue/join`) — não há rot
 {
   _id: UUID,
   totemId: UUID,
+  instanceId: String,           // 'default' (totem físico) ou id do iframe; docs antigos sem campo = default
   playerId: String,             // dono único da sessão
   status: 'reserved' | 'active' | 'finished',
   totems: [{ id, ip, udpPort }],// endereço UDP (lido pelo dispatcher)
@@ -185,18 +228,20 @@ Sessões são criadas SOMENTE pelo fluxo de fila (`queue/join`) — não há rot
   reservedUntil: Date,          // prazo de 30s p/ conectar (QUEUE_RESERVE_MS)
   expiresAt: Date,              // fim do tempo de jogo (resetado no claim)
   endedAt: Date | null,
-  endReason: 'died'|'kicked'|'timeout'|'no_show'|'manual'|null
+  endReason: 'died'|'kicked'|'timeout'|'no_show'|'manual'|'instance_closed'|null
 }
 ```
-Índices: `{ status: 1 }`, `{ expiresAt: 1 }`, `{ totemId: 1, status: 1 }`.
+Índices: `{ status: 1 }`, `{ expiresAt: 1 }`, `{ totemId: 1, status: 1 }`, `{ totemId: 1, instanceId: 1, status: 1 }`.
 
 ### Collection `totems`
 ```js
 {
   _id: UUID,
   name: String,
-  ip: String,
-  udpPort: Number,
+  ip: String | null,            // só totem físico
+  udpPort: Number | null,
+  game: String | null,          // pasta em games/ servida no embed (null = não incorporável)
+  gameConfig: Object | null,    // devolvido ao jogo em /embed/.../config
   maxPlayers: Number,           // vagas simultâneas (default: 2)
   sessionDurationMs: Number,    // default: 1800000 (30min)
   maxQueueSize: Number | null,  // cap da fila (null = ilimitada)
@@ -212,11 +257,12 @@ Sessões são criadas SOMENTE pelo fluxo de fila (`queue/join`) — não há rot
 | Key | Tipo | Descrição |
 |-----|------|-----------|
 | `session:{sessionId}` | HASH | Cache da sessão (id, totemId, playerId, status, totems JSON, expiresAt) |
-| `queue:totem:{totemId}` | LIST | Fila de playerIds do totem |
+| `queue:totem:{totemId}` | LIST | Fila de playerIds do totem físico (instância default) |
+| `queue:totem:{totemId}:{instanceId}` | LIST | Fila de cada iframe |
 | `queue:heartbeat:{playerId}` | STRING | "1" com TTL 120s — mantém presença na fila |
 | `player:metadata:{playerId}` | STRING | JSON com dispositivo/IP (TTL 120s) |
 
-Canal extra Pub/Sub: `queue:event:{totemId}` — ping "queue_changed" para SSE.
+Canal extra Pub/Sub: `queue:event:{totemId}[:{instanceId}]` — ping "queue_changed" para SSE.
 
 ---
 

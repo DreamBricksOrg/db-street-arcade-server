@@ -101,7 +101,7 @@ function die(player) {
 
   // Notifica o backend via proxy do server.js — encerra a sessão ativa do totem
   console.log('[die] Calling /end-session for totem:', currentTotemId);
-  fetch('/end-session', {
+  fetch('end-session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pid: player.pid }),
@@ -193,7 +193,7 @@ function addPlayer(pid) {
 }
 
 // ── SSE: Receber eventos UDP via Node.js Server ──────────────────────────────
-const evtSource = new EventSource('/events');
+const evtSource = new EventSource('events');
 
 evtSource.onopen = function() {
   connStatus.textContent = "🟢 SSE Conectado ao Demo Server";
@@ -297,7 +297,7 @@ function applyDebugPanelVisibility() {
   if (debugPanel) debugPanel.style.display = CFG.debugPanel ? '' : 'none';
 }
 
-fetch('/config')
+fetch('config')
   .then(r => r.json())
   .then(cfg => { Object.assign(CFG, cfg); applyDebugPanelVisibility(); startLoop(); })
   .catch(() => {

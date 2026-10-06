@@ -11,13 +11,13 @@ const ctx = canvas.getContext('2d')
 const match = createMatch()
 
 // Game config from the server's .env (rounds, timers)
-fetch('/config')
+fetch('config')
   .then(r => r.json())
   .then(cfg => match.setConfig(cfg))
   .catch(() => console.warn('[config] usando defaults (server /config indisponível)'))
 
 // ── SSE: packets from the backend via the local bridge ──────────────────────
-const evtSource = new EventSource('/events')
+const evtSource = new EventSource('events')
 
 evtSource.onmessage = (event) => {
   let data
@@ -50,7 +50,7 @@ evtSource.onerror = () => console.warn('[SSE] desconectado — EventSource vai r
 // ── Queue state polling (HUD + rotation K + maxPlayers) ─────────────────────
 async function pollQueueState() {
   try {
-    const res = await fetch('/queue-state')
+    const res = await fetch('queue-state')
     match.setQueueState(await res.json())
   } catch { /* bridge offline — keep last known */ }
 }

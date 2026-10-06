@@ -17,6 +17,24 @@ export const Channels = {
   sessionSync: (sessionId) => `session:sync:${sessionId}`,
 }
 
+// ── Instances ────────────────────────────────────────────────────────────────
+// 'default' = the physical totem (UDP). Any other id = an embedded iframe.
+// Default keeps the historical key shapes so existing totems are untouched.
+
+export const DEFAULT_INSTANCE = 'default'
+
+export const normalizeInstance = (id) => (id && id !== DEFAULT_INSTANCE ? String(id) : DEFAULT_INSTANCE)
+
+export const isDefaultInstance = (id) => normalizeInstance(id) === DEFAULT_INSTANCE
+
+/** Scope key for mutex / queue / SSE: `totemId` or `totemId:instanceId`. */
+export const instanceKey = (totemId, instanceId) =>
+  isDefaultInstance(instanceId) ? String(totemId) : `${totemId}:${instanceId}`
+
+export const queueKey = (totemId, instanceId) => `queue:totem:${instanceKey(totemId, instanceId)}`
+
+export const queueEventChannel = (totemId, instanceId) => `queue:event:${instanceKey(totemId, instanceId)}`
+
 /**
  * Redis HASH key for caching session state.
  * @param {string} sessionId

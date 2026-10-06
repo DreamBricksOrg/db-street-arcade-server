@@ -186,7 +186,7 @@ No jogo (`game.js`), o esqueleto de integração é:
 
 ```js
 const players = {}                       // chave: pid truncado
-const evtSource = new EventSource('/events')
+const evtSource = new EventSource('events')
 
 evtSource.onmessage = (event) => {
   const data = JSON.parse(event.data)
@@ -202,13 +202,35 @@ evtSource.onmessage = (event) => {
 
 function onPlayerDeath(player) {
   removeFromBoard(player)
-  fetch('/end-session', {
+  fetch('end-session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pid: player.pid }),
   }).catch(() => {})
 }
 ```
+
+### 5.3 Jogo incorporado em sites (n→n)
+
+Um jogo browser também pode ser servido **pelo próprio backend** dentro de um
+`<iframe src="https://<backend>/embed/<totemId>">`. Cada carregamento do iframe
+vira uma **instância** isolada (fila, sessões, QR e celulares próprios), e o
+jogo roda no navegador do visitante — não há máquina física nem UDP.
+
+O backend implementa, por instância, exatamente o contrato da ponte local:
+`events` (SSE), `end-session`, `queue-state` e `config`, servidos em
+`/embed/<totemId>/<instanceId>/`. Por isso o jogo só precisa de uma regra:
+
+- **Use URLs RELATIVAS** (`'events'`, `'end-session'`, `'queue-state'`,
+  `'config'`, `src="main.js"`) — nunca `'/events'`. Relativas funcionam tanto
+  na ponte local (servida em `/`) quanto no embed.
+- `config` no embed devolve `{ debugPanel: false, ...totem.gameConfig }` —
+  trate campos ausentes com defaults no próprio jogo.
+- O QR fica por conta do backend (overlay injetado no `index.html`); o jogo não
+  precisa desenhar QR nem conhecer o `instanceId` (vem no SSE `init` se quiser).
+
+Para habilitar: cadastre o totem com `game: '<pasta em games/>'` (o `ip`/`udpPort`
+vira opcional) e use o botão **Incorporar** do painel para gerar o `<iframe>`.
 
 ---
 
@@ -223,10 +245,12 @@ function onPlayerDeath(player) {
 - [ ] SEM reset de board quando alguém entra/sai — jogadores são independentes
 - [ ] SEM respawn local — quem morreu volta pela fila
 - [ ] `BACKEND_URL` + `TOTEM_ID` configuráveis (env)
+- [ ] Jogo browser: URLs relativas (funciona na ponte local E em `/embed`)
 
 ## 7. Referências
 
 - Implementação exemplo: [`games/snake/server.js`](../games/snake/server.js) (ponte UDP→SSE + proxy) e [`games/snake/public/game.js`](../games/snake/public/game.js) (jogo)
-- Quem envia os pacotes: `src/modules/udp/udp.dispatcher.js` (inputs), `src/modules/game/game.handler.js` (`player_join`), `src/modules/totem/totemQueue.service.js` (`player_leave`)
-- Teste de ponta a ponta da fila: `npm run test:e2e`
+- Quem envia os pacotes: `src/modules/game/game.output.js` (único ponto: UDP para o totem físico, SSE para iframes), chamado por `udp.dispatcher.js` (inputs), `game.handler.js` (`player_join`) e `totemQueue.service.js` (`player_leave`)
+- Embed: `src/modules/embed/embed.routes.js` + overlay `public/embed-assets/`
+- Testes de ponta a ponta: `npm run test:e2e` (fila do totem físico + n→n)
 - API completa: `GET /documentation` (Swagger)

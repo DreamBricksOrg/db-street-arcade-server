@@ -134,7 +134,7 @@ se `!registry.isLive(...)`.
 | GET | `/embed/:totemId/:inst/queue-state` | mesmo payload de `GET /api/totems/:id/queue`, filtrado pela instância |
 | GET | `/embed/:totemId/:inst/config` | `totem.gameConfig ?? {}` |
 | GET | `/embed/:totemId/:inst/*` | estáticos de `games/<totem.game>/public` (path-traversal bloqueado) |
-| GET | `/embed-assets/*` | `overlay.js` / `overlay.css` (do `public/embed/`) |
+| GET | `/embed-assets/*` | `overlay.js` / `overlay.css` (de `public/embed-assets/`, servidos pelo static) |
 
 Headers em `/embed/*`: `Content-Security-Policy: frame-ancestors <EMBED_FRAME_ANCESTORS>`
 (default `*`), sem `X-Frame-Options`.
@@ -161,7 +161,7 @@ Celulares recebem o fim da sessão pelo fluxo atual (tela "Sua sessão acabou").
 - Funciona igual sob a ponte local (servida em `/`) e sob `/embed/:t/:i/`.
 - Nenhuma outra mudança de lógica.
 
-### Overlay do embed (`public/embed/overlay.js` + `overlay.css`, novo)
+### Overlay do embed (`public/embed-assets/overlay.js` + `overlay.css`, novo)
 - Cartão do QR (`/play/totem?id=T&instance=I`) com o design system; canto inferior
   direito em quadros ≥ 4:3, rodapé centralizado em quadros estreitos; tamanho em `vmin` com `clamp()`.
 - QR clicável (`<a target="_blank">`) — em celular o visitante pode jogar abrindo o link.

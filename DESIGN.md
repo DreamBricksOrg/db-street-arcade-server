@@ -5,7 +5,7 @@ colors:
   db-blue: "#42b0d5"
   db-blue-light: "#52cdef"
   db-blue-ink: "#034a5d"
-  cta-orange: "#f97316"
+  db-blue-700: "oklch(from #42b0d5 calc(l - 0.18) c h)"
   slate-bg: "oklch(0.97 0.006 230)"
   surface-white: "#ffffff"
   surface-slate: "oklch(0.94 0.010 230)"
@@ -97,13 +97,13 @@ spacing:
   xxl: "40px"
 components:
   button-primary:
-    backgroundColor: "{colors.db-blue}"
+    backgroundColor: "{colors.db-blue-700}"
     textColor: "#ffffff"
     typography: "{typography.title}"
     rounded: "{rounded.md}"
     padding: "13px 18px"
   button-primary-hover:
-    backgroundColor: "{colors.db-blue}"
+    backgroundColor: "{colors.db-blue-700}"
     textColor: "#ffffff"
   button-secondary:
     backgroundColor: "{colors.surface-slate}"
@@ -135,7 +135,7 @@ components:
 
 **Creative North Star: "The Control Room, on DreamBricks Blue"**
 
-Street Arcade is built on the **DreamBricks Design System** — DreamBricks' own brand tokens (`/design-system/dreambricks-manager/DreamBricks-Design-System`) — merged with the arcade-specific signature this product depends on: monospace labels for anything that is live system data (IDs, timers, status codes), and the Xbox-style ABXY button palette on the gamepad. The base layer reads like an instrument panel wearing the DreamBricks brand: light, blue-tinted slate surfaces, thin 1px borders, and a single confident accent (DreamBricks Blue) doing all the "this is interactive" signaling. The playful half of the brand doesn't come from decoration; it comes from the Xbox-style button palette on the gamepad and the pulsing live dot in the operator header. Reliable first, playful second, exactly as PRODUCT.md states.
+Street Arcade is built on the **DreamBricks Design System** — DreamBricks' own brand tokens (source: `docs/design_system/`; shipped as `public/css/tokens.css` + `public/css/components.css`) — merged with the arcade-specific signature this product depends on: monospace labels for anything that is live system data (IDs, timers, status codes), and the Xbox-style ABXY button palette on the gamepad. The base layer reads like an instrument panel wearing the DreamBricks brand: light, blue-tinted slate surfaces, thin 1px borders, and a single confident accent (DreamBricks Blue) doing all the "this is interactive" signaling. The playful half of the brand doesn't come from decoration; it comes from the Xbox-style button palette on the gamepad and the pulsing live dot in the operator header. Reliable first, playful second, exactly as PRODUCT.md states.
 
 This system explicitly rejects both of PRODUCT.md's anti-references: it is not a gray enterprise SaaS panel (hence the IBM Plex Mono data-texture, the colored session badges, the arcade-controller color story), and it is not neon/cyberpunk gamer aesthetic (no RGB gradients, no glitch effects, no dark-mode-by-default — the base UI stays light and clean, and saturated color is spent deliberately on the few places it earns its keep: buttons, badges, the four gamepad face buttons).
 
@@ -153,12 +153,13 @@ This system explicitly rejects both of PRODUCT.md's anti-references: it is not a
 Mostly neutral, blue-tinted slate with one confident accent; saturated color is reserved for status and the gamepad's four action buttons.
 
 ### Primary
-- **DreamBricks Blue** (`#42b0d5`): the one accent. Primary buttons, focus rings, active tab underline, links, and solid-color loading-screen titles.
+- **DreamBricks Blue** (`#42b0d5`): the one accent. Focus rings, active tab underline, borders, links, highlights. Never a fill under white text: white on `#42b0d5` is ~2.6:1.
+- **DreamBricks Blue 700** (`--db-blue-700`, the DS ramp step 0.18 darker): the fill of every primary button and switch-on state — same hue, readable under white text.
 - **DreamBricks Blue Light** (`#52cdef`): secondary tint used in the loader-bar fill gradient and hover states. Never carries text.
-- **DreamBricks Ink** (`#034a5d`): the brand's deepest blue. Reserved for high-emphasis moments that need more weight than the primary accent (not yet in active use in the shipped UI — available for a future "strong" CTA state).
+- **DreamBricks Ink** (`#034a5d`): the brand's deepest blue. Reserved for high-emphasis moments that need more weight than the primary accent Player-facing titles, the queue position number, the collapsed embed pill..
 
 ### Secondary
-- **CTA Orange** (`#f97316`): reserved as the `--cta` token for a secondary call-to-action distinct from the primary blue action. Not part of the DreamBricks brandbook (which is blue-only) — an intentional Street Arcade addition, kept because it doesn't compete with DreamBricks Blue and the brandbook itself defines no secondary-action color. Currently declared but sparingly used.
+None. The former CTA Orange (`--cta`, `#f97316`) was retired when the shared DreamBricks tokens landed: it was never used meaningfully and the brandbook is blue-only. Secondary actions use the secondary/ghost button styles.
 
 ### Neutral
 All neutrals are the DreamBricks slate ramp — tinted 0.01–0.028 chroma toward the brand's own blue hue (230), not a generic gray.
@@ -180,7 +181,7 @@ All three are DreamBricks' own semantic tokens (`--db-success-500` / `--db-dange
 - **Xbox Green** (`#107c10`), **Xbox Red** (`#e23c28`), **Xbox Blue** (`#0078d4`), **Xbox Yellow** (`#ffb900`): the four face-button colors (A/B/X/Y). This is the one place in the system where a named, saturated, multi-color palette is not only allowed but the point — it's the arcade-controller reference the whole product is built around, and the one element the DreamBricks brand tokens don't (and shouldn't) cover. Confined strictly to the four face buttons; never bleed into dashboard or status UI.
 
 ### Named Rules
-**The One Accent Rule.** DreamBricks Blue is the only color allowed to mean "primary action" or "focused/active." If a second action needs color, it borrows CTA Orange — never a second blue, never a gradient invented on the spot.
+**The One Accent Rule.** DreamBricks Blue is the only color allowed to mean "primary action" or "focused/active." A second action is a secondary/ghost button, never a second hue — the brandbook is blue-only, so there is no orange CTA (retired 2026-10-06).
 
 **The Xbox Quarantine Rule.** The Xbox four-color palette exists only inside the gamepad's face buttons. It never appears on a badge, a button in the dashboard, or a status indicator — those stay inside DreamBricks Blue, Success, and Danger.
 
@@ -236,11 +237,19 @@ Adopted directly from the DreamBricks Design System (`tokens/spacing.css`) — g
 - `xl`: 24px — reserved for large marketing-scale surfaces, not yet used in the shipped product UI
 - `pill`: 999px — badges, chips, pills
 
+**The Plate Motif.** The brandbook's panels are a rectangle with ONE fully-rounded corner (pages 1, 9, 10, 22). It is used once in the product, on the embed QR card (`16px 16px 16px clamp(40px, 6vmin, 64px)`, mirrored when the card sits on the left) — the one surface a stranger sees on a third-party site, where the brand must read instantly. Don't spread it onto dashboard chrome.
+
 ## 6. Components
+
+### Where they live
+- `public/css/tokens.css` — the DreamBricks tokens copied verbatim from `docs/design_system/tokens/`, plus short Street Arcade aliases (`--accent`, `--surface`…) kept for the existing page CSS. New code uses the semantic names (`--surface-*`, `--text-*`, `--border-*`).
+- `public/css/components.css` — the DS React components ported to CSS: `db-btn` (`--primary|--secondary|--ghost|--danger`, `--sm|--lg|--block`), `db-badge`, `db-tag`, `db-field/db-label/db-hint`, `db-input/db-select/db-textarea`, `db-seg`, `db-switch`, `db-code`, `db-dialog` (native `<dialog>`), `db-icon-btn`, `db-toast`; plus `sa-*` player-screen compositions (`sa-screen`, `sa-mark`, `sa-mascot`, `sa-title`, `sa-sub`, `sa-loader`, `sa-actions`) shared by the queue entry and the gamepad.
+- `public/embed-assets/overlay.{css,js}` — the QR card injected over embedded games. Self-contained (`.dbx` scope with its own few tokens) because the game page doesn't load `tokens.css`.
+- `public/assets/brand/` — DreamBricks mark (SVG) and J0Bson mascot (`jobson-wave.webp` on player end/error screens, `jobson-with-cat.webp` on the dashboard empty state). Never use the mascot reference sheet (`jobson-mascot-standing`): it carries handwritten labels.
 
 ### Buttons
 - **Shape:** 10px radius (`--radius`, DreamBricks `md`) on primary/secondary buttons; fully round (999px) on icon chips and pills.
-- **Primary:** DreamBricks Blue background, white text, 13px/18px padding, 700-weight Poppins label. Resting shadow: none. Hover: lifts 2px and gains the Hover Glow. Disabled: 0.4 opacity, no transform.
+- **Primary:** DreamBricks Blue 700 background (contrast — see Colors), white text, 13px/18px padding, 700-weight Poppins label. Resting shadow: none. Hover: lifts 2px, deepens to Blue 800 and gains a soft ink shadow. Disabled: 0.4 opacity, no transform.
 - **Secondary:** Surface Slate background, Ink Muted text, 1px Border Slate outline, smaller 9px/14px padding and 13px type. Hover fills to Border Slate and darkens text to Ink.
 - **Icon buttons** (`.btn-icon`, `.btn-edit`, `.btn-delete`, `.btn-qr`): Surface White background, 1px border, compact 5px/10px padding, hover state recolors border+text to the semantic color (DreamBricks Blue for edit/QR, Danger for delete) with a matching tinted background wash.
 
@@ -267,6 +276,12 @@ Adopted directly from the DreamBricks Design System (`tokens/spacing.css`) — g
 ### Gamepad (signature component)
 The gamepad is the product's signature surface and the one deliberate departure from the flat control-room language: circular face buttons rendered with a permanent skeuomorphic key-shadow (`0 5px 0 oklch(0.16 0.028 230 / 0.15)`) in the Xbox four-color palette, arranged in an ABXY cross. Pressing a button drops it 3px, compresses the shadow to `0 2px 0`, scales it to 0.87, and brightens it by 1.35× — a tactile, instant response tuned for thumbs, not cursors. The D-pad beside it stays in the neutral palette (Surface Slate cells, DreamBricks Blue border + glow only when pressed) so the four face buttons remain the only saturated, "arcade" moment on the entire play screen. This component is explicitly excluded from the DreamBricks brand migration — see the Xbox Quarantine Rule.
 
+### Embed QR card (n→n)
+Floats over an embedded game in a corner (`qrpos=br|bl|tr|tl`), sized in `vmin` so it scales with the iframe. Mark + "Jogue pelo celular" + QR (clickable, opens the entry in a new tab) + a mono status line ("2 vagas livres" in Success with a slow pulse, "3 na fila" in Warning). Collapses to an ink pill ("Jogar pelo celular") so it never has to cover the game. On touch screens the QR is hidden — nobody scans their own phone — and a "Jogar neste celular" button takes its place.
+
+### Player screens
+Loading, queue, error and game-over share one composition: centered column, DreamBricks mark (or the waving J0Bson on error/end), a Poppins title in Ink, a short sub-line capped at ~30ch, and one large full-width primary action. The queue screen's whole point is the position number: IBM Plex Mono, `clamp(72px, 26vw, 120px)`, Ink, with a short bump animation each time it changes.
+
 ### Entrance motion
 - **Reveal-in** (`animation: revealIn 0.5s cubic-bezier(0.16,1,0.3,1)`): the logo-mark entrance on loading/queue screens — an ease-out fade + scale from 0.5→1, not a bounce/elastic curve despite the visual energy. Named to avoid implying overshoot; the curve itself (`cubic-bezier(0.16,1,0.3,1)`) is a standard ease-out-quint.
 
@@ -275,7 +290,7 @@ The gamepad is the product's signature surface and the one deliberate departure 
 ### Do:
 - **Do** keep the base UI light and flat — Slate Background, Surface White cards, 1px Border Slate dividers, no shadow at rest.
 - **Do** reserve IBM Plex Mono for live/system data (IDs, timers, statuses, panel titles) and Poppins for everything else.
-- **Do** let DreamBricks Blue carry every primary action and focus state; introduce a second color only through the semantic Success/Danger/Warning set or CTA Orange, never a new blue.
+- **Do** let DreamBricks Blue carry every primary action and focus state; introduce a second color only through the semantic Success/Danger/Warning set, never a new hue.
 - **Do** confine the Xbox four-color palette to the gamepad's face buttons — it is the product's signature moment precisely because it doesn't appear anywhere else, and the one part of the UI the DreamBricks brand migration does not touch.
 - **Do** tint every shadow with Ink (`oklch(0.16 0.028 230)`), matching the DreamBricks system's own shadow tokens — never pure black.
 - **Do** use shadow and glow only as a response to interaction (hover, focus, press, modal-open) — never as static decoration.
@@ -286,6 +301,6 @@ The gamepad is the product's signature surface and the one deliberate departure 
 - **Don't** reach for neon gradients, RGB glow, glitch effects, or a dark-mode-by-default theme — per PRODUCT.md, this should never read as gamer/cyberpunk aesthetic.
 - **Don't** use `background-clip: text` gradients anywhere. Loading/hero titles render in solid DreamBricks Blue; emphasis comes from weight and size, not gradient fills.
 - **Don't** add a resting shadow to a card, button, or badge that isn't hovered, focused, pressed, or animating in.
-- **Don't** introduce a second accent blue, a new gradient, or an off-palette status color — Success, Danger, Warning, DreamBricks Blue, and CTA Orange are the complete semantic set.
+- **Don't** introduce a second accent blue, a new gradient, or an off-palette status color — Success, Danger, Warning and the DreamBricks blue ramp are the complete semantic set.
 - **Don't** let the Xbox button palette leak into dashboard badges, tabs, or any non-gamepad control.
 - **Don't** reach for Fira Code or Fira Sans in new work — both fonts have been fully retired in favor of the DreamBricks IBM Plex Mono / Poppins pair.

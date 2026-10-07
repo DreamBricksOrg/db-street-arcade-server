@@ -244,7 +244,7 @@ Adopted directly from the DreamBricks Design System (`tokens/spacing.css`) — g
 ## 6. Components
 
 ### Where they live
-- `public/css/tokens.css` — the DreamBricks tokens copied verbatim from `docs/design_system/tokens/`, plus the text-on-tint steps (`--db-success-ink`, `--db-warning-ink`, `--db-warning-ink-strong`, `--db-danger-ink`) and short Street Arcade aliases (`--accent`, `--surface`…) kept for older page CSS. New code uses the semantic names (`--surface-*`, `--text-*`, `--border-*`).
+- `public/css/tokens.css` — the DreamBricks tokens copied verbatim from `docs/design_system/tokens/`, plus the text-on-tint steps (`--db-success-ink`, `--db-warning-ink`, `--db-warning-ink-strong`, `--db-danger-ink`). Every page uses the DS semantic names (`--surface-*`, `--text-*`, `--border-*`); the old short aliases (`--accent`, `--text-muted`…) were removed.
 - `public/css/components.css` — the DS React components ported to CSS: `db-btn` (`--primary|--secondary|--ghost|--danger`, `--sm|--lg|--block`), `db-icon-btn` (`--danger`), `db-badge` (`--brand|--success|--warning|--danger`, `--dot`, `--live`), `db-tag`, `db-card` (`--hover`), `db-tabs/db-tab` (+ `db-tab__count`), `[data-tip]` tooltip, `db-callout`, `db-field/db-label/db-hint`, `db-input/db-select/db-textarea`, `db-seg`, `db-switch`, `db-code`, `db-dialog` (native `<dialog>`), `db-toast` (in a `db-toast-stack`); plus `sa-*` player-screen compositions (`sa-screen`, `sa-mark`, `sa-mascot`, `sa-title`, `sa-sub`, `sa-loader`, `sa-actions`) shared by the queue entry and the gamepad.
 - `public/css/dashboard.css` — the operator shell, a port of `docs/design_system/ui_kits/dashboard` (sidebar, top bar, stat cards, totem grid, dialog contents).
 - `public/embed-assets/overlay.{css,js}` — the QR card injected over embedded games. Self-contained (`.dbx` scope with its own few tokens) because the game page doesn't load `tokens.css`.
@@ -264,6 +264,12 @@ Adopted directly from the DreamBricks Design System (`tokens/spacing.css`) — g
 - **Ghost:** transparent, Blue 600 text — inline actions such as "Copiar link", "Abrir em nova aba".
 - **Danger:** outlined (danger text + 35% danger border, `--db-danger-100` wash on hover). Destructive actions always go through the confirm dialog first.
 - **Icon buttons** (`db-icon-btn`): 36px square, ghost, with a `data-tip` tooltip; `--danger` recolors to danger ink on hover.
+
+### Login (`/login`)
+The DS UI kit's login: ink brand panel (on-blue wordmark, "Street Arcade" at `--text-3xl`/800, one sentence in Light, J0Bson + cat at the foot) beside a white form column (password with show/hide icon button, `db-btn--lg --block` primary, `db-callout--danger` for errors). Below 820px the brand panel shrinks to a header strip.
+
+### History dialog
+Per-totem stats (`db-dialog--wide`): a `db-seg` range (24 horas / 7 dias / 30 dias); four KPI tiles on Surface Sunken (Partidas, Espera média, Tempo médio de jogo, Não apareceram); one bar chart. It is a **single series**, so it gets one hue (`--db-blue-700`, ≥3:1 on white; hover deepens to Blue 800), no legend (the section title names it), bars with a rounded top only and a 2px gap, one dashed max gridline labelled in mono, and mono tick labels. Every bar has a hover tooltip, and a `Ver em tabela` disclosure gives the exact numbers. Below the chart are two rank lists ("De onde vieram" with thin Blue 700 bars, "Como terminaram"). The SVG is drawn at the container's real width, never `preserveAspectRatio="none"`.
 
 ### Badges / Tags
 - **Badge:** DS formula — tone-100 fill, tone text, 12px/600 Poppins, pill, no border, optional leading dot (`--dot`) that can pulse (`--live`) for "people are playing right now". Text uses the `*-ink` steps so 12px labels clear 4.5:1.

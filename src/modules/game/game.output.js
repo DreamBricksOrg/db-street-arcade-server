@@ -4,8 +4,12 @@
 //   any other instance → SSE stream of that iframe (InstanceHub)
 // Callers: GameHandler (player_join), TotemQueueService (player_leave),
 // UdpDispatcher (inputs).
+//
+// With Redis, iframe packets go through the `inst:out:{instanceKey}` channel:
+// the SSE stream may live on ANOTHER backend process (the one the iframe
+// connected to), and InstanceHub.listen() delivers it there.
 
-import { isDefaultInstance } from '../../lib/channels.js'
+import { isDefaultInstance, instanceKey } from '../../lib/channels.js'
 import { createLogger } from '../../lib/logger.js'
 
 const log = createLogger('game.output')
@@ -13,11 +17,13 @@ const log = createLogger('game.output')
 export class GameOutput {
   /**
    * @param {{ udpSend?: (ip: string, port: number, msg: string) => Promise<void>,
-   *           hub: import('../instance/instance.hub.js').InstanceHub }} deps
+   *           hub: import('../instance/instance.hub.js').InstanceHub,
+   *           publish?: (channel: string, msg: string) => Promise<unknown> }} deps
    */
-  constructor({ udpSend, hub }) {
+  constructor({ udpSend, hub, publish }) {
     this._udpSend = udpSend ?? null
     this._hub     = hub
+    this._publish = publish ?? null
   }
 
   /**
@@ -26,7 +32,11 @@ export class GameOutput {
    */
   async send(session, packet) {
     if (!isDefaultInstance(session.instanceId)) {
-      this._hub.push(session.totemId, session.instanceId, packet)
+      if (this._publish) {
+        await this._publish(`inst:out:${instanceKey(session.totemId, session.instanceId)}`, JSON.stringify(packet))
+      } else {
+        this._hub.push(session.totemId, session.instanceId, packet)
+      }
       return
     }
 

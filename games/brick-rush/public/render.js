@@ -9,6 +9,21 @@ import { getParticles, brickHover } from './entities.js'
 const CW = W * TILE   // 1280
 const CH = H * TILE   // 704
 
+// Frame type + colors (HUD and phase screens) — DreamBricks Design System:
+// Poppins for words, IBM Plex Mono for numbers/ids, brand blues instead of
+// arcade yellow. The playfield itself (tiles, minifigs, golden brick) keeps
+// its own gameplay palette.
+const FONT_UI   = '"Poppins", system-ui, sans-serif'
+const FONT_DATA = '"IBM Plex Mono", ui-monospace, monospace'
+const FRAME = {
+  title: '#52cdef',                 // --db-blue-300
+  ink:   '#ffffff',
+  muted: '#b9c6cc',                 // ~ --db-slate-300
+  dim:   '#8597a0',                 // ~ --db-slate-400
+  bar:   'rgba(3, 74, 93, 0.78)',   // --db-blue-900 scrim
+  scrim: 'rgba(3, 30, 40, 0.8)',
+}
+
 /** Lighten (+n) or darken (−n) a #rrggbb color. */
 function shade(hex, n) {
   const v = parseInt(hex.slice(1), 16)
@@ -206,31 +221,34 @@ function drawParticles(ctx) {
 function drawHud(ctx, match, now) {
   const theme = match.map?.theme
   // top bar
-  ctx.fillStyle = 'rgba(0,0,0,0.55)'
+  ctx.fillStyle = FRAME.bar
   ctx.fillRect(0, 0, CW, 30)
-  ctx.fillStyle = '#fff'
-  ctx.font = 'bold 16px "Courier New", monospace'
+  ctx.fillStyle = FRAME.ink
+  ctx.font = `600 15px ${FONT_UI}`
   ctx.textAlign = 'left'
-  ctx.fillText(`${theme?.emoji ?? ''} ${theme?.name ?? ''}`, 12, 21)
+  ctx.fillText(theme?.name ?? '', 12, 21)
+  ctx.font = `600 15px ${FONT_DATA}`
   ctx.textAlign = 'center'
-  ctx.fillText(`ROUND ${match.round}/${match.cfg.rounds}`, CW / 2 - 100, 21)
+  ctx.fillText(`Round ${match.round}/${match.cfg.rounds}`, CW / 2 - 100, 21)
   const remain = Math.max(0, Math.ceil((match.roundDeadline - now) / 1000))
-  ctx.fillText(`⏱ ${remain}s`, CW / 2 + 60, 21)
+  ctx.fillStyle = remain <= 10 ? FRAME.title : FRAME.ink
+  ctx.fillText(`${remain}s`, CW / 2 + 60, 21)
+  ctx.fillStyle = FRAME.ink
   ctx.textAlign = 'right'
-  ctx.fillText(`FILA: ${match.queueSize}`, CW - 12, 21)
+  ctx.fillText(`Fila ${match.queueSize}`, CW - 12, 21)
 
   // score panel (left side)
   const sorted = rankedPlayers(match)
   let y = 48
   ctx.textAlign = 'left'
-  ctx.font = 'bold 14px "Courier New", monospace'
+  ctx.font = `600 13px ${FONT_DATA}`
   for (const p of sorted) {
-    ctx.fillStyle = 'rgba(0,0,0,0.45)'
+    ctx.fillStyle = FRAME.bar
     ctx.fillRect(8, y - 14, 180, 20)
     ctx.fillStyle = p.color
     ctx.fillRect(12, y - 10, 12, 12)
-    ctx.fillStyle = p.left ? '#888' : '#fff'
-    const flag = p.finishedAt !== null ? ' ✓' : (p.left ? ' (saiu)' : '')
+    ctx.fillStyle = p.left ? FRAME.dim : FRAME.ink
+    const flag = p.finishedAt !== null ? ' · chegou' : (p.left ? ' (saiu)' : '')
     ctx.fillText(`${p.pid.slice(0, 8)}  ${p.points}pt${flag}`, 30, y)
     y += 24
   }
@@ -243,26 +261,26 @@ export function rankedPlayers(match) {
     a.joinedAt - b.joinedAt)
 }
 
-function centerText(ctx, text, y, size = 42, color = '#fff') {
+function centerText(ctx, text, y, size = 42, color = FRAME.ink, family = FONT_UI) {
   ctx.fillStyle = color
-  ctx.font = `bold ${size}px "Courier New", monospace`
+  ctx.font = `700 ${size}px ${family}`
   ctx.textAlign = 'center'
   ctx.fillText(text, CW / 2, y)
 }
 
 function banner(ctx, text, y) {
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'
+  ctx.fillStyle = FRAME.bar
   ctx.fillRect(0, y, CW, 44)
   centerText(ctx, text, y + 31, 24)
 }
 
 function drawLobby(ctx, match, now) {
-  centerText(ctx, '🧱 BRICK RUSH', CH / 2 - 150, 64, '#f5c518')
-  centerText(ctx, 'Escaneie o QR do totem para entrar!', CH / 2 - 90, 22, '#aaa')
+  centerText(ctx, 'Brick Rush', CH / 2 - 150, 64, FRAME.title)
+  centerText(ctx, 'Escaneie o QR para entrar pelo celular', CH / 2 - 92, 22, FRAME.muted)
 
   const n = match.players.size
   const max = match.maxPlayers || '?'
-  centerText(ctx, `Jogadores: ${n}/${max}`, CH / 2 - 30, 30)
+  centerText(ctx, `${n}/${max} jogadores`, CH / 2 - 30, 30, FRAME.ink, FONT_DATA)
 
   // connected minifigs on display
   let x = CW / 2 - (n - 1) * 40
@@ -273,31 +291,31 @@ function drawLobby(ctx, match, now) {
 
   if (n > 0 && match.lobbyDeadline) {
     const remain = Math.max(0, Math.ceil((match.lobbyDeadline - now) / 1000))
-    centerText(ctx, `Começa em ${remain}s (ou quando encher)`, CH / 2 + 120, 22, '#f5c518')
+    centerText(ctx, `Começa em ${remain}s (ou quando encher)`, CH / 2 + 120, 22, FRAME.title)
   }
   if (match.winStreakPid) {
-    centerText(ctx, `👑 ${match.winStreakPid.slice(0, 8)} defende o título (${match.winStreakCount}x)`, CH / 2 + 160, 18, '#ffd700')
+    centerText(ctx, `${match.winStreakPid.slice(0, 8)} defende o título (${match.winStreakCount}x)`, CH / 2 + 160, 18, FRAME.muted)
   }
-  centerText(ctx, `Fila: ${match.queueSize}`, CH - 40, 18, '#888')
+  centerText(ctx, `Fila: ${match.queueSize}`, CH - 40, 18, FRAME.dim, FONT_DATA)
 }
 
 function drawCountdown(ctx, match, now) {
   const remain = Math.ceil((match.countdownDeadline - now) / 1000)
-  centerText(ctx, String(Math.max(1, remain)), CH / 2, 160, '#f5c518')
+  centerText(ctx, String(Math.max(1, remain)), CH / 2, 160, FRAME.title, FONT_DATA)
   centerText(ctx, `Round 1 — ${match.nextThemeName ?? ''}`, CH / 2 + 80, 26)
 }
 
 function drawRoundEnd(ctx, match, now) {
   drawTiles(ctx, match.map)
-  ctx.fillStyle = 'rgba(0,0,0,0.75)'
+  ctx.fillStyle = FRAME.scrim
   ctx.fillRect(0, 0, CW, CH)
-  centerText(ctx, `FIM DO ROUND ${match.round}`, 150, 44, '#f5c518')
+  centerText(ctx, `Fim do round ${match.round}`, 150, 44, FRAME.title)
   let y = 240
   for (const p of rankedPlayers(match)) {
     ctx.fillStyle = p.color
     ctx.fillRect(CW / 2 - 180, y - 20, 24, 24)
-    ctx.fillStyle = '#fff'
-    ctx.font = 'bold 24px "Courier New", monospace'
+    ctx.fillStyle = FRAME.ink
+    ctx.font = `600 24px ${FONT_DATA}`
     ctx.textAlign = 'left'
     ctx.fillText(`${p.pid.slice(0, 8)}  +${p.roundPoints} → ${p.points} pts`, CW / 2 - 140, y)
     y += 44
@@ -305,15 +323,15 @@ function drawRoundEnd(ctx, match, now) {
 }
 
 function drawMatchEnd(ctx, match, now) {
-  centerText(ctx, '🏆 FIM DE JOGO', 140, 56, '#ffd700')
+  centerText(ctx, 'Fim de jogo', 140, 56, FRAME.title)
   const ranked = rankedPlayers(match)
-  const medals = ['🥇', '🥈', '🥉']
+  const medals = ['1º', '2º', '3º']
   let y = 260
   ranked.forEach((p, i) => {
     ctx.fillStyle = p.color
     ctx.fillRect(CW / 2 - 200, y - 24, 28, 28)
-    ctx.fillStyle = '#fff'
-    ctx.font = `bold ${i === 0 ? 34 : 26}px "Courier New", monospace`
+    ctx.fillStyle = FRAME.ink
+    ctx.font = `${i === 0 ? 700 : 600} ${i === 0 ? 34 : 26}px ${FONT_DATA}`
     ctx.textAlign = 'left'
     ctx.fillText(`${medals[i] ?? '  '} ${p.pid.slice(0, 8)} — ${p.points} pts`, CW / 2 - 160, y)
     y += 54
@@ -321,6 +339,6 @@ function drawMatchEnd(ctx, match, now) {
 }
 
 function drawRotation(ctx, match, now) {
-  centerText(ctx, '🔄 Girando a fila…', CH / 2 - 20, 40, '#f5c518')
-  centerText(ctx, 'Eliminados voltam pela fila. Vencedor permanece!', CH / 2 + 30, 20, '#aaa')
+  centerText(ctx, 'Girando a fila…', CH / 2 - 20, 40, FRAME.title)
+  centerText(ctx, 'Eliminados voltam pela fila. O vencedor fica.', CH / 2 + 30, 20, FRAME.muted)
 }

@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0b2530" />
-  <title>🧱 Brick Rush — Street Arcade</title>
+  <title>Brick Rush — Street Arcade</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     /* Frame only — the canvas's own rendering (render.js) is the game itself
        and is untouched. Background is the deep ink-blue step of the
@@ -16,8 +16,8 @@
        frame to the brand — a colored box-shadow glow on a dark bg is
        exactly the "gamer/cyberpunk" look PRODUCT.md rules out.
        See /DESIGN.md at the repo root and
-       /design-system/dreambricks-manager/DreamBricks-Design-System for the
-       shared token set. */
+       docs/design_system for the shared token set. HUD and phase-screen
+       text (render.js FRAME) use the same Poppins / IBM Plex Mono pair. */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       height: 100%;
@@ -34,7 +34,6 @@
       aspect-ratio: 1280 / 704;
       image-rendering: pixelated;
       border: 1px solid oklch(from #42b0d5 l c h / 0.3); /* DreamBricks Blue, faint */
-      box-shadow: 0 0 60px oklch(0.16 0.028 230 / 0.8);
       border-radius: 6px;
     }
   </style>

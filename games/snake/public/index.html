@@ -12,20 +12,20 @@
 <body>
 
   <header>
-    <h1>Arcade Snake</h1>
-    <p>Escaneie o QR Code no Totem com seu celular.</p>
+    <h1><img src="assets/dreambricks-mark-blue.svg" alt="" width="44" height="26" />Arcade Snake</h1>
+    <p>Escaneie o QR Code com o celular para entrar.</p>
   </header>
 
   <main>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     
     <div id="sidePanel">
-      <h2>Scoreboard</h2>
+      <h2>Placar</h2>
       <ul id="scoreList"></ul>
 
       <div id="debugPanel">
-        <h2 class="debug-heading">Debug Log</h2>
-        <div id="connStatus" class="conn-status conn-status--connecting">🟡 Conectando SSE...</div>
+        <h2 class="debug-heading">Log de debug</h2>
+        <div id="connStatus" class="conn-status conn-status--connecting">Conectando…</div>
         <div id="debugLog"></div>
       </div>
     </div>

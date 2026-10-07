@@ -4,13 +4,15 @@
    demo. Only the UI chrome below uses these; the game canvas itself
    (game.js draw()) keeps its own gameplay palette untouched.
    Built on the DreamBricks Design System base tokens (colors/type/spacing) —
-   see /design-system/dreambricks-manager/DreamBricks-Design-System. */
+   see docs/design_system. */
 :root {
   --bg:         oklch(0.97 0.006 230);
   --surface:    #ffffff;
   --surface2:   oklch(0.94 0.010 230);
   --border:     oklch(0.89 0.014 230);
   --accent:     #42b0d5;
+  --accent-text: oklch(from #42b0d5 calc(l - 0.18) c h); /* --db-blue-700 */
+  --ink:        #034a5d;
   --text:       oklch(0.16 0.028 230);
   --text-muted: oklch(0.52 0.022 230);
   --success:    oklch(0.62 0.14 155);
@@ -42,12 +44,16 @@ header {
 }
 
 header h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: 26px;
-  font-family: var(--font-mono);
   font-weight: 700;
-  letter-spacing: -0.5px;
-  color: var(--accent);
+  letter-spacing: -0.02em;
+  color: var(--ink);
 }
+
+header h1 img { width: 44px; height: auto; }
 
 header p {
   color: var(--text-muted);
@@ -80,8 +86,12 @@ canvas {
 }
 
 #sidePanel h2 {
-  font-size: 18px;
+  font-size: 13px;
   font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
   margin-bottom: 15px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
@@ -103,7 +113,8 @@ canvas {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-weight: 600;
   background: var(--surface2);
   border: 1px solid var(--border);
   padding: 8px 12px;
@@ -123,12 +134,16 @@ canvas {
    queue-panel convention, with the same semantic colors used for connection
    state everywhere else in the system (Success Emerald / Danger Red). */
 .conn-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
   font-family: var(--font-mono);
 }
 
-.conn-status--connecting { color: var(--waiting); }
+.conn-status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.conn-status--connecting { color: #8a5a00; } /* DS warning text-on-tint */
 .conn-status--connected  { color: var(--success); }
 .conn-status--error      { color: var(--danger); }
 
@@ -147,4 +162,4 @@ canvas {
 
 .debug-log-line { margin-bottom: 4px; }
 .debug-log-time  { color: var(--text-muted); }
-.debug-log-value { color: var(--accent); }
+.debug-log-value { color: var(--accent-text); }

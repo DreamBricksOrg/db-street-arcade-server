@@ -20,8 +20,7 @@ const $errorTitle = document.getElementById('error-title')
 const $errorActs  = document.getElementById('error-actions')
 const $play       = document.getElementById('play-screen')
 const $sidLabel   = document.getElementById('sid-label')
-const $connDot    = document.getElementById('conn-dot')
-const $statusText = document.getElementById('conn-status-text')
+const $conn       = document.getElementById('conn')
 
 // ── Extract sessionId from URL ────────────────────────────────────────────────
 const sessionId = location.pathname.split('/play/')[1]?.trim()
@@ -131,8 +130,8 @@ async function boot(sid) {
 // ── Visual state helpers ──────────────────────────────────────────────────────
 
 function setConnected(connected) {
-  $connDot.className  = 'status-dot ' + (connected ? 'connected' : 'error')
-  if ($statusText) $statusText.textContent = connected ? 'Online' : 'Reconectando…'
+  $conn.className   = 'db-badge db-badge--dot ' + (connected ? 'db-badge--success' : 'db-badge--warning db-badge--live')
+  $conn.textContent = connected ? 'Conectado' : 'Reconectando…'
 }
 
 function showError(msg, title = 'Não deu para conectar') {

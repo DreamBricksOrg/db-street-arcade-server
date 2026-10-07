@@ -39,7 +39,23 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:9000/config)",
       "Bash(curl -s http://localhost:9000/config)",
       "Bash(node --check games/snake/server.js)",
-      "Bash(node --check games/snake/public/game.js)"
+      "Bash(node --check games/snake/public/game.js)",
+      "Bash(mkdir -p \"c:/Users/db/Documents/db/prj/dreambricks/gyro-cursor-demo/public\" \"c:/Users/db/Documents/db/prj/dreambricks/gyro-cursor-demo/certs\")",
+      "Bash(npm install *)",
+      "Read(//c/Users/db/Documents/db/prj/dreambricks/gyro-cursor-demo/**)",
+      "Bash(curl -sk https://localhost:3443/info)",
+      "Bash(curl -sk -o /dev/null -w \"display: %{http_code}\\\\n\" https://localhost:3443/)",
+      "Bash(curl -sk -o /dev/null -w \"controller: %{http_code}\\\\n\" https://localhost:3443/control)",
+      "Bash(node \"C:/Users/db/AppData/Local/Temp/claude/c--Users-db-Documents-db-prj-dreambricks-db-street-arcade-backend/2692ede6-967e-47c1-9bf3-d12cd6c62727/scratchpad/ws-test.mjs\")",
+      "Bash(cp \"C:/Users/db/AppData/Local/Temp/claude/c--Users-db-Documents-db-prj-dreambricks-db-street-arcade-backend/2692ede6-967e-47c1-9bf3-d12cd6c62727/scratchpad/ws-test.mjs\" ./ws-test.mjs)",
+      "Bash(node ws-test.mjs)",
+      "Bash(rm ws-test.mjs)",
+      "Bash(taskkill //F //IM node.exe //FI \"WINDOWTITLE ne db-street*\")",
+      "Bash(timeout 6 node agent.js)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\db\\Documents\\db\\prj\\dreambricks\\gyro-cursor-demo",
+      "c:\\Users\\db\\Documents\\db\\prj\\dreambricks\\gyro-cursor-demo\\public"
     ]
   },
   "hooks": {

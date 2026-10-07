@@ -228,8 +228,10 @@ export class TotemQueueService {
         metadata = raw ? JSON.parse(raw) : null
       } catch { /* metadata is best-effort */ }
 
-      await this._redis.del(this._hbKey(playerId))
-      const session = await this._createReserved(totem, instanceId, playerId, metadata)
+      const joined = await this._redis.get(this._jKey(playerId))
+      await this._redis.del(this._hbKey(playerId), this._jKey(playerId))
+      const queuedAt = joined ? new Date(Number(joined)) : null
+      const session = await this._createReserved(totem, instanceId, playerId, metadata, queuedAt)
       advanced++
       log.info({ totemId, instanceId, playerId, sessionId: session._id }, 'Queue advanced — slot reserved')
     }
@@ -350,6 +352,7 @@ export class TotemQueueService {
 
   _hbKey(playerId) { return `queue:heartbeat:${playerId}` }
   _mKey(playerId)  { return `player:metadata:${playerId}` }
+  _jKey(playerId)  { return `queue:joined:${playerId}` }
 
   /** Web instances must still be open (or within their grace period). */
   async _checkInstance(totemId, instanceId) {
@@ -372,12 +375,17 @@ export class TotemQueueService {
     if (pos !== null) return pos + 1
 
     await this._redis.rpush(key, playerId)
+    // When they joined — becomes session.queuedAt (wait-time stats).
+    await this._redis.set(this._jKey(playerId), String(Date.now()), 'EX', 6 * 3600)
     await this._publishQueueEvent(totemId, instanceId)
     return this._redis.llen(key)
   }
 
-  async _createReserved(totem, instanceId, playerId, metadata) {
+  async _createReserved(totem, instanceId, playerId, metadata, queuedAt = null) {
     const totemId = totem._id.toString()
+    const site = !isDefaultInstance(instanceId) && this._redis
+      ? await this._redis.get(`inst:site:${instanceKey(totemId, instanceId)}`).catch(() => null)
+      : null
     const session = await this.repo.create({
       totemId,
       instanceId,
@@ -389,6 +397,8 @@ export class TotemQueueService {
       metadata,
       reserveMs: env.queueReserveMs,
       playMs:    totem.sessionDurationMs ?? env.sessionTimeoutMs,
+      queuedAt,
+      site,
     })
     await this.cache.set(session)
     await this._publishQueueEvent(totemId, instanceId)

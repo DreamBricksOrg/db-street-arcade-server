@@ -21,6 +21,7 @@ import crypto from 'node:crypto'
 import { env } from '../../config/env.js'
 import { gamePublicDir } from '../../lib/games.js'
 import { createLogger }  from '../../lib/logger.js'
+import { instanceKey }   from '../../lib/channels.js'
 
 const log = createLogger('embed.routes')
 
@@ -34,6 +35,20 @@ const instParams = {
   type: 'object',
   properties: { totemId: totemParam, instanceId: instParam },
   required: ['totemId', 'instanceId'],
+}
+
+/**
+ * Site that embedded the iframe: the Referer of the iframe's own navigation
+ * (browsers send the parent's origin cross-site). Our own host = the
+ * dashboard's preview.
+ */
+function embeddingSite(request) {
+  try {
+    const ref = new URL(request.headers.referer)
+    return ref.host === request.headers.host ? 'preview' : ref.origin
+  } catch {
+    return null
+  }
 }
 
 /** Visitor IP. X-Forwarded-For is only trusted behind a known proxy. */
@@ -103,6 +118,14 @@ export default async function embedRoutes(fastify) {
     if (!totem) return reply
     if (!instances.validId(request.params.instanceId)) {
       return reply.status(400).send({ error: 'Invalid instance id' })
+    }
+
+    // Remember where this instance is embedded (stats: plays per site).
+    const site = embeddingSite(request)
+    if (site && fastify.redisPublisher) {
+      fastify.redisPublisher
+        .set(`inst:site:${instanceKey(totem._id, request.params.instanceId)}`, site, 'EX', 86_400)
+        .catch(() => {})
     }
 
     const html = await fs.readFile(path.join(gamePublicDir(env.gamesDir, totem.game), 'index.html'), 'utf8')

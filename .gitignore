@@ -4,3 +4,8 @@ node_modules/
 .opencode
 opencode.json
 .gemini
+
+# Local tooling / OS noise
+.agent/
+*_out.txt
+desktop.ini

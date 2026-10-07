@@ -14,6 +14,8 @@ import { createLogger }      from '../../lib/logger.js'
 import { env }               from '../../config/env.js'
 import { createRateLimiter } from '../../lib/rateLimit.js'
 import { listGames }         from '../../lib/games.js'
+import { computeStats, RANGES } from '../../lib/stats.js'
+import { SessionRepository } from '../session/session.repository.js'
 import { instanceKey, normalizeInstance, isDefaultInstance } from '../../lib/channels.js'
 
 const log = createLogger('totem.routes')
@@ -464,6 +466,32 @@ async function totemRoutes(fastify) {
     const result = await queue.endAllForInstance(id, inst, 'manual')
     log.info({ totemId: id, instanceId: inst, endedCount: result.endedCount }, 'All sessions ended (operator reset)')
     return { ok: true, endedCount: result.endedCount }
+  })
+
+  // ── History ────────────────────────────────────────────────────────────────
+  const sessionsRepo = new SessionRepository(fastify.mongo)
+
+  fastify.get('/api/totems/:id/stats', {
+    config: OPERATOR,
+    schema: {
+      tags: ['Totems'], summary: 'Plays, wait, play time, no-shows and plays per site over a period',
+      params: totemIdParam,
+      querystring: {
+        type: 'object',
+        properties: {
+          range: { type: 'string', enum: Object.keys(RANGES) },
+          tz:    { type: 'integer', minimum: -840, maximum: 840 },  // Date#getTimezoneOffset() of the viewer
+        },
+      },
+      response: { 404: errorResponse },
+    },
+  }, async (request, reply) => {
+    const totem = await service.findTotem(request.params.id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+    const range = request.query.range ?? '24h'
+    const now = Date.now()
+    const docs = await sessionsRepo.listForStats(request.params.id, new Date(now - RANGES[range].ms))
+    return computeStats(docs, { range, now, tzOffsetMin: request.query.tz ?? 0 })
   })
 
   // ── Totem key (game → backend auth) ────────────────────────────────────────

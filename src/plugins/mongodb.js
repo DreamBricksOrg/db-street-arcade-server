@@ -50,6 +50,9 @@ async function ensureIndexes(db) {
     { name: 'sessions_totem_instance_status' },
   )
 
+  // Per-totem history (GET /api/totems/:id/stats)
+  await sessions.createIndex({ totemId: 1, createdAt: -1 }, { name: 'sessions_totem_created' })
+
   log.debug('Indexes verified')
 }
 

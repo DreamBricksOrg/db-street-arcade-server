@@ -275,6 +275,7 @@ function buildTotemCard(totem) {
         <button class="db-btn db-btn--secondary db-btn--sm" type="button" data-action="queue">${icon('list')}Fila</button>
       </div>
       <div class="totem__tools">
+        <button class="db-icon-btn" type="button" data-action="stats" data-tip="Histórico" aria-label="Histórico de ${name}"><svg><use href="#i-chart"/></svg></button>
         <button class="db-icon-btn" type="button" data-action="edit" data-tip="Editar" aria-label="Editar ${name}"><svg><use href="#i-edit"/></svg></button>
         <button class="db-icon-btn" type="button" data-action="clear" data-tip="Limpar fila" aria-label="Limpar fila de ${name}"><svg><use href="#i-eraser"/></svg></button>
         <button class="db-icon-btn db-icon-btn--danger" type="button" data-action="delete" data-tip="Excluir" aria-label="Excluir ${name}"><svg><use href="#i-trash"/></svg></button>
@@ -284,6 +285,7 @@ function buildTotemCard(totem) {
   const actions = {
     'embed':     () => openEmbedDialog(totem),
     'queue':     () => openQueueDialog(totem),
+    'stats':     () => openStatsDialog(totem),
     'qr':        () => openQrDialog(totem),
     'edit':      () => startEdit(totem),
     'clear':     () => clearTotemQueue(totem),
@@ -760,6 +762,176 @@ totemForm.addEventListener('submit', async (e) => {
     btnSaveTotem.disabled = false
   }
 })
+
+// ── History (per-totem stats) ─────────────────────────────────────────────────
+// One series (plays per hour/day) → one hue, no legend; the title names it.
+// Bars: --db-blue-700 (≥3:1 on white), rounded top, 2px gap, per-bar tooltip,
+// and a table view for screen readers / exact numbers.
+
+const statsDialog = $('statsDialog')
+const statsBody   = $('stats-body')
+let statsTotem    = null
+
+const REASON_LABEL = {
+  died: 'Morreu no jogo', timeout: 'Tempo acabou', kicked: 'Expulso pelo operador',
+  manual: 'Encerrada pelo operador', no_show: 'Chamado e não apareceu', instance_closed: 'Site fechado',
+}
+const siteLabel = (s) => s === 'totem' ? 'Totem físico'
+  : s === 'preview' ? 'Prévia do painel'
+  : s === 'unknown' ? 'Origem desconhecida'
+  : s.replace(/^https?:\/\//, '')
+
+function fmtDuration(ms) {
+  if (ms == null) return '—'
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s} s`
+  const m = Math.round(s / 60)
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`
+}
+
+function bucketLabel(t, bucketMs, { long = false } = {}) {
+  const d = new Date(t)
+  if (bucketMs < 86_400_000) {
+    const h = d.getHours()
+    return long ? `${String(h).padStart(2, '0')}h–${String((h + 1) % 24).padStart(2, '0')}h` : `${String(h).padStart(2, '0')}h`
+  }
+  return d.toLocaleDateString('pt-BR', long ? { weekday: 'short', day: '2-digit', month: '2-digit' } : { day: '2-digit', month: '2-digit' })
+}
+
+function barsSvg(stats) {
+  const { buckets, bucketMs } = stats
+  const max = Math.max(1, ...buckets.map(b => b.plays))
+  // Drawn at the container's real width: no stretched labels or corners.
+  const W = Math.max(280, Math.round(statsBody.clientWidth || 640)), H = 180, top = 18, bottom = 22, gap = 2
+  const step = W / buckets.length
+  const bw = Math.max(2, step - gap)
+  const y = (v) => top + (H - top - bottom) * (1 - v / max)
+  const base = H - bottom
+  const tickEvery = Math.ceil(buckets.length / Math.max(3, Math.floor(W / 64)))
+
+  const bars = buckets.map((b, i) => {
+    const x = i * step + gap / 2
+    const h = base - y(b.plays)
+    const r = Math.min(4, bw / 2, h)
+    const path = b.plays
+      ? `M${x},${base}V${base - h + r}Q${x},${base - h} ${x + r},${base - h}H${x + bw - r}Q${x + bw},${base - h} ${x + bw},${base - h + r}V${base}Z`
+      : ''
+    const tip = `${bucketLabel(b.t, bucketMs, { long: true })} · ${b.plays} ${b.plays === 1 ? 'partida' : 'partidas'}`
+    const tick = i % tickEvery === 0
+      ? `<text class="chart__tick" x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${bucketLabel(b.t, bucketMs)}</text>` : ''
+    return `<g class="chart__col" data-tip-text="${escHtml(tip)}">
+        <rect class="chart__hit" x="${i * step}" y="0" width="${step}" height="${base}"></rect>
+        ${path ? `<path class="chart__bar" d="${path}"></path>` : ''}
+        ${tick}
+      </g>`
+  }).join('')
+
+  return `
+    <div class="chart">
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Partidas por ${bucketMs < 86_400_000 ? 'hora' : 'dia'}, máximo de ${max}">
+        <line class="chart__grid" x1="0" x2="${W}" y1="${top}" y2="${top}"></line>
+        <text class="chart__max" x="2" y="${top - 5}">${max}</text>
+        <line class="chart__base" x1="0" x2="${W}" y1="${base}" y2="${base}"></line>
+        ${bars}
+      </svg>
+      <div class="chart__tip" hidden></div>
+    </div>`
+}
+
+function renderHistory(s) {
+  const plays = s.totals.plays
+  const per = s.bucketMs < 86_400_000 ? 'hora' : 'dia'
+  const tiles = `
+    <div class="kpis">
+      <div class="kpi"><p class="kpi__label">Partidas</p><p class="kpi__value">${plays}</p>
+        <p class="kpi__sub">${s.totals.sessions} chamadas no período</p></div>
+      <div class="kpi"><p class="kpi__label">Espera média na fila</p><p class="kpi__value">${fmtDuration(s.avgWaitMs)}</p>
+        <p class="kpi__sub">${s.totals.waited} de ${plays} esperaram</p></div>
+      <div class="kpi"><p class="kpi__label">Tempo médio de jogo</p><p class="kpi__value">${fmtDuration(s.avgPlayMs)}</p>
+        <p class="kpi__sub">do celular conectar ao fim</p></div>
+      <div class="kpi"><p class="kpi__label">Não apareceram</p><p class="kpi__value">${Math.round(s.noShowRate * 100)}%</p>
+        <p class="kpi__sub">${s.totals.noShow} chamados sem conectar</p></div>
+    </div>`
+
+  if (!s.totals.sessions) {
+    statsBody.innerHTML = `${tiles}<p class="q-empty" style="margin-top:16px">Nenhuma partida neste período.</p>`
+    return
+  }
+
+  const maxSite = Math.max(1, ...s.bySite.map(x => x.plays))
+  const sites = s.bySite.map(x => `
+    <li class="rank__row">
+      <span class="rank__name" title="${escHtml(x.site)}">${escHtml(siteLabel(x.site))}</span>
+      <span class="rank__bar"><span style="width:${(x.plays / maxSite) * 100}%"></span></span>
+      <span class="rank__n">${x.plays}</span>
+    </li>`).join('')
+
+  const reasons = Object.entries(s.endReasons).sort((a, b) => b[1] - a[1]).map(([k, n]) => `
+    <li class="rank__row rank__row--plain">
+      <span class="rank__name">${escHtml(REASON_LABEL[k] ?? k)}</span><span class="rank__n">${n}</span>
+    </li>`).join('')
+
+  const table = s.buckets.filter(b => b.plays).map(b =>
+    `<tr><td>${bucketLabel(b.t, s.bucketMs, { long: true })}</td><td>${b.plays}</td></tr>`).join('')
+
+  statsBody.innerHTML = `
+    ${tiles}
+    <section class="stats-sec">
+      <h3 class="stats-sec__title">Partidas por ${per}</h3>
+      ${barsSvg(s)}
+      <details class="stats-table">
+        <summary>Ver em tabela</summary>
+        <table><thead><tr><th>${per === 'hora' ? 'Hora' : 'Dia'}</th><th>Partidas</th></tr></thead><tbody>${table || '<tr><td colspan="2">Sem partidas</td></tr>'}</tbody></table>
+      </details>
+    </section>
+    <div class="stats-cols">
+      <section class="stats-sec"><h3 class="stats-sec__title">De onde vieram</h3><ul class="rank">${sites || '<li class="rank__row">—</li>'}</ul></section>
+      <section class="stats-sec"><h3 class="stats-sec__title">Como terminaram</h3><ul class="rank">${reasons}</ul></section>
+    </div>`
+
+  // Per-bar tooltip (hover + keyboard via the table above for exact values)
+  const chart = statsBody.querySelector('.chart')
+  const tip = chart.querySelector('.chart__tip')
+  chart.addEventListener('pointermove', (e) => {
+    const col = e.target.closest('.chart__col')
+    if (!col) { tip.hidden = true; return }
+    const box = chart.getBoundingClientRect()
+    tip.textContent = col.dataset.tipText
+    tip.hidden = false
+    tip.style.left = `${Math.min(Math.max(e.clientX - box.left, 60), box.width - 60)}px`
+    for (const c of chart.querySelectorAll('.chart__col.is-hot')) c.classList.remove('is-hot')
+    col.classList.add('is-hot')
+  })
+  chart.addEventListener('pointerleave', () => {
+    tip.hidden = true
+    for (const c of chart.querySelectorAll('.chart__col.is-hot')) c.classList.remove('is-hot')
+  })
+}
+
+async function loadStats() {
+  if (!statsTotem) return
+  const range = statsDialog.querySelector('input[name="stats-range"]:checked')?.value ?? '24h'
+  statsBody.setAttribute('aria-busy', 'true')
+  try {
+    const s = await apiFetch(`${API}/${statsTotem._id}/stats?range=${range}&tz=${new Date().getTimezoneOffset()}`)
+    renderHistory(s)
+  } catch (err) {
+    statsBody.innerHTML = `<div class="db-callout db-callout--danger">${icon('alert')}<span>Não deu para carregar o histórico: ${escHtml(err.message)}</span></div>`
+  } finally {
+    statsBody.removeAttribute('aria-busy')
+  }
+}
+
+function openStatsDialog(totem) {
+  statsTotem = totem
+  $('stats-totem-name').textContent = totem.name
+  statsBody.innerHTML = '<p class="q-empty">Carregando…</p>'
+  statsDialog.showModal()
+  loadStats()
+}
+
+statsDialog.querySelectorAll('input[name="stats-range"]').forEach(r => r.addEventListener('change', loadStats))
+statsDialog.addEventListener('close', () => { statsTotem = null })
 
 // ── Totem key (physical game → backend) ───────────────────────────────────────
 

@@ -149,7 +149,19 @@ await scenario('queue-state público do iframe não expõe IP, navegador nem id 
   assert.doesNotMatch(qs.text, /metadata|user-agent|"ip"/i)
 })
 
-// ── 7. Logout ────────────────────────────────────────────────────────────────
+// ── 7. History ───────────────────────────────────────────────────────────────
+await scenario('histórico: só operador; conta partidas e motivos de fim', async () => {
+  const tid = created[1] // totem do cenário 4: 1 morte + reset
+  assert.equal((await j('GET', `/api/totems/${tid}/stats`)).status, 401)
+  const s = await j('GET', `/api/totems/${tid}/stats?range=24h&tz=180`, null, { cookie })
+  assert.equal(s.status, 200, s.text)
+  assert.equal(s.body.buckets.length, 24)
+  assert.ok(s.body.totals.sessions >= 1)
+  assert.ok(s.body.endReasons.died >= 1, 'morte contada')
+  assert.equal((await j('GET', `/api/totems/${tid}/stats?range=1y`, null, { cookie })).status, 400)
+})
+
+// ── 8. Logout ────────────────────────────────────────────────────────────────
 await scenario('logout apaga o cookie', async () => {
   const out = await j('POST', '/api/auth/logout', null, { cookie })
   assert.match(out.headers.get('set-cookie') ?? '', /Max-Age=0/)

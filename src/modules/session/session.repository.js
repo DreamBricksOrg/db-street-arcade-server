@@ -31,7 +31,7 @@ export class SessionRepository {
    * @param {{ totemId: string, instanceId?: string, playerId: string, totems: Array<{id, ip, udpPort}>,
    *           metadata?: object|null, reserveMs: number, playMs: number }} data
    */
-  async create({ totemId, instanceId, playerId, totems, metadata = null, reserveMs, playMs }) {
+  async create({ totemId, instanceId, playerId, totems, metadata = null, reserveMs, playMs, queuedAt = null, site = null }) {
     const now = new Date()
     const session = {
       _id:            uuidv4(),
@@ -42,6 +42,9 @@ export class SessionRepository {
       totems,
       metadata,
       gameDurationMs: playMs,
+      queuedAt,                     // joined the waiting list (null = played straight away)
+      site,                         // embedding site's origin (web instances, for stats)
+      startedAt:      null,         // phone connected (reserved → active)
       createdAt:      now,
       reservedUntil:  new Date(now.getTime() + reserveMs),
       expiresAt:      new Date(now.getTime() + reserveMs + playMs),
@@ -51,6 +54,14 @@ export class SessionRepository {
     await this.col.insertOne(session)
     log.debug({ sessionId: session._id, totemId, instanceId: session.instanceId, playerId }, 'Session created (reserved)')
     return session
+  }
+
+  /** Sessions of a totem created since `since` — light projection for stats. */
+  async listForStats(totemId, since, limit = 100_000) {
+    return this.col.find(
+      { totemId, createdAt: { $gte: since } },
+      { projection: { instanceId: 1, status: 1, createdAt: 1, queuedAt: 1, startedAt: 1, endedAt: 1, endReason: 1, site: 1 }, limit },
+    ).toArray()
   }
 
   async findById(id) {
@@ -94,7 +105,7 @@ export class SessionRepository {
     if (!doc || doc.status !== 'reserved') return null
     return this.col.findOneAndUpdate(
       { _id: id, status: 'reserved' },
-      { $set: { status: 'active', expiresAt: new Date(Date.now() + doc.gameDurationMs) } },
+      { $set: { status: 'active', startedAt: new Date(), expiresAt: new Date(Date.now() + doc.gameDurationMs) } },
       { returnDocument: 'after' },
     )
   }

@@ -59,22 +59,30 @@
 .db-btn--block { width: 100%; }
 
 /* ── Badge / Tag ────────────────────────────────────────────────────────────── */
+/* DS Badge: tone-100 fill, tone text, optional leading dot. Text tones sit one
+   step darker than the DS source (success/danger 500 on their 100 tint read
+   ~3:1 at 12px), same hue. */
 .db-badge {
-  --badge-c: var(--text-secondary);
+  --badge-fg: var(--db-slate-600);
+  --badge-bg: var(--db-slate-100);
   display: inline-flex; align-items: center; gap: 6px;
-  height: 24px; padding: 0 10px;
-  font: var(--weight-semibold) 11px/1 var(--font-body);
-  color: var(--badge-c);
-  background: oklch(from var(--badge-c) l c h / 0.1);
-  border: 1px solid oklch(from var(--badge-c) l c h / 0.25);
+  padding: 3px 10px;
+  font: var(--weight-semibold) var(--text-xs)/1.4 var(--font-body);
+  color: var(--badge-fg); background: var(--badge-bg);
   border-radius: var(--radius-pill);
   white-space: nowrap;
 }
 .db-badge svg { width: 12px; height: 12px; }
-.db-badge--brand   { --badge-c: var(--db-blue-700); }
-.db-badge--success { --badge-c: oklch(0.48 0.13 155); }
-.db-badge--warning { --badge-c: oklch(0.52 0.12 70); }
-.db-badge--danger  { --badge-c: var(--db-danger-500); }
+.db-badge--dot::before {
+  content: ''; width: 6px; height: 6px; flex: none;
+  border-radius: 50%; background: currentColor;
+}
+.db-badge--live::before { animation: db-pulse 2s ease-in-out infinite; }
+@keyframes db-pulse { 50% { opacity: 0.35; transform: scale(0.8); } }
+.db-badge--brand   { --badge-fg: var(--db-blue-700);       --badge-bg: var(--db-blue-50); }
+.db-badge--success { --badge-fg: var(--db-success-ink);    --badge-bg: var(--db-success-100); }
+.db-badge--warning { --badge-fg: var(--db-warning-ink); --badge-bg: var(--db-warning-100); }
+.db-badge--danger  { --badge-fg: var(--db-danger-ink); --badge-bg: var(--db-danger-100); }
 
 .db-tag {
   display: inline-flex; align-items: center; gap: 4px;
@@ -186,18 +194,92 @@
 .db-icon-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 .db-icon-btn svg { width: 18px; height: 18px; }
 
-/* ── Toast ──────────────────────────────────────────────────────────────────── */
-.db-toast {
-  position: fixed; left: 50%; bottom: var(--space-6); z-index: 2000;
-  display: flex; align-items: center; gap: var(--space-2);
-  padding: 10px 16px;
-  font: var(--weight-medium) var(--text-sm)/1.3 var(--font-body);
-  color: var(--db-white); background: var(--db-slate-900);
-  border-radius: var(--radius-pill); box-shadow: var(--shadow-lg);
-  transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
-  transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out);
+/* ── Card ───────────────────────────────────────────────────────────────────── */
+.db-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
 }
-.db-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+.db-card--hover:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.db-card__title { font: var(--weight-bold) 15px/1.3 var(--font-body); color: var(--text-primary); }
+
+/* ── Tabs (underline, optional count pill) ──────────────────────────────────── */
+.db-tabs { display: flex; gap: var(--space-5); border-bottom: 1px solid var(--border-subtle); }
+.db-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-bottom: -1px; padding: 10px 4px;
+  font: var(--weight-medium) var(--text-sm)/1.2 var(--font-body);
+  color: var(--text-secondary); background: transparent;
+  border: none; border-bottom: 2px solid transparent; cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.db-tab:hover { color: var(--text-primary); }
+.db-tab[aria-selected="true"] { font-weight: var(--weight-semibold); color: var(--db-blue-700); border-bottom-color: var(--db-blue-500); }
+.db-tab:focus-visible { outline: none; box-shadow: var(--shadow-focus); border-radius: var(--radius-sm); }
+.db-tab__count {
+  padding: 1px 7px; border-radius: var(--radius-pill);
+  font: var(--weight-semibold) 11px/1.4 var(--font-mono);
+  color: var(--text-tertiary); background: var(--db-slate-100);
+}
+.db-tab[aria-selected="true"] .db-tab__count { color: var(--db-blue-700); background: var(--db-blue-50); }
+
+/* ── Tooltip — [data-tip] on any trigger; shows on hover and keyboard focus ── */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 6px); left: 50%; z-index: 1000;
+  padding: 5px 9px; white-space: nowrap; pointer-events: none;
+  font: var(--weight-medium) var(--text-xs)/1.3 var(--font-body);
+  color: var(--db-white); background: var(--db-slate-900);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+  transform: translateX(-50%);
+  display: none; /* not just invisible: a hidden tip must not widen the page */
+}
+@media (hover: hover) {
+  [data-tip]:hover::after { display: block; animation: db-tip-in var(--duration-fast) var(--ease-out); }
+}
+[data-tip]:focus-visible::after { display: block; }
+@keyframes db-tip-in { from { opacity: 0; transform: translate(-50%, 4px); } }
+
+/* ── Callout (inline message inside a card or dialog) ───────────────────────── */
+.db-callout {
+  display: flex; gap: var(--space-3); align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm); line-height: 1.45;
+  border-radius: var(--radius-md);
+}
+.db-callout svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+.db-callout--danger  { color: var(--db-danger-ink); background: var(--db-danger-100); }
+.db-callout--warning { color: var(--db-warning-ink-strong); background: var(--db-warning-100); }
+
+/* ── Toast (DS: white card, tone edge, title + message) ─────────────────────── */
+.db-toast-stack {
+  position: fixed; right: var(--space-6); bottom: var(--space-6); z-index: 2000;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  width: min(340px, calc(100vw - 32px));
+}
+.db-toast {
+  --toast-c: var(--db-blue-500);
+  display: flex; gap: var(--space-3); align-items: flex-start;
+  padding: var(--space-4);
+  font-family: var(--font-body);
+  background: var(--surface-card);
+  border-left: 3px solid var(--toast-c); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: db-toast-in var(--duration-slow) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.db-toast.is-leaving { opacity: 0; transform: translateY(8px); transition: opacity var(--duration-base), transform var(--duration-base); }
+@keyframes db-toast-in { from { opacity: 0; transform: translateY(12px); } }
+.db-toast--success { --toast-c: var(--db-success-500); }
+.db-toast--warning { --toast-c: var(--db-warning-500); }
+.db-toast--danger  { --toast-c: var(--db-danger-500); }
+.db-toast__body { flex: 1; min-width: 0; }
+.db-toast__title { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-primary); }
+.db-toast__msg { margin-top: 2px; font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
+.db-toast .db-icon-btn { width: 24px; height: 24px; margin: -2px -4px 0 0; color: var(--text-tertiary); }
+.db-toast .db-icon-btn svg { width: 14px; height: 14px; }
 
 /* ── Player screens (totem-entry + play) ────────────────────────────────────── */
 .sa-screen {
@@ -237,6 +319,7 @@
 @keyframes sa-loader { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .sa-mark, .sa-mascot, .db-dialog[open] { animation: none; }
+  .sa-mark, .sa-mascot, .db-dialog[open], .db-toast, .db-badge--live::before { animation: none; }
+  .db-card--hover:hover { transform: none; }
   .sa-loader::before { animation-duration: 3s; }
 }

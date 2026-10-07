@@ -3,945 +3,172 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Street Arcade — Painel Operador</title>
-  <meta name="description" content="Painel do operador para gerenciar sessões do Street Arcade, exibir QR Codes e configurar totens." />
+  <title>Street Arcade — Painel do operador</title>
+  <meta name="description" content="Painel do operador do Street Arcade: totens, filas, QR Codes e jogos incorporados." />
+  <meta name="theme-color" content="#034a5d" />
+  <link rel="icon" href="/assets/brand/dreambricks-mark-blue.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="icon" href="/assets/brand/dreambricks-mark-blue.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <!-- DreamBricks Design System (tokens + components) — source: docs/design_system -->
+  <!-- DreamBricks Design System — source: docs/design_system -->
   <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/components.css" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body { height: 100%; }
-
-    body {
-      font-family: var(--font-body);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* ── Header ──────────────────────────────────────────────────────────── */
-    header {
-      padding: 20px 32px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-    }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-decoration: none;
-    }
-
-    .logo-icon {
-      height: 40px;
-      display: flex; align-items: center; justify-content: center;
-    }
-
-    .logo-icon img {
-      max-height: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-
-    .logo-text {
-      font-size: var(--text-lg);
-      font-weight: 700;
-      letter-spacing: var(--tracking-tight);
-      color: var(--surface-brand-strong);
-    }
-
-    .badge-live {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 13px; color: var(--success);
-      font-weight: 600;
-    }
-
-    .dot-pulse {
-      width: 8px; height: 8px;
-      background: var(--success);
-      border-radius: 50%;
-      animation: pulse 2s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: 0.4; transform: scale(0.7); }
-    }
-
-    /* ── Status dots (session/queue state) ──────────────────────────────────
-       Same vocabulary as .dot-pulse above: a colored dot, not an emoji glyph,
-       so status indicators read consistently with the rest of the system. */
-    .mini-dot {
-      display: inline-block;
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .mini-dot--success { background: var(--success); }
-    .mini-dot--muted   { background: var(--text-muted); opacity: 0.5; }
-    .mini-dot--loading { background: var(--text-muted); opacity: 0.5; animation: pulse 2s ease-in-out infinite; }
-
-    /* ── Main layout ─────────────────────────────────────────────────────── */
-    main {
-      flex: 1;
-      display: block;
-      overflow-y: auto;
-      background: var(--bg);
-    }
-
-    /* ── Tab Nav ──────────────────────────────────────────────────────────── */
-    .tab-nav {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .tab-btn {
-      padding: 14px 8px;
-      font-family: var(--font-body);
-      font-size: 13px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: var(--text-muted);
-      background: transparent;
-      border: none;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-      transition: color 0.2s, border-color 0.2s, background 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-    }
-
-    .tab-btn:hover { color: var(--text); background: var(--surface2); }
-
-    .tab-btn.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
-      background: oklch(from var(--accent) l c h / 0.04);
-    }
-
-    .tab-btn svg { flex-shrink: 0; }
-
-    /* ── Tab Panels ──────────────────────────────────────────────────────── */
-    .tab-panel {
-      display: none;
-      flex-direction: column;
-      gap: 20px;
-      padding: 24px;
-      flex: 1;
-      overflow-y: auto;
-    }
-
-    .tab-panel.active { display: flex; }
-
-    .panel-title {
-      font-size: 13px;
-      font-weight: 700;
-      font-family: var(--font-mono);
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    /* ── Form fields ──────────────────────────────────────────────────────── */
-    .field-group { display: flex; flex-direction: column; gap: 7px; }
-
-    label {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    input, select {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-family: var(--font-body);
-      font-size: 15px;
-      padding: 11px 14px;
-      border-radius: 10px;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      width: 100%;
-    }
-
-    input:focus, select:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px oklch(from var(--accent) l c h / 0.18);
-    }
-
-    input::placeholder { color: var(--text-muted); opacity: 0.7; }
-
-    /* ── Expiry row ───────────────────────────────────────────────────────── */
-    .expiry-row {
-      display: grid;
-      grid-template-columns: 1fr 90px;
-      gap: 8px;
-    }
-
-    #expiry-custom { display: none; }
-
-    .expiry-hint {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    /* ── Buttons ──────────────────────────────────────────────────────────── */
-    .btn {
-      padding: 13px 18px;
-      border: none;
-      border-radius: var(--radius);
-      font-family: var(--font-body);
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    /* Filled on blue-700: white on the #42b0d5 brand blue is ~2.6:1 (see components.css) */
-    .btn-primary {
-      background: var(--db-blue-700);
-      color: var(--text-on-brand);
-    }
-
-    .btn-primary:hover { transform: translateY(-2px); background: var(--db-blue-800); box-shadow: var(--shadow-md); }
-    .btn-primary:active { transform: translateY(0); }
-    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-    .btn-secondary {
-      background: var(--surface2);
-      color: var(--text-muted);
-      border: 1px solid var(--border);
-      font-size: 13px;
-      padding: 9px 14px;
-    }
-
-    .btn-secondary:hover { background: var(--border); color: var(--text); }
-
-    /* ── Divider ──────────────────────────────────────────────────────────── */
-    .divider {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 4px 0;
-    }
-
-    /* ── Totem list (sidebar) ─────────────────────────────────────────────── */
-    #totem-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .totem-card {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 12px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      transition: border-color 0.2s;
-    }
-
-    .totem-card:hover { border-color: var(--accent2); }
-
-    .totem-card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-
-    .totem-card-name {
-      font-weight: 700;
-      font-size: 14px;
-      color: var(--text);
-    }
-
-    .totem-card-addr {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      color: var(--success);
-      background: oklch(from var(--success) l c h / 0.08);
-      border: 1px solid oklch(from var(--success) l c h / 0.2);
-      border-radius: 999px;
-      padding: 2px 10px;
-      white-space: nowrap;
-    }
-
-    .totem-card-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .totem-card-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    /* n→n: how the totem is reached (physical UDP and/or embedded game) */
-    .totem-modes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .totem-screens[data-live="true"] { color: var(--text-brand); font-weight: 600; }
-
-    .empty-mascot { width: min(280px, 70vw); height: auto; mix-blend-mode: multiply; margin-bottom: var(--space-4); }
-
-    /* Embed dialog */
-    .embed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
-    .embed-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
-    .embed-preview {
-      position: relative; overflow: hidden;
-      background: var(--surface-sunken); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
-    }
-    .embed-preview iframe { display: block; width: 100%; height: 100%; border: 0; }
-    .embed-preview-wrap { aspect-ratio: 16 / 9; }
-    @media (max-width: 560px) { .embed-grid { grid-template-columns: 1fr; } }
-    /* Phones: stack the physical-totem QR under the card info */
-    @media (max-width: 600px) {
-      .totem-card > div:first-child { flex-direction: column; }
-      .totem-card > div:first-child > div:last-child:not(:first-child) { width: 100% !important; flex-direction: row !important; gap: 12px; }
-      .totem-card-qr-img { width: 96px !important; }
-    }
-
-    .queue-instance-bar { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
-    .queue-instance-bar .db-select { flex: 1; min-height: 34px; padding: 6px 10px; font-size: var(--text-xs); }
-
-    .totem-session-status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      min-height: 24px;
-    }
-
-    .session-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      padding: 2px 10px;
-      border-radius: 999px;
-    }
-
-    .badge-loading  { background: oklch(from var(--text-muted) l c h / 0.1); color: var(--text-muted); border: 1px solid var(--border); }
-    .badge-active   { background: oklch(from var(--success) l c h / 0.12); color: var(--success); border: 1px solid oklch(from var(--success) l c h / 0.3); }
-    .badge-inactive { background: oklch(from var(--text-muted) l c h / 0.1); color: var(--text-muted); border: 1px solid var(--border); }
-
-    .session-badge-info {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .btn-end-session {
-      position: relative;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 6px;
-      border: 1px solid oklch(from var(--danger) l c h / 0.4);
-      background: oklch(from var(--danger) l c h / 0.06);
-      color: var(--danger);
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    /* Invisible hit-area expansion to reach the 44px touch-target minimum
-       without inflating the visible chip — safe here since this button
-       always sits alone at the end of its row, no adjacent target to overlap. */
-    .btn-end-session::before {
-      content: '';
-      position: absolute;
-      inset: -14px -10px;
-    }
-
-    .btn-end-session:hover { background: oklch(from var(--danger) l c h / 0.15); border-color: var(--danger); }
-
-    .btn-icon {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-family: var(--font-body);
-      font-size: 12px;
-      font-weight: 600;
-      padding: 12px 14px;
-      min-height: 44px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      cursor: pointer;
-      transition: all 0.15s;
-      background: var(--surface);
-      color: var(--text-muted);
-    }
-
-    .btn-icon:hover { background: var(--surface2); color: var(--text); }
-
-    .btn-delete:hover { border-color: var(--danger); color: var(--danger); background: oklch(from var(--danger) l c h / 0.06); }
-    .btn-edit:hover   { border-color: var(--accent);  color: var(--accent);  background: oklch(from var(--accent) l c h / 0.06); }
-
-
-    #totem-empty {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      padding: 32px 0;
-      color: var(--text-muted);
-      font-size: 13px;
-      text-align: center;
-    }
-
-    #totem-error {
-      display: none;
-      background: oklch(from var(--danger) l c h / 0.1);
-      border: 1px solid var(--danger);
-      color: var(--danger);
-      border-radius: var(--radius);
-      padding: 10px 14px;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    /* ── Content area ────────────────────────────────────────────────────── */
-    section.content {
-      padding: 40px;
-      display: flex;
-      flex-direction: column;
-      gap: 32px;
-      overflow-y: auto;
-    }
-
-    /* ── QR Card ─────────────────────────────────────────────────────────── */
-    #qr-card {
-      display: none;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 40px;
-      flex-direction: column;
-      align-items: center;
-      gap: 24px;
-      max-width: 440px;
-      margin: 0 auto;
-      box-shadow: 0 10px 40px oklch(0.16 0.028 230 / 0.1);
-      animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1);
-    }
-
-    #qr-card.visible { display: flex; }
-
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(24px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .qr-label {
-      font-size: 14px;
-      font-weight: 700;
-      font-family: var(--font-mono);
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      color: var(--accent);
-    }
-
-    #qr-image {
-      width: 260px; height: 260px;
-      border-radius: var(--radius-lg);
-      background: #fff;
-      display: flex; align-items: center; justify-content: center;
-      padding: 12px;
-    }
-
-    #qr-image img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
-
-    .qr-url {
-      font-size: 13px;
-      color: var(--text-muted);
-      text-align: center;
-      word-break: break-all;
-      max-width: 300px;
-    }
-
-    .session-meta {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .meta-pill {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 6px 16px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-
-    .meta-pill span { color: var(--text); }
-
-    .status-badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 4px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-
-    .status-waiting  { background: oklch(from var(--warning) l c h / 0.12); color: var(--warning); border: 1px solid oklch(from var(--warning) l c h / 0.3); }
-    .status-active   { background: oklch(from var(--success) l c h / 0.12); color: var(--success); border: 1px solid oklch(from var(--success) l c h / 0.3); }
-    .status-finished { background: oklch(from var(--danger) l c h / 0.12); color: var(--danger); border: 1px solid oklch(from var(--danger) l c h / 0.3); }
-
-    /* ── Session list ────────────────────────────────────────────────────── */
-    .sessions-header { display: flex; align-items: center; justify-content: space-between; }
-    .sessions-header h2 { font-size: 20px; font-weight: 700; font-family: var(--font-mono); }
-
-    #session-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 16px;
-    }
-
-    .session-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      display: flex; flex-direction: column; gap: 12px;
-      cursor: pointer;
-      transition: border-color 0.2s, transform 0.2s;
-    }
-
-    .session-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-
-    .session-card-id { font-size: 13px; font-family: var(--font-mono); color: var(--text-muted); }
-    .session-card-players { font-size: 14px; color: var(--text-muted); }
-    .session-card-players strong { color: var(--text); }
-
-    /* ── Empty state ─────────────────────────────────────────────────────── */
-    #empty-state {
-      display: flex; flex-direction: column; align-items: center;
-      gap: 16px; padding: 80px 20px;
-      color: var(--text-muted);
-    }
-
-    #empty-state .emoji { font-size: 64px; }
-    #empty-state p { font-size: 16px; }
-
-
-    /* ── Spinner ─────────────────────────────────────────────────────────── */
-    .spinner {
-      width: 18px; height: 18px;
-      border: 2px solid currentColor;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      display: inline-block; vertical-align: middle;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Modal ───────────────────────────────────────────────────────────── */
-    .modal-overlay {
-      display: none;
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: oklch(0.16 0.028 230 / 0.8);
-      backdrop-filter: blur(4px);
-      z-index: 1000;
-      align-items: center; justify-content: center;
-      animation: fadeInModal 0.2s;
-    }
-
-    .modal-overlay.active { display: flex; }
-
-    .modal-content {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 0;
-      width: 90%; max-width: 480px;
-      position: relative;
-      box-shadow: 0 16px 64px oklch(0.16 0.028 230 / 0.4);
-      display: flex; flex-direction: column;
-      overflow: hidden;
-    }
-
-    .modal-close {
-      position: absolute; top: 14px; right: 16px;
-      background: transparent; border: none; font-size: 22px; line-height: 1;
-      color: var(--text-muted); cursor: pointer; transition: color 0.2s;
-      z-index: 2;
-    }
-
-    .modal-close:hover { color: var(--text); }
-
-    .modal-header {
-      padding: 22px 28px 18px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .modal-header h2 {
-      font-size: 16px;
-      font-family: var(--font-mono);
-      font-weight: 700;
-      color: var(--text);
-      margin: 0;
-    }
-
-    .modal-header p {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 3px;
-    }
-
-    .modal-body {
-      padding: 22px 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .modal-footer {
-      padding: 14px 28px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      background: var(--surface2);
-    }
-
-    .field-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    .field-hint {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 3px;
-    }
-
-    @keyframes fadeInModal { from { opacity: 0; } to { opacity: 1; } }
-
-    /* ── QR Lightbox ─────────────────────────────────────────────────────── */
-    /* Reuses .modal-overlay for the dark blurred backdrop — the point is to
-       isolate the totem's QR from every other one on screen so an operator
-       testing with their own phone can't scan the wrong totem by accident. */
-    .qr-lightbox-content {
-      background: var(--surface);
-      border-radius: var(--radius-lg);
-      padding: 32px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-      max-width: 420px;
-      width: 90%;
-      position: relative;
-      box-shadow: 0 16px 64px oklch(0.16 0.028 230 / 0.4);
-      animation: slideUp 0.3s cubic-bezier(0.16,1,0.3,1);
-    }
-
-    .qr-lightbox-name {
-      font-size: 16px;
-      font-weight: 700;
-      font-family: var(--font-mono);
-      color: var(--text);
-      text-align: center;
-    }
-
-    .qr-lightbox-image {
-      width: 320px; height: 320px;
-      max-width: 100%;
-      background: #fff;
-      border-radius: var(--radius);
-      display: flex; align-items: center; justify-content: center;
-      padding: 16px;
-    }
-
-    .qr-lightbox-image img { width: 100%; height: 100%; object-fit: contain; }
-
-    .qr-lightbox-hint {
-      font-size: 13px;
-      color: var(--text-muted);
-      text-align: center;
-    }
-
-    .totem-card-qr-img {
-      cursor: pointer;
-      transition: transform 0.15s, box-shadow 0.15s;
-    }
-
-    .totem-card-qr-img:hover {
-      transform: scale(1.04);
-      box-shadow: 0 4px 14px oklch(0.16 0.028 230 / 0.15);
-    }
-
-    /* ── Responsive ──────────────────────────────────────────────────────── */
-    @media (max-width: 800px) {
-      section.content { padding: 24px 16px; }
-    }
-
-    /* ── Queue Panel ─────────────────────────────────────────────────────── */
-    .queue-panel {
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-      font-size: 12px;
-    }
-
-    .queue-panel-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 7px 12px;
-      background: var(--surface2);
-      border-bottom: 1px solid var(--border);
-      font-weight: 700;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-muted);
-    }
-
-    .queue-count {
-      font-weight: 600;
-      font-size: 11px;
-      color: var(--accent);
-    }
-
-    .queue-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 7px 12px;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-      transition: background 0.15s;
-    }
-
-    .queue-row:last-child { border-bottom: none; }
-    .queue-row:hover { background: var(--surface2); }
-
-    .queue-row--playing {
-      background: oklch(from var(--success) l c h / 0.04);
-    }
-
-    .queue-pos {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--text-muted);
-      min-width: 24px;
-    }
-
-    .queue-pid {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text);
-      flex: 1;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .queue-status {
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--success);
-      background: oklch(from var(--success) l c h / 0.1);
-      border: 1px solid oklch(from var(--success) l c h / 0.25);
-      border-radius: 999px;
-      padding: 2px 8px;
-    }
-
-    .btn-kick {
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 10px;
-      font-weight: 600;
-      font-family: var(--font-body);
-      padding: 3px 8px;
-      border-radius: var(--radius-sm);
-      border: 1px solid oklch(from var(--danger) l c h / 0.35);
-      background: oklch(from var(--danger) l c h / 0.06);
-      color: var(--danger);
-      cursor: pointer;
-      transition: all 0.15s;
-      white-space: nowrap;
-    }
-
-    /* Invisible hit-area expansion to reach the 44px touch-target minimum
-       without inflating the visible chip inside a dense queue row. */
-    .btn-kick::before {
-      content: '';
-      position: absolute;
-      inset: -16px -8px;
-    }
-
-    .btn-kick:hover {
-      background: oklch(from var(--danger) l c h / 0.15);
-      border-color: var(--danger);
-    }
-
-    .queue-divider {
-      height: 1px;
-      background: var(--border);
-    }
-
-    .queue-device-meta {
-      font-size: 10px;
-      color: var(--text-muted);
-      margin-top: 2px;
-      font-weight: 500;
-    }
-
-    /* ── Totem ID chip ───────────────────────────────────────────────────── */
-    .totem-id-chip {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 1px 7px;
-      color: var(--text-muted);
-      user-select: none;
-      transition: color 0.2s, background 0.2s;
-    }
-
-    .totem-id-chip:hover {
-      background: var(--border);
-      color: var(--text);
-    }
-
-    /* ── Queue toggle active state ───────────────────────────────────────── */
-    .btn-queue-toggle--active {
-      border-color: var(--accent) !important;
-      color: var(--accent) !important;
-      background: oklch(from var(--accent) l c h / 0.08) !important;
-    }
-  </style>
+  <link rel="stylesheet" href="/css/dashboard.css" />
 </head>
 <body>
 
-  <header>
-    <a class="logo" href="/">
-      <div class="logo-icon">
-        <img src="/assets/brand/dreambricks-mark-blue.svg" alt="DreamBricks" width="67" height="40">
-      </div>
-      <span class="logo-text">Street Arcade</span>
-    </a>
-    <div class="badge-live">
-      <div class="dot-pulse"></div>
-      OPERADOR
-    </div>
-  </header>
+  <!-- Icon sprite: one stroke vocabulary (Lucide-style, 2px, round caps), as
+       the DS readme prescribes. Use: <svg class="ico"><use href="#i-name"/></svg> -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-totem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><rect x="9" y="5" width="6" height="5" rx="1"/><path d="M9 14h.01M15 14h.01M12 17h.01"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6.5A2.5 2.5 0 0 0 4 21.5Z"/><path d="M8 7h8"/></symbol>
+      <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 19c.7-3 3-4.7 6.5-4.7s5.8 1.7 6.5 4.7"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.4c2.7.3 4.4 1.8 5 4.6"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+      <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+      <symbol id="i-monitor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+      <symbol id="i-code" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+      <symbol id="i-eraser" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L13 19"/><path d="M22 21H7M5 11l9 9"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+      <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></symbol>
+      <symbol id="i-gamepad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><rect x="2" y="6" width="20" height="12" rx="4"/></symbol>
+      <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
+    </defs>
+  </svg>
 
-  <main>
-    <!-- ── Content ─────────────────────────────────────────────────────── -->
-    <section class="content">
-      <div class="sessions-header" style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>Sessões Ativas</h2>
-        <button id="btn-new-totem" class="btn btn-primary" style="width: auto; padding: 10px 16px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          Adicionar Totem
-        </button>
+  <div class="app">
+    <!-- ── Sidebar (DS UI kit: ink panel, logo, nav, J0Bson) ──────────────── -->
+    <aside class="sidebar">
+      <div>
+        <a class="sidebar__logo" href="/"><img src="/assets/brand/dreambricks-horizontal-onblue.svg" alt="DreamBricks" width="82" height="30" /></a>
+        <p class="sidebar__product">Street Arcade</p>
       </div>
+      <nav class="nav" aria-label="Seções">
+        <a class="nav__item" href="/" aria-current="page"><svg class="ico"><use href="#i-totem"/></svg>Totens</a>
+        <a class="nav__item" href="/documentation" target="_blank" rel="noopener"><svg class="ico"><use href="#i-book"/></svg>API<svg class="nav__ext" aria-hidden="true"><use href="#i-ext"/></svg></a>
+      </nav>
+      <div class="sidebar__foot">
+        <img class="sidebar__mascot" src="/assets/brand/jobson-and-cat-small.webp" alt="" width="512" height="370" />
+        <div class="live" id="live" role="status">
+          <span class="live__dot"></span>
+          <span><strong>Operador</strong> · <span id="live-text">ao vivo</span></span>
+        </div>
+      </div>
+    </aside>
 
-      <div id="totem-list"></div>
-      
-      <div id="totem-empty" style="display: none; flex-direction: column; align-items: center; justify-content: center; padding: 80px 20px; color: var(--text-muted);">
-        <img class="empty-mascot" src="/assets/brand/jobson-with-cat.webp" alt="" width="480" height="348" />
-        <p>Nenhum totem ainda. Cadastre um totem físico ou um jogo para incorporar em sites.</p>
-      </div>
-    </section>
-  </main>
+    <div class="main">
+      <!-- ── Top bar ──────────────────────────────────────────────────────── -->
+      <header class="topbar">
+        <h1>Totens</h1>
+        <div class="topbar__actions">
+          <label class="search">
+            <span class="db-visually-hidden">Buscar totem</span>
+            <svg class="ico"><use href="#i-search"/></svg>
+            <input class="db-input" id="search" type="search" placeholder="Buscar totem…" autocomplete="off" />
+          </label>
+          <button class="db-btn db-btn--primary" id="btn-new-totem" type="button" aria-label="Adicionar totem">
+            <svg class="ico"><use href="#i-plus"/></svg><span>Adicionar totem</span>
+          </button>
+        </div>
+      </header>
 
-  <!-- ── Modal de Fila do Totem ────────────────────────────────────────────── -->
-  <div id="queueModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Fila do Totem" style="display:none;">
-    <div class="modal-content" style="max-width:420px;">
-      <button class="modal-close" id="queueModalClose" aria-label="Fechar">&times;</button>
-      <h2 style="margin-bottom:4px; font-size:18px; font-family:var(--font-mono);">Fila do Totem</h2>
-      <p id="queue-modal-totem-name" style="font-size:13px; color:var(--text-muted); margin-bottom:16px;"></p>
-      <div class="queue-instance-bar">
-        <label class="db-label" for="queue-instance">Tela</label>
-        <select id="queue-instance" class="db-select"></select>
-      </div>
-      <div id="queue-modal-body"></div>
+      <main class="content">
+        <!-- Live numbers across every totem and every open iframe -->
+        <section class="stats" aria-label="Resumo ao vivo">
+          <div class="db-card stat">
+            <p class="stat__label">Totens</p>
+            <p class="stat__value" id="st-totems">–</p>
+            <p class="stat__sub" id="st-totems-sub">&nbsp;</p>
+          </div>
+          <div class="db-card stat">
+            <p class="stat__label">Jogando agora</p>
+            <p class="stat__value" id="st-playing" data-tone="success">–</p>
+            <p class="stat__sub">no totem e nos sites</p>
+          </div>
+          <div class="db-card stat">
+            <p class="stat__label">Na fila</p>
+            <p class="stat__value" id="st-queue">–</p>
+            <p class="stat__sub">esperando a vez</p>
+          </div>
+          <div class="db-card stat">
+            <p class="stat__label">Telas abertas</p>
+            <p class="stat__value" id="st-screens">–</p>
+            <p class="stat__sub">jogos incorporados em sites</p>
+          </div>
+        </section>
+
+        <section aria-labelledby="list-title">
+          <h2 class="db-visually-hidden" id="list-title">Lista de totens</h2>
+          <div class="list-head">
+            <div class="db-tabs" role="tablist" aria-label="Filtrar totens">
+              <button class="db-tab" role="tab" type="button" data-filter="all" aria-selected="true">Todos <span class="db-tab__count" id="cnt-all">0</span></button>
+              <button class="db-tab" role="tab" type="button" data-filter="physical" aria-selected="false">Totem físico <span class="db-tab__count" id="cnt-physical">0</span></button>
+              <button class="db-tab" role="tab" type="button" data-filter="web" aria-selected="false">Web <span class="db-tab__count" id="cnt-web">0</span></button>
+            </div>
+          </div>
+
+          <div class="grid" id="totem-list" aria-live="polite">
+            <div class="db-card skeleton" aria-hidden="true"></div>
+            <div class="db-card skeleton" aria-hidden="true"></div>
+          </div>
+
+          <div class="db-card empty" id="totem-empty" hidden>
+            <img src="/assets/brand/jobson-with-cat.webp" alt="" width="480" height="348" />
+            <h2>Nenhum totem ainda</h2>
+            <p>Cadastre a máquina física do evento ou escolha um jogo para incorporar em sites. Cada visitante ganha a própria partida.</p>
+            <button class="db-btn db-btn--primary" type="button" data-action="new-totem"><svg class="ico"><use href="#i-plus"/></svg>Adicionar totem</button>
+          </div>
+
+          <div class="db-card empty" id="totem-nomatch" hidden>
+            <h2>Nada encontrado</h2>
+            <p>Nenhum totem bate com a busca ou o filtro.</p>
+            <button class="db-btn db-btn--secondary" type="button" id="btn-clear-filter">Limpar busca</button>
+          </div>
+        </section>
+      </main>
     </div>
   </div>
 
-  <!-- ── Modal de Cadastro de Totem ──────────────────────────────────────── -->
-  <div id="totemFormModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Novo Totem" style="display:none;">
-    <div class="modal-content">
-      <button class="modal-close" id="totemFormModalClose" aria-label="Fechar">&times;</button>
-
-      <div class="modal-header">
-        <h2 id="totem-form-title">Novo Totem</h2>
-        <p>Escolha o jogo para incorporar em sites e, se houver, o endereço do totem físico.</p>
-      </div>
-
-      <div class="modal-body">
-        <div class="field-group">
-          <label for="tf-name">Nome do Totem</label>
-          <input id="tf-name" type="text" placeholder="ex: Cabine A" maxlength="80" />
+  <!-- ── Totem form ─────────────────────────────────────────────────────────── -->
+  <dialog id="totemDialog" class="db-dialog" aria-labelledby="totem-form-title">
+    <form method="dialog" id="totem-form" novalidate>
+      <div class="db-dialog__head">
+        <div>
+          <h2 class="db-dialog__title" id="totem-form-title">Novo totem</h2>
+          <p class="db-dialog__desc">Escolha o jogo para incorporar em sites e, se houver, o endereço da máquina física.</p>
         </div>
-
-        <div class="field-group">
-          <label for="tf-game">Jogo para incorporar</label>
-          <select id="tf-game">
+        <button class="db-icon-btn" type="button" data-close aria-label="Fechar"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <div class="db-dialog__body">
+        <div class="db-field">
+          <label class="db-label" for="tf-name">Nome do totem</label>
+          <input class="db-input" id="tf-name" type="text" placeholder="ex.: Cabine A" maxlength="80" />
+        </div>
+        <div class="db-field">
+          <label class="db-label" for="tf-game">Jogo para incorporar</label>
+          <select class="db-select" id="tf-game">
             <option value="">Nenhum (só totem físico)</option>
           </select>
-          <span class="field-hint">Cada visitante que abrir o iframe ganha a própria partida, com QR e fila próprios.</span>
+          <span class="db-hint">Cada visitante que abrir o iframe ganha a própria partida, com QR e fila próprios.</span>
         </div>
-
-        <div class="field-group">
-          <label for="tf-url">Endereço do totem físico <span style="font-weight:400; text-transform:none; letter-spacing:0;">(opcional)</span></label>
-          <input id="tf-url" type="text" placeholder="192.168.1.10:9001 ou https://brickrush.dbpe.com.br:9101" maxlength="120" />
-          <span class="field-hint">IP:Porta ou URL:Porta da máquina do jogo (UDP). Deixe vazio se for só web.</span>
+        <div class="db-field">
+          <label class="db-label" for="tf-url">Endereço do totem físico <span class="opt">(opcional)</span></label>
+          <input class="db-input db-mono" id="tf-url" type="text" placeholder="192.168.1.10:9001" maxlength="120" />
+          <span class="db-hint">IP:porta ou URL:porta da máquina do jogo (UDP). Deixe vazio se for só web.</span>
         </div>
-
-        <div class="field-row">
-          <div class="field-group">
-            <label for="tf-max-players">Máx. Jogadores</label>
-            <select id="tf-max-players">
+        <div class="form-grid">
+          <div class="db-field">
+            <label class="db-label" for="tf-max-players">Jogadores ao mesmo tempo</label>
+            <select class="db-select" id="tf-max-players">
               <option value="1">1 jogador</option>
               <option value="2" selected>2 jogadores</option>
               <option value="3">3 jogadores</option>
@@ -952,9 +179,9 @@
               <option value="8">8 jogadores</option>
             </select>
           </div>
-          <div class="field-group">
-            <label for="tf-duration">Duração da Sessão</label>
-            <select id="tf-duration">
+          <div class="db-field">
+            <label class="db-label" for="tf-duration">Duração da sessão</label>
+            <select class="db-select" id="tf-duration">
               <option value="300000">5 minutos</option>
               <option value="900000">15 minutos</option>
               <option value="1800000" selected>30 minutos</option>
@@ -962,43 +189,80 @@
             </select>
           </div>
         </div>
-
-        <div class="field-group">
-          <label for="tf-max-queue">Tamanho Máx. da Fila</label>
-          <input id="tf-max-queue" type="number" min="1" max="200" placeholder="Sem limite" />
-          <span class="field-hint">Deixe em branco para fila ilimitada</span>
+        <div class="db-field">
+          <label class="db-label" for="tf-max-queue">Tamanho máximo da fila <span class="opt">(opcional)</span></label>
+          <input class="db-input" id="tf-max-queue" type="number" min="1" max="200" placeholder="Sem limite" />
         </div>
-
-        <div class="field-group">
-          <label for="tf-game-config">Configuração do jogo <span style="font-weight:400; text-transform:none; letter-spacing:0;">(JSON, opcional)</span></label>
-          <textarea id="tf-game-config" class="db-textarea" rows="3" spellcheck="false" placeholder='{ "gameSpeed": 6 }'></textarea>
-          <span class="field-hint">Enviado ao jogo incorporado em <code>/config</code>. Ex.: snake <code>gameSpeed</code>; brick-rush <code>rounds</code>, <code>roundMs</code>.</span>
+        <div class="db-field">
+          <label class="db-label" for="tf-game-config">Configuração do jogo <span class="opt">(JSON, opcional)</span></label>
+          <textarea class="db-textarea" id="tf-game-config" rows="3" spellcheck="false" placeholder='{ "gameSpeed": 6 }'></textarea>
+          <span class="db-hint">Enviado ao jogo incorporado em <code>/config</code>. Ex.: snake <code>gameSpeed</code>; brick-rush <code>rounds</code>, <code>roundMs</code>.</span>
         </div>
-
-        <div id="totem-error"></div>
+        <div class="db-callout db-callout--danger" id="totem-error" role="alert" hidden>
+          <svg><use href="#i-alert"/></svg><span></span>
+        </div>
       </div>
-
-      <div class="modal-footer">
-        <button id="btn-cancel-edit" class="btn btn-secondary" type="button" style="width:auto; padding: 9px 18px;">Cancelar</button>
-        <button id="btn-save-totem" class="btn btn-primary" type="button" style="width:auto; padding: 9px 18px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          Salvar Totem
-        </button>
+      <div class="db-dialog__foot">
+        <button class="db-btn db-btn--secondary" type="button" data-close>Cancelar</button>
+        <button class="db-btn db-btn--primary" type="submit" id="btn-save-totem"><svg class="ico"><use href="#i-check"/></svg>Salvar totem</button>
       </div>
-    </div>
-  </div>
+    </form>
+  </dialog>
 
-  <!-- ── QR Lightbox (amplia o QR para evitar escaneio errado) ────────────── -->
-  <div id="qrLightbox" class="modal-overlay" role="dialog" aria-modal="true" aria-label="QR Code Ampliado" style="display:none;">
-    <div class="qr-lightbox-content">
-      <button class="modal-close" id="qrLightboxClose" aria-label="Fechar">&times;</button>
-      <div class="qr-lightbox-name" id="qr-lightbox-name"></div>
-      <div class="qr-lightbox-image"><img id="qr-lightbox-img" alt="QR Code Ampliado" /></div>
-      <div class="qr-lightbox-hint">Aponte a câmera do celular para este QR Code</div>
-    </div>
-  </div>
+  <!-- ── Queue ──────────────────────────────────────────────────────────────── -->
+  <dialog id="queueDialog" class="db-dialog" aria-labelledby="queue-title">
+    <form method="dialog">
+      <div class="db-dialog__head">
+        <div>
+          <h2 class="db-dialog__title" id="queue-title">Fila</h2>
+          <p class="db-dialog__desc" id="queue-totem-name"></p>
+        </div>
+        <button class="db-icon-btn" type="button" data-close aria-label="Fechar"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <div class="db-dialog__body">
+        <div class="queue-bar" id="queue-instance-bar" hidden>
+          <label class="db-label" for="queue-instance">Tela</label>
+          <select class="db-select" id="queue-instance"></select>
+        </div>
+        <div id="queue-body"></div>
+      </div>
+    </form>
+  </dialog>
 
-  <!-- ── Incorporar (n→n): gera o <iframe> do jogo ──────────────────────── -->
+  <!-- ── QR enlarged (avoids scanning a neighbour's code from the grid) ────── -->
+  <dialog id="qrDialog" class="db-dialog db-dialog--qr" aria-labelledby="qr-title">
+    <form method="dialog">
+      <div class="db-dialog__head">
+        <div>
+          <h2 class="db-dialog__title" id="qr-title"></h2>
+          <p class="db-dialog__desc">Aponte a câmera do celular para entrar na fila do totem.</p>
+        </div>
+        <button class="db-icon-btn" type="button" data-close aria-label="Fechar"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <div class="db-dialog__body">
+        <div class="qr-big" id="qr-box"></div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ── Confirm (replaces browser/SweetAlert dialogs) ──────────────────────── -->
+  <dialog id="confirmDialog" class="db-dialog db-dialog--confirm" aria-labelledby="confirm-title" aria-describedby="confirm-desc">
+    <form method="dialog">
+      <div class="db-dialog__head">
+        <span class="confirm-icon"><svg class="ico"><use href="#i-alert"/></svg></span>
+        <div>
+          <h2 class="db-dialog__title" id="confirm-title"></h2>
+          <p class="db-dialog__desc" id="confirm-desc"></p>
+        </div>
+      </div>
+      <div class="db-dialog__foot">
+        <button class="db-btn db-btn--secondary" value="cancel" autofocus>Cancelar</button>
+        <button class="db-btn db-btn--danger" value="ok" id="confirm-ok"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ── Embed (n→n): builds the <iframe> snippet ───────────────────────────── -->
   <dialog id="embedDialog" class="db-dialog" aria-labelledby="embed-title">
     <form method="dialog">
       <div class="db-dialog__head">
@@ -1006,20 +270,16 @@
           <h2 class="db-dialog__title" id="embed-title">Incorporar em um site</h2>
           <p class="db-dialog__desc" id="embed-totem-name"></p>
         </div>
-        <button class="db-icon-btn" value="close" aria-label="Fechar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
+        <button class="db-icon-btn" type="button" data-close aria-label="Fechar"><svg><use href="#i-x"/></svg></button>
       </div>
       <div class="db-dialog__body">
-        <div class="embed-preview embed-preview-wrap">
+        <div class="embed-preview">
           <iframe id="embed-preview" title="Prévia do jogo incorporado" loading="lazy"></iframe>
         </div>
-
         <div class="embed-row">
           <label class="db-switch"><input type="checkbox" id="embed-responsive" checked /><span></span> Responsivo (16:9)</label>
           <label class="db-switch"><input type="checkbox" id="embed-showqr" checked /><span></span> Mostrar QR</label>
         </div>
-
         <div class="embed-grid">
           <div class="db-field">
             <label class="db-label" for="embed-width">Largura (px)</label>
@@ -1030,7 +290,6 @@
             <input class="db-input" id="embed-height" type="number" min="180" max="2160" value="540" disabled />
           </div>
         </div>
-
         <div class="db-field">
           <span class="db-label" id="embed-pos-label">Posição do QR</span>
           <div class="db-seg" role="radiogroup" aria-labelledby="embed-pos-label">
@@ -1039,7 +298,6 @@
             <label><input type="radio" name="embed-pos" value="tr" /><span>Superior direito</span></label>
           </div>
         </div>
-
         <div class="db-field">
           <span class="db-label">Código</span>
           <code class="db-code" id="embed-code"></code>
@@ -1048,20 +306,13 @@
       </div>
       <div class="db-dialog__foot">
         <a class="db-btn db-btn--ghost" id="embed-open" target="_blank" rel="noopener">Abrir em nova aba</a>
-        <button class="db-btn db-btn--primary" type="button" id="embed-copy">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          Copiar código
-        </button>
+        <button class="db-btn db-btn--primary" type="button" id="embed-copy"><svg class="ico"><use href="#i-copy"/></svg>Copiar código</button>
       </div>
     </form>
   </dialog>
 
-  <div class="db-toast" id="toast" role="status" aria-live="polite"></div>
-
-  <!-- SweetAlert2 (confirmation dialogs) -->
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+  <div class="db-toast-stack" id="toasts" aria-live="polite"></div>
 
   <script type="module" src="/dashboard.js"></script>
-
 </body>
 </html>

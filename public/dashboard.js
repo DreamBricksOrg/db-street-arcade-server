@@ -1,79 +1,76 @@
-// public/totems-tab.js
-// Totem management tab — CRUD + session status + queue control.
+// public/dashboard.js
+// Operator dashboard — totem CRUD, live occupancy, queue control, embed codes.
 //
-// Features:
-//   - CRUD against /api/totems (now with maxPlayers, sessionDurationMs)
-//   - Totem cards show live session status badge (polls every 15s) and an
-//     inline QR code image (no modal — the QR is always visible on the card)
-//   - "Encerrar Sessão" button (with SweetAlert2 confirm) → POST /api/sessions/:id/end
-//   - Emits 'totems:updated' event for other modules
+//   - CRUD against /api/totems
+//   - Each card polls /api/totems/:id/instances (physical totem + open iframes)
+//     every 10s; the same rows feed the card and the stat cards on top
+//   - Queue dialog polls /queue every 5s, per instance
+//   - Confirmations and notices use the DreamBricks Dialog / Toast (native
+//     <dialog>, so focus trap + Escape come from the browser)
 
 const API = '/api/totems'
 
-// Card-level status/meta icons share the hand-drawn stroke style used by the
-// action buttons (stroke=currentColor, 2.2 weight, round caps), instead of
-// emoji glyphs, so one icon vocabulary reads across the whole card.
-const ICON_PLAYERS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
-const ICON_CLOCK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
-const ICON_QUEUE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
-const ICON_PHONE   = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>'
-const ICON_DESKTOP = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
-const ICON_SCREEN  = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'
-const ICON_CODE    = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>'
-const ICON_GLOBE   = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+const $ = (id) => document.getElementById(id)
+const icon = (name, cls = 'ico') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
-const totemList      = document.getElementById('totem-list')
-const totemEmpty     = document.getElementById('totem-empty')
-const formName       = document.getElementById('tf-name')
-const formUrl        = document.getElementById('tf-url')
-const formMaxPlayers = document.getElementById('tf-max-players')
-const formDuration   = document.getElementById('tf-duration')
-const formMaxQueue   = document.getElementById('tf-max-queue')
-const formGame       = document.getElementById('tf-game')
-const formGameConfig = document.getElementById('tf-game-config')
-const btnSaveTotem   = document.getElementById('btn-save-totem')
-const btnCancelEdit  = document.getElementById('btn-cancel-edit')
-const totemFormTitle = document.getElementById('totem-form-title')
+const totemList   = $('totem-list')
+const totemEmpty  = $('totem-empty')
+const totemNoMatch = $('totem-nomatch')
+const searchInput = $('search')
+const tabs        = [...document.querySelectorAll('.db-tab[data-filter]')]
 
-// Modal refs
-const btnNewTotem         = document.getElementById('btn-new-totem')
-const totemFormModal      = document.getElementById('totemFormModal')
-const totemFormModalClose = document.getElementById('totemFormModalClose')
+const totemDialog    = $('totemDialog')
+const totemForm      = $('totem-form')
+const totemFormTitle = $('totem-form-title')
+const totemError     = $('totem-error')
+const formName       = $('tf-name')
+const formUrl        = $('tf-url')
+const formMaxPlayers = $('tf-max-players')
+const formDuration   = $('tf-duration')
+const formMaxQueue   = $('tf-max-queue')
+const formGame       = $('tf-game')
+const formGameConfig = $('tf-game-config')
+const btnSaveTotem   = $('btn-save-totem')
 
-// Queue modal refs
-const queueModal         = document.getElementById('queueModal')
-const queueModalClose    = document.getElementById('queueModalClose')
-const queueModalTotemName = document.getElementById('queue-modal-totem-name')
-const queueModalBody     = document.getElementById('queue-modal-body')
-const queueInstanceSel   = document.getElementById('queue-instance')
+const queueDialog      = $('queueDialog')
+const queueTotemName   = $('queue-totem-name')
+const queueBody        = $('queue-body')
+const queueInstanceBar = $('queue-instance-bar')
+const queueInstanceSel = $('queue-instance')
 
-// Embed dialog refs
-const embedDialog     = document.getElementById('embedDialog')
-const embedTotemName  = document.getElementById('embed-totem-name')
-const embedPreview    = document.getElementById('embed-preview')
-const embedResponsive = document.getElementById('embed-responsive')
-const embedShowQr     = document.getElementById('embed-showqr')
-const embedWidth      = document.getElementById('embed-width')
-const embedHeight     = document.getElementById('embed-height')
-const embedCode       = document.getElementById('embed-code')
-const embedCopy       = document.getElementById('embed-copy')
-const embedOpen       = document.getElementById('embed-open')
-const toastEl         = document.getElementById('toast')
+const qrDialog = $('qrDialog')
+const qrTitle  = $('qr-title')
+const qrBox    = $('qr-box')
 
-// QR lightbox refs
-const qrLightbox      = document.getElementById('qrLightbox')
-const qrLightboxClose = document.getElementById('qrLightboxClose')
-const qrLightboxImg   = document.getElementById('qr-lightbox-img')
-const qrLightboxName  = document.getElementById('qr-lightbox-name')
+const confirmDialog = $('confirmDialog')
+const confirmTitle  = $('confirm-title')
+const confirmDesc   = $('confirm-desc')
+const confirmOk     = $('confirm-ok')
+
+const embedDialog     = $('embedDialog')
+const embedTotemName  = $('embed-totem-name')
+const embedPreview    = $('embed-preview')
+const embedResponsive = $('embed-responsive')
+const embedShowQr     = $('embed-showqr')
+const embedWidth      = $('embed-width')
+const embedHeight     = $('embed-height')
+const embedCode       = $('embed-code')
+const embedCopy       = $('embed-copy')
+const embedOpen       = $('embed-open')
+
+const toastStack = $('toasts')
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let editingTotemId    = null
-let cardPollTimers    = {}  // totemId → intervalId (session status + queue count, shared poll)
-let queueModalTotemId = null
-let queueModalTimer   = null
-let queueInstance     = 'default'   // instance shown in the queue modal
-let embedTotem        = null
+let totems         = []
+let filter         = 'all'
+let editingTotemId = null
+let cardPollTimers = {}          // totemId → intervalId
+const liveRows     = new Map()   // totemId → last /instances rows (for stats)
+let queueTotem     = null
+let queueTimer     = null
+let queueInstance  = 'default'
+let embedTotem     = null
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -93,16 +90,49 @@ function instQs(instanceId, sep = '?') {
   return instanceId && instanceId !== 'default' ? `${sep}instance=${encodeURIComponent(instanceId)}` : ''
 }
 
-let toastTimer = null
-function toast(msg) {
-  if (!toastEl) return
-  toastEl.textContent = msg
-  toastEl.classList.add('is-visible')
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => toastEl.classList.remove('is-visible'), 2200)
+// ── Toast / Confirm (DreamBricks feedback components) ─────────────────────────
+
+function toast(title, { tone = 'success', message = '', ms = 3200 } = {}) {
+  const el = document.createElement('div')
+  el.className = `db-toast db-toast--${tone}`
+  el.setAttribute('role', tone === 'danger' ? 'alert' : 'status')
+  el.innerHTML = `
+    <div class="db-toast__body">
+      <p class="db-toast__title">${escHtml(title)}</p>
+      ${message ? `<p class="db-toast__msg">${escHtml(message)}</p>` : ''}
+    </div>
+    <button class="db-icon-btn" type="button" aria-label="Fechar aviso"><svg><use href="#i-x"/></svg></button>`
+  const close = () => {
+    el.classList.add('is-leaving')
+    setTimeout(() => el.remove(), 200)
+  }
+  el.querySelector('button').addEventListener('click', close)
+  toastStack.appendChild(el)
+  setTimeout(close, ms)
 }
 
-// Embeddable games (folders in games/ with a public/index.html)
+/** Resolves true when the operator confirms. Cancel is focused by default. */
+function confirmAction({ title, message, confirmLabel }) {
+  confirmTitle.textContent = title
+  confirmDesc.textContent  = message
+  confirmOk.textContent    = confirmLabel
+  confirmDialog.returnValue = ''
+  confirmDialog.showModal()
+  return new Promise((resolve) => {
+    confirmDialog.addEventListener('close', () => resolve(confirmDialog.returnValue === 'ok'), { once: true })
+  })
+}
+
+// Clicking the dimmed backdrop closes any dialog (the click lands on <dialog> itself).
+// [data-close] buttons are type="button" so Enter in a field never hits them.
+for (const d of document.querySelectorAll('dialog.db-dialog')) {
+  d.addEventListener('click', (e) => {
+    if (e.target === d || e.target.closest('[data-close]')) d.close('cancel')
+  })
+}
+
+// ── Load & Render ──────────────────────────────────────────────────────────────
+
 async function loadGames() {
   const games = await apiFetch('/api/games').catch(() => [])
   for (const g of games ?? []) {
@@ -113,201 +143,166 @@ async function loadGames() {
   }
 }
 
-// ── Modal accessibility (focus trap + Escape) ────────────────────────────────
-// Shared by every modal-overlay in the dashboard: traps Tab cycling inside the
-// dialog, closes on Escape, and restores focus to whatever opened it.
-const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
-/** @type {WeakMap<Element, { keydownHandler: (e: KeyboardEvent) => void, lastFocused: Element | null }>} */
-const modalA11yState = new WeakMap()
-
-function openModalA11y(modalEl, onClose, initialFocusEl) {
-  const lastFocused = document.activeElement
-
-  function keydownHandler(e) {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-      return
-    }
-    if (e.key !== 'Tab') return
-
-    const focusable = Array.from(modalEl.querySelectorAll(FOCUSABLE_SELECTOR))
-      .filter(el => el.offsetParent !== null) // skip hidden elements
-    if (focusable.length === 0) return
-
-    const first = focusable[0]
-    const last  = focusable[focusable.length - 1]
-
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
-
-  document.addEventListener('keydown', keydownHandler)
-  modalA11yState.set(modalEl, { keydownHandler, lastFocused })
-
-  // Focus the requested element (or the first focusable one) once visible.
-  requestAnimationFrame(() => {
-    const target = initialFocusEl ?? modalEl.querySelector(FOCUSABLE_SELECTOR)
-    target?.focus()
-  })
-}
-
-function closeModalA11y(modalEl) {
-  const state = modalA11yState.get(modalEl)
-  if (!state) return
-  document.removeEventListener('keydown', state.keydownHandler)
-  modalA11yState.delete(modalEl)
-  // Restore focus to whatever triggered the modal (e.g. the card's "Editar" button).
-  if (state.lastFocused instanceof HTMLElement) state.lastFocused.focus()
-}
-
-// ── Load & Render ──────────────────────────────────────────────────────────────
-
 export async function loadTotems() {
-  // Clean up old polls
   Object.values(cardPollTimers).forEach(clearInterval)
   cardPollTimers = {}
+  liveRows.clear()
+
+  let list
+  try {
+    list = await apiFetch(API)
+    setLive(true)
+  } catch {
+    list = []
+    setLive(false)
+  }
+  totems = list ?? []
 
   totemList.innerHTML = ''
-  const totems = await apiFetch(API).catch(() => [])
-
-  if (!totems || totems.length === 0) {
-    totemEmpty.style.display = 'flex'
-    dispatchTotemsUpdated([])
-    return []
-  }
-
-  totemEmpty.style.display = 'none'
-
   for (const t of totems) {
     const card = buildTotemCard(t)
     totemList.appendChild(card)
     startCardPoll(t, card)
   }
 
-  dispatchTotemsUpdated(totems)
+  updateCounts()
+  applyFilter()
+  renderStats()
+  window.dispatchEvent(new CustomEvent('totems:updated', { detail: { totems } }))
   return totems
 }
 
-function buildTotemCard(totem) {
-  const durationLabel = formatDuration(totem.sessionDurationMs ?? 1800000)
-  const entryUrl = `${window.location.origin}/play/totem?id=${totem._id}`
-  const queueCount = totem.queueSize || 0
-  const shortId = totem._id.slice(0, 8)
-  const card = document.createElement('div')
-  card.className  = 'totem-card'
-  card.dataset.id = totem._id
+function kindOf(t) {
+  return { physical: Boolean(t.ip), web: Boolean(t.game) }
+}
 
-  const hasPhysical = Boolean(totem.ip)
-  const screens = totem.instances ?? { open: 0, online: 0 }
+function updateCounts() {
+  $('cnt-all').textContent      = totems.length
+  $('cnt-physical').textContent = totems.filter(t => kindOf(t).physical).length
+  $('cnt-web').textContent      = totems.filter(t => kindOf(t).web).length
+}
+
+function applyFilter() {
+  const q = searchInput.value.trim().toLowerCase()
+  let shown = 0
+  for (const card of totemList.children) {
+    const t = totems.find(x => x._id === card.dataset.id)
+    if (!t) continue
+    const k = kindOf(t)
+    const okKind = filter === 'all' || (filter === 'physical' ? k.physical : k.web)
+    const okText = !q || t.name.toLowerCase().includes(q) || t._id.startsWith(q) || (t.game ?? '').includes(q)
+    card.hidden = !(okKind && okText)
+    if (!card.hidden) shown++
+  }
+  totemEmpty.hidden   = totems.length > 0
+  totemNoMatch.hidden = totems.length === 0 || shown > 0
+}
+
+for (const tab of tabs) {
+  tab.addEventListener('click', () => {
+    filter = tab.dataset.filter
+    for (const t of tabs) t.setAttribute('aria-selected', String(t === tab))
+    applyFilter()
+  })
+}
+searchInput.addEventListener('input', applyFilter)
+$('btn-clear-filter').addEventListener('click', () => {
+  searchInput.value = ''
+  tabs[0].click()
+})
+
+function buildTotemCard(totem) {
+  const { physical, web } = kindOf(totem)
+  const entryUrl = `${window.location.origin}/play/totem?id=${totem._id}`
+  const shortId  = totem._id.slice(0, 8)
+  const name     = escHtml(totem.name)
+
+  const card = document.createElement('article')
+  card.className  = 'db-card db-card--hover totem'
+  card.dataset.id = totem._id
+  card.setAttribute('aria-label', totem.name)
 
   card.innerHTML = `
-    <div style="display: flex; gap: 20px; align-items: stretch;">
-      <!-- Left Info Column -->
-      <div style="flex: 1; display: flex; flex-direction: column;">
-        <div class="totem-card-header">
-          <span class="totem-card-name">${escHtml(totem.name)}</span>
-          ${hasPhysical ? `<span class="totem-card-addr">${escHtml(totem.ip)}:${totem.udpPort}</span>` : ''}
-        </div>
-
-        <div class="totem-modes">
-          ${hasPhysical ? '<span class="db-badge db-badge--success">Totem físico</span>' : ''}
-          ${totem.game ? `<span class="db-badge db-badge--brand">Web · ${escHtml(totem.game)}</span>` : ''}
-        </div>
-
-        <!-- Totem ID row -->
-        <div style="display: flex; align-items: center; gap: 6px; margin-top: 5px;">
-          <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">ID</span>
-          <code class="totem-id-chip" data-full-id="${escHtml(totem._id)}" title="Clique para copiar o ID completo" style="cursor:pointer;">${shortId}…</code>
-        </div>
-
-        <div class="totem-card-meta" style="margin-top: 8px;">
-          <span>${ICON_PLAYERS} ${totem.maxPlayers ?? 2} jogadores</span>
-          <span>${ICON_CLOCK} ${durationLabel}</span>
-          <span data-queue-count style="color: ${queueCount > 0 ? 'var(--accent)' : 'inherit'}; font-weight: ${queueCount > 0 ? '600' : 'normal'}">${ICON_QUEUE} Fila: ${queueCount}</span>
-          ${totem.game ? `<span class="totem-screens" data-screens data-live="${screens.online > 0}">${ICON_SCREEN} ${screensLabel(screens.online)}</span>` : ''}
-        </div>
-        <div class="totem-session-status" data-status-area style="margin-top: 12px; margin-bottom: 0;">
-          <span class="session-badge badge-loading"><span class="mini-dot mini-dot--loading"></span> Verificando…</span>
-        </div>
-
-        <div style="flex: 1;"></div>
-        <div class="totem-card-actions" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-          ${totem.game ? `<button class="btn-icon btn-embed" title="Incorporar em um site" aria-label="Incorporar ${escHtml(totem.name)} em um site">${ICON_CODE} Incorporar</button>` : ''}
-          <button class="btn-icon btn-queue-toggle" title="Ver Fila" aria-label="Ver fila do totem ${escHtml(totem.name)}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            Fila
-          </button>
-          <button class="btn-icon btn-edit" title="Editar" aria-label="Editar totem ${escHtml(totem.name)}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            Editar
-          </button>
-          <button class="btn-icon btn-clear-queue" title="Limpar Fila" aria-label="Limpar fila de ${escHtml(totem.name)}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3v4"></path><path d="M21 7h-8"></path><path d="M12 21H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h8"></path><path d="M12 7v14"></path></svg>
-            Limpar Fila
-          </button>
-          <button class="btn-icon btn-delete" title="Excluir" aria-label="Excluir totem ${escHtml(totem.name)}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-            Excluir
-          </button>
+    <div class="totem__head">
+      <div>
+        <h3 class="totem__name">${name}</h3>
+        <div class="totem__modes">
+          <button class="id-chip" type="button" data-action="copy-id" data-tip="Copiar ID completo" aria-label="Copiar ID ${escHtml(totem._id)}">${shortId}</button>
+          ${physical ? `<span class="db-tag" title="Endereço UDP da máquina">${escHtml(totem.ip)}:${totem.udpPort}</span>` : ''}
+          ${web ? `<span class="db-badge db-badge--brand">${icon('globe')}Web · ${escHtml(totem.game)}</span>` : ''}
         </div>
       </div>
-      ${hasPhysical ? `
-      <!-- Right QR Code Column (physical totem only — web instances have their own QR) -->
-      <div style="width: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--surface-card); padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border);">
-         <img class="totem-card-qr-img" style="width:100%; height:auto; object-fit:contain;" src="${API}/${totem._id}/qr" alt="QR Code do Totem" title="Clique para ampliar" />
-         <a class="totem-card-link" href="${entryUrl}" target="_blank" style="margin-top: 8px; font-size: 11px; text-decoration: none; color: var(--text-link); font-family: var(--font-mono); display: block; overflow: hidden; text-overflow: ellipsis; max-width: 100%;" title="${entryUrl}">Copiar Link</a>
-      </div>` : ''}
+      <span data-status><span class="db-badge db-badge--dot">Verificando…</span></span>
     </div>
-  `
 
-  // Copy full ID on click
-  card.querySelector('.totem-id-chip').addEventListener('click', function () {
-    const fullId = this.dataset.fullId
-    navigator.clipboard.writeText(fullId).then(() => {
-      const orig = this.textContent
-      this.textContent = 'Copiado!'
-      this.style.color = 'var(--success)'
-      setTimeout(() => { this.textContent = orig; this.style.color = '' }, 1800)
-    })
-  })
+    <div class="totem__meta">
+      <span>${icon('users')}${totem.maxPlayers ?? 2} por vez</span>
+      <span>${icon('clock')}${formatDuration(totem.sessionDurationMs ?? 1800000)}</span>
+      <span data-queue>${icon('list')}Fila: ${totem.queueSize || 0}${totem.maxQueueSize ? `/${totem.maxQueueSize}` : ''}</span>
+      ${web ? `<span data-screens>${icon('monitor')}${screensLabel(totem.instances?.online ?? 0)}</span>` : ''}
+    </div>
 
-  card.querySelector('.btn-edit').addEventListener('click',   () => startEdit(totem))
-  card.querySelector('.btn-delete').addEventListener('click', () => deleteTotem(totem._id, totem.name))
-  card.querySelector('.btn-clear-queue').addEventListener('click', () => clearTotemQueue(totem._id, totem.name))
-  card.querySelector('.btn-queue-toggle').addEventListener('click', () => openQueueModal(totem))
-  card.querySelector('.btn-embed')?.addEventListener('click', () => openEmbedDialog(totem))
-  card.querySelector('.totem-card-qr-img')?.addEventListener('click', () => openQrLightbox(totem))
+    ${physical ? `
+    <div class="entry">
+      <button class="entry__qr" type="button" data-action="qr" aria-label="Ampliar QR de ${name}">
+        <img src="${API}/${totem._id}/qr" alt="" width="76" height="76" loading="lazy" />
+      </button>
+      <div class="entry__text">
+        <span class="entry__title">Entrada do totem</span>
+        <span class="entry__hint">Quem escaneia entra na fila desta máquina.</span>
+        <div class="entry__actions">
+          <button class="db-btn db-btn--ghost db-btn--sm" type="button" data-action="copy-link">${icon('copy')}Copiar link</button>
+          <span data-end-all></span>
+        </div>
+      </div>
+    </div>` : ''}
 
-  // Allow clicking the copy link to copy to clipboard
-  const linkRef = card.querySelector('.totem-card-link')
-  linkRef?.addEventListener('click', (e) => {
-    e.preventDefault()
-    navigator.clipboard.writeText(entryUrl).then(() => {
-      const origText = linkRef.textContent
-      linkRef.textContent = 'Copiado!'
-      setTimeout(() => linkRef.textContent = origText, 2000)
-    })
+    <div class="totem__foot">
+      <div class="totem__primary">
+        ${web ? `<button class="db-btn db-btn--secondary db-btn--sm" type="button" data-action="embed">${icon('code')}Incorporar</button>` : ''}
+        <button class="db-btn db-btn--secondary db-btn--sm" type="button" data-action="queue">${icon('list')}Fila</button>
+      </div>
+      <div class="totem__tools">
+        <button class="db-icon-btn" type="button" data-action="edit" data-tip="Editar" aria-label="Editar ${name}"><svg><use href="#i-edit"/></svg></button>
+        <button class="db-icon-btn" type="button" data-action="clear" data-tip="Limpar fila" aria-label="Limpar fila de ${name}"><svg><use href="#i-eraser"/></svg></button>
+        <button class="db-icon-btn db-icon-btn--danger" type="button" data-action="delete" data-tip="Excluir" aria-label="Excluir ${name}"><svg><use href="#i-trash"/></svg></button>
+      </div>
+    </div>`
+
+  const actions = {
+    'embed':     () => openEmbedDialog(totem),
+    'queue':     () => openQueueDialog(totem),
+    'qr':        () => openQrDialog(totem),
+    'edit':      () => startEdit(totem),
+    'clear':     () => clearTotemQueue(totem),
+    'delete':    () => deleteTotem(totem),
+    'copy-id':   () => copy(totem._id, 'ID copiado'),
+    'copy-link': () => copy(entryUrl, 'Link de entrada copiado', 'Cole no navegador do celular para testar.'),
+    'end-all':   async () => {
+      if (await endAllSessions(totem)) pollCardState(totem, card)
+    },
+  }
+  card.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]')
+    if (btn && card.contains(btn)) actions[btn.dataset.action]?.()
   })
 
   return card
 }
 
-// ── Card Polling ─────────────────────────────────────────────────────────────
-// One session per player now: the card shows occupancy (X/N) instead of a
-// single "active session", and "Encerrar Todas" resets every slot at once.
-// Session status and queue count both come from the same /queue payload, so a
-// single poll per card feeds both renders instead of two independent fetches
-// hitting the same endpoint on separate timers.
+async function copy(text, title, message) {
+  try {
+    await navigator.clipboard.writeText(text)
+    toast(title, { message })
+  } catch {
+    toast('Não deu para copiar', { tone: 'danger', message: text })
+  }
+}
 
+// ── Card polling ─────────────────────────────────────────────────────────────
 // /instances gives per-instance counts: 'default' (physical totem) + every
 // open iframe. The card sums them so a web totem's activity is visible too.
+
 async function fetchTotemState(totemId) {
   try {
     const res = await fetch(`${API}/${totemId}/instances`)
@@ -322,59 +317,52 @@ function screensLabel(n) {
   return n === 1 ? '1 tela aberta' : `${n} telas abertas`
 }
 
-function renderSessionStatus(totem, card, rows) {
-  const area = card.querySelector('[data-status-area]')
-  if (!area) return
+function renderCard(totem, card, rows) {
+  const status = card.querySelector('[data-status]')
+  const endAll = card.querySelector('[data-end-all]') ?? document.createElement('span')
 
   if (!rows) {
-    area.innerHTML = '<span class="session-badge badge-inactive"><span class="mini-dot mini-dot--muted"></span> Indisponível</span>'
+    status.innerHTML = '<span class="db-badge db-badge--danger db-badge--dot">Sem resposta</span>'
+    endAll.innerHTML = ''
     return
   }
 
-  const physical = rows.find(r => r.id === 'default') ?? { sessions: 0 }
-  const web      = rows.filter(r => r.id !== 'default')
-  const webPlayers = web.reduce((n, r) => n + r.sessions, 0)
-  const total    = physical.sessions + webPlayers
+  const physical   = rows.find(r => r.id === 'default') ?? { sessions: 0, queueSize: 0 }
+  const webRows    = rows.filter(r => r.id !== 'default')
+  const webPlayers = webRows.reduce((n, r) => n + r.sessions, 0)
+  const total      = physical.sessions + webPlayers
 
   if (total === 0) {
-    area.innerHTML = '<span class="session-badge badge-inactive"><span class="mini-dot mini-dot--muted"></span> Livre</span>'
-    return
+    status.innerHTML = '<span class="db-badge db-badge--dot">Livre</span>'
+  } else {
+    const parts = []
+    if (totem.ip)   parts.push(`${physical.sessions}/${totem.maxPlayers ?? 2} no totem`)
+    if (webPlayers) parts.push(`${webPlayers} na web`)
+    status.innerHTML = `<span class="db-badge db-badge--success db-badge--dot db-badge--live">${parts.join(' · ')}</span>`
   }
 
-  const parts = []
-  if (totem.ip)  parts.push(`${physical.sessions}/${totem.maxPlayers ?? 2} no totem`)
-  if (webPlayers) parts.push(`${webPlayers} na web`)
-  area.innerHTML = `
-    <span class="session-badge badge-active"><span class="mini-dot mini-dot--success"></span> ${parts.join(' · ')}</span>
-    ${totem.ip && physical.sessions > 0 ? `<button class="btn-end-session" data-totem-id="${escHtml(totem._id)}" title="Encerra as sessões do totem físico">Encerrar Todas</button>` : ''}
-  `
-  area.querySelector('.btn-end-session')?.addEventListener('click', async () => {
-    await endAllSessions(totem._id, totem.name)
-    await pollCardState(totem, card) // refresh immediately
-  })
-}
+  endAll.innerHTML = totem.ip && physical.sessions > 0
+    ? `<button class="db-btn db-btn--danger db-btn--sm" type="button" data-action="end-all">${icon('power')}Encerrar todas</button>`
+    : ''
 
-function renderQueueCount(card, rows) {
-  const countEl = card.querySelector('[data-queue-count]')
-  if (!countEl || !rows) return
-
-  const queueCount = rows.reduce((n, r) => n + r.queueSize, 0)
-  countEl.innerHTML = `${ICON_QUEUE} Fila: ${queueCount}`
-  countEl.style.color = queueCount > 0 ? 'var(--text-brand)' : 'inherit'
-  countEl.style.fontWeight = queueCount > 0 ? '600' : 'normal'
+  const queued  = rows.reduce((n, r) => n + r.queueSize, 0)
+  const queueEl = card.querySelector('[data-queue]')
+  queueEl.innerHTML   = `${icon('list')}Fila: ${queued}${totem.maxQueueSize ? `/${totem.maxQueueSize}` : ''}`
+  queueEl.dataset.hot = String(queued > 0)
 
   const screensEl = card.querySelector('[data-screens]')
   if (screensEl) {
-    const online = rows.filter(r => r.id !== 'default' && r.online).length
-    screensEl.innerHTML = `${ICON_SCREEN} ${screensLabel(online)}`
-    screensEl.dataset.live = String(online > 0)
+    const online = webRows.filter(r => r.online).length
+    screensEl.innerHTML   = `${icon('monitor')}${screensLabel(online)}`
+    screensEl.dataset.hot = String(online > 0)
   }
 }
 
 async function pollCardState(totem, card) {
   const rows = await fetchTotemState(totem._id)
-  renderSessionStatus(totem, card, rows)
-  renderQueueCount(card, rows)
+  if (rows) liveRows.set(totem._id, rows); else liveRows.delete(totem._id)
+  renderCard(totem, card, rows)
+  renderStats()
 }
 
 function startCardPoll(totem, card) {
@@ -382,47 +370,69 @@ function startCardPoll(totem, card) {
   cardPollTimers[totem._id] = setInterval(() => pollCardState(totem, card), 10_000)
 }
 
-// ── Queue Modal ───────────────────────────────────────────────────────────────
-
-function formatDeviceMeta(meta) {
-  if (!meta) return ''
-
-  let deviceIcon = ICON_GLOBE
-  let deviceText = 'Desconhecido'
-  if (meta.ua) {
-    const ua = meta.ua.toLowerCase()
-
-    if (ua.includes('iphone')) { deviceIcon = ICON_PHONE; deviceText = 'iPhone' }
-    else if (ua.includes('ipad')) { deviceIcon = ICON_PHONE; deviceText = 'iPad' }
-    else if (ua.includes('android')) {
-      deviceIcon = ICON_PHONE
-      deviceText = 'Android'
-      const parts = meta.ua.split(';')
-      if (parts.length > 2) {
-        const model = parts[2].split(')')[0].trim()
-        if (model.length < 20) deviceText += ` (${model})`
-      }
+function renderStats() {
+  const physicalN = totems.filter(t => kindOf(t).physical).length
+  const webN      = totems.filter(t => kindOf(t).web).length
+  let playing = 0, queued = 0, screens = 0
+  for (const rows of liveRows.values()) {
+    for (const r of rows) {
+      playing += r.sessions
+      queued  += r.queueSize
+      if (r.id !== 'default' && r.online) screens++
     }
-    else if (ua.includes('windows'))   { deviceIcon = ICON_DESKTOP; deviceText = 'Windows' }
-    else if (ua.includes('macintosh')) { deviceIcon = ICON_DESKTOP; deviceText = 'Mac' }
-    else if (ua.includes('linux'))     { deviceIcon = ICON_DESKTOP; deviceText = 'Linux' }
-
-    let browser = ''
-    if (ua.includes('edg'))      browser = 'Edge'
-    else if (ua.includes('chrome'))   browser = 'Chrome'
-    else if (ua.includes('firefox'))  browser = 'Firefox'
-    else if (ua.includes('safari'))   browser = 'Safari'
-
-    if (browser) deviceText += ` · ${browser}`
   }
-
-  const ip   = meta.ip ? ` · ${ICON_GLOBE} ${escHtml(meta.ip)}` : ''
-  const lang = meta.lang ? ` · ${escHtml(meta.lang.split('-')[0].toUpperCase())}` : ''
-
-  return `<div class="queue-device-meta">${deviceIcon} ${escHtml(deviceText)}${ip}${lang}</div>`
+  $('st-totems').textContent     = totems.length
+  $('st-totems-sub').textContent = `${physicalN} físico${physicalN === 1 ? '' : 's'} · ${webN} web`
+  $('st-playing').textContent    = playing
+  $('st-queue').textContent      = queued
+  $('st-queue').dataset.tone     = queued > 0 ? 'warning' : ''
+  $('st-screens').textContent    = screens
 }
 
-async function renderQueueModal(totem) {
+// ── Server reachability (sidebar live indicator) ──────────────────────────────
+
+function setLive(ok) {
+  $('live').dataset.state = ok ? 'on' : 'off'
+  $('live-text').textContent = ok ? 'ao vivo' : 'sem conexão'
+}
+setInterval(async () => {
+  try { setLive((await fetch('/health')).ok) } catch { setLive(false) }
+}, 15_000)
+
+// ── Queue dialog ──────────────────────────────────────────────────────────────
+
+function describeDevice(meta) {
+  if (!meta) return null
+  let ico = 'globe', text = 'Desconhecido'
+  const ua = (meta.ua ?? '').toLowerCase()
+  if (ua) {
+    if (ua.includes('iphone'))        { ico = 'phone'; text = 'iPhone' }
+    else if (ua.includes('ipad'))     { ico = 'phone'; text = 'iPad' }
+    else if (ua.includes('android'))  {
+      ico = 'phone'; text = 'Android'
+      const model = meta.ua.split(';')[2]?.split(')')[0].trim()
+      if (model && model.length < 20) text += ` (${model})`
+    }
+    else if (ua.includes('windows'))   { ico = 'monitor'; text = 'Windows' }
+    else if (ua.includes('macintosh')) { ico = 'monitor'; text = 'Mac' }
+    else if (ua.includes('linux'))     { ico = 'monitor'; text = 'Linux' }
+
+    const browser = ua.includes('edg') ? 'Edge' : ua.includes('chrome') ? 'Chrome'
+      : ua.includes('firefox') ? 'Firefox' : ua.includes('safari') ? 'Safari' : ''
+    if (browser) text += ` · ${browser}`
+  }
+  const parts = [`<span>${icon(ico)}${escHtml(text)}</span>`]
+  if (meta.ip)   parts.push(`<span class="db-mono">${escHtml(meta.ip)}</span>`)
+  if (meta.lang) parts.push(`<span>${escHtml(meta.lang.split('-')[0].toUpperCase())}</span>`)
+  return parts.join('')
+}
+
+function shortPid(pid) {
+  const s = String(pid)
+  return s.length > 14 ? `${s.slice(0, 14)}…` : s
+}
+
+async function renderQueue(totem) {
   let data
   try {
     const res = await fetch(`${API}/${totem._id}/queue${instQs(queueInstance)}`)
@@ -430,104 +440,83 @@ async function renderQueueModal(totem) {
   } catch { data = null }
 
   if (!data) {
-    queueModalBody.innerHTML = '<p style="font-size:13px; color: var(--text-muted);">Erro ao carregar a fila.</p>'
+    queueBody.innerHTML = `<div class="db-callout db-callout--danger">${icon('alert')}<span>Não deu para carregar a fila. Tentando de novo em 5s.</span></div>`
     return
   }
 
   const { queue = [], sessions = [], maxQueueSize = null } = data
-  const queueCapLabel = maxQueueSize ? ` / ${maxQueueSize}` : ''
+  const cap = maxQueueSize ? ` de ${maxQueueSize}` : ''
+
+  const summary = `
+    <div class="queue-sum">
+      <span class="db-badge db-badge--success db-badge--dot">${sessions.length} jogando</span>
+      <span class="db-badge ${queue.length ? 'db-badge--warning' : ''} db-badge--dot">${queue.length}${cap} na fila</span>
+    </div>`
 
   if (queue.length === 0 && sessions.length === 0) {
-    queueModalBody.innerHTML = `<div class="queue-panel"><div class="queue-panel-header"><span>Controle de Fila</span><span class="queue-count">Vazio${queueCapLabel ? ' · limite' + queueCapLabel : ''}</span></div></div>`
+    queueBody.innerHTML = `${summary}<p class="q-empty" style="margin-top:12px">Ninguém jogando nem esperando agora.</p>`
     return
   }
 
-  // One row per live session (each player owns their own session now)
-  const playerRows = sessions.map((s) => {
-    const pidStr = String(s.playerId)
-    const shortId = pidStr.length > 14 ? pidStr.slice(0, 14) : pidStr
-    const metaHtml = formatDeviceMeta(s.metadata)
-    const badge = s.status === 'active'
-      ? '<span class="mini-dot mini-dot--success"></span>'
-      : '<span class="mini-dot mini-dot--loading"></span>'
-    const shortSid = String(s.sessionId).slice(0, 8)
+  const playing = sessions.map((s) => {
+    const pid  = String(s.playerId)
+    const meta = describeDevice(s.metadata)
     return `
-      <div class="queue-row queue-row--playing">
-        <span class="queue-pos">${badge}</span>
-        <div style="flex: 1; min-width: 0;">
-          <div class="queue-pid" title="${escHtml(pidStr)}">${escHtml(shortId)}${pidStr.length > 14 ? '…' : ''}</div>
-          ${metaHtml}
-          <div class="queue-device-meta" title="${escHtml(String(s.sessionId))}">🆔 sessão ${escHtml(shortSid)}… · ${s.status === 'active' ? 'jogando' : 'reservada'}</div>
+      <div class="q-row q-row--playing">
+        <span class="q-pos" title="${s.status === 'active' ? 'Jogando' : 'Reservada'}">${icon('gamepad')}</span>
+        <div class="q-main">
+          <p class="q-pid" title="${escHtml(pid)}">${escHtml(shortPid(pid))}</p>
+          <p class="q-meta">
+            <span>${s.status === 'active' ? 'jogando' : 'reservada, aguardando o celular'}</span>
+            <span class="db-mono" title="${escHtml(String(s.sessionId))}">sessão ${escHtml(String(s.sessionId).slice(0, 8))}</span>
+            ${meta ?? ''}
+          </p>
         </div>
-        <button class="btn-kick"
-          data-session-id="${escHtml(String(s.sessionId))}"
-          data-player-id="${escHtml(pidStr)}"
-          title="Encerrar a sessão deste jogador">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          Expulsar
-        </button>
+        <button class="db-btn db-btn--danger db-btn--sm" type="button" data-kick-session="${escHtml(String(s.sessionId))}" data-player-id="${escHtml(pid)}">Expulsar</button>
       </div>`
   }).join('')
 
-  const queueRows = queue.filter(item => item && (typeof item === 'string' || item.id || item._id)).map((item, i) => {
-    const pid = (typeof item === 'string') ? item : (item.id || item._id)
-    const pidStr = String(pid)
-    const shortId = pidStr.length > 14 ? pidStr.slice(0, 14) : pidStr
-    const metaHtml = formatDeviceMeta(item?.metadata)
+  const waiting = queue
+    .filter(item => item && (typeof item === 'string' || item.id || item._id))
+    .map((item, i) => {
+      const pid  = String(typeof item === 'string' ? item : (item.id || item._id))
+      const meta = describeDevice(item?.metadata)
+      // Heartbeat TTL: null = no Redis, -2 = expired (ghost), -1 = no TTL, else seconds left.
+      const ttl  = item?.heartbeatTtl
+      const ghost = typeof ttl === 'number' && (ttl === -2 || ttl < 15)
+      const eta  = item?.estimatedWaitMs
+      return `
+        <div class="q-row">
+          <span class="q-pos">${i + 1}</span>
+          <div class="q-main">
+            <p class="q-pid" title="${escHtml(pid)}">${escHtml(shortPid(pid))}</p>
+            <p class="q-meta">
+              ${eta ? `<span>${icon('clock')}~${Math.max(1, Math.ceil(eta / 60000))} min</span>` : ''}
+              ${ghost ? `<span data-warn>${icon('alert')}${ttl < 0 ? 'inativo' : `sai em ${ttl}s`}</span>` : ''}
+              ${meta ?? ''}
+            </p>
+          </div>
+          <button class="db-btn db-btn--danger db-btn--sm" type="button" data-kick-queue="${escHtml(pid)}">Remover</button>
+        </div>`
+    }).join('')
 
-    // Heartbeat TTL: null = no Redis, -2 = expired/missing (ghost), -1 = no TTL, else seconds left.
-    const ttl = item?.heartbeatTtl
-    const isGhost = typeof ttl === 'number' && (ttl === -2 || ttl < 15)
-    const ghostHtml = isGhost
-      ? `<div class="queue-device-meta" style="color: var(--danger);">⚠️ ${ttl < 0 ? 'inativo' : `expira em ${ttl}s`}</div>`
-      : ''
-
-    const eta = item?.estimatedWaitMs
-    const etaHtml = eta ? `<div class="queue-device-meta">⏱ ~${Math.max(1, Math.ceil(eta / 60000))} min</div>` : ''
-
-    return `
-      <div class="queue-row" data-player-id="${escHtml(pidStr)}">
-        <span class="queue-pos">#${i + 1}</span>
-        <div style="flex: 1; min-width: 0;">
-          <div class="queue-pid" title="${escHtml(pidStr)}">${escHtml(shortId)}${pidStr.length > 14 ? '…' : ''}</div>
-          ${metaHtml}
-          ${etaHtml}
-          ${ghostHtml}
-        </div>
-        <button class="btn-kick" data-totem-id="${escHtml(totem._id)}" data-player-id="${escHtml(pidStr)}" title="Remover da fila">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          Expulsar
-        </button>
-      </div>`
-  }).join('')
-
-  queueModalBody.innerHTML = `
-    <div class="queue-panel">
-      <div class="queue-panel-header">
-        <span>Controle de Fila</span>
-        <span class="queue-count">${sessions.length} jogando · ${queue.length}${queueCapLabel} na fila</span>
-      </div>
-      ${playerRows}
-      ${queue.length > 0 && sessions.length > 0 ? `<div class="queue-divider"></div>` : ''}
-      ${queueRows}
-    </div>
-  `
-
-  queueModalBody.querySelectorAll('.btn-kick').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const pid = btn.dataset.playerId
-      const tid = btn.dataset.totemId
-      const sid = btn.dataset.sessionId
-
-      if (sid) {
-        await kickFromSession(sid, pid, totem.name)
-      } else {
-        await kickFromQueue(tid, pid, totem.name)
-      }
-      renderQueueModal(totem)
-    })
-  })
+  queueBody.innerHTML = `
+    ${summary}
+    ${playing ? `<div class="q-section" style="margin-top:16px"><p class="q-section__title">Jogando</p>${playing}</div>` : ''}
+    ${waiting ? `<div class="q-section" style="margin-top:16px"><p class="q-section__title">Na fila</p>${waiting}</div>` : ''}`
 }
+
+queueBody.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button')
+  if (!btn || !queueTotem) return
+  btn.disabled = true
+  if (btn.dataset.kickSession) {
+    await kickFromSession(btn.dataset.kickSession, btn.dataset.playerId)
+  } else if (btn.dataset.kickQueue) {
+    await kickFromQueue(queueTotem._id, btn.dataset.kickQueue)
+  }
+  renderQueue(queueTotem)
+})
 
 /** Fills the "Tela" selector: physical totem + every open iframe instance. */
 async function refreshInstanceOptions(totem) {
@@ -545,215 +534,183 @@ async function refreshInstanceOptions(totem) {
   queueInstanceSel.innerHTML = options
     .map(o => `<option value="${escHtml(o.id)}"${o.id === queueInstance ? ' selected' : ''}>${escHtml(o.label)}</option>`)
     .join('')
-  queueInstanceSel.closest('.queue-instance-bar').style.display = options.length > 1 ? '' : 'none'
+  queueInstanceBar.hidden = options.length <= 1
 }
 
-let queueModalTotem = null
-queueInstanceSel?.addEventListener('change', () => {
+queueInstanceSel.addEventListener('change', () => {
   queueInstance = queueInstanceSel.value
-  if (queueModalTotem) renderQueueModal(queueModalTotem)
+  if (queueTotem) renderQueue(queueTotem)
 })
 
-async function openQueueModal(totem) {
-  queueModalTotemId = totem._id
-  queueModalTotem   = totem
-  queueInstance     = totem.ip ? 'default' : null
-  queueModalTotemName.textContent = totem.name
-  queueModal.style.display = 'flex'
+async function openQueueDialog(totem) {
+  queueTotem    = totem
+  queueInstance = totem.ip ? 'default' : null
+  queueTotemName.textContent = totem.name
+  queueBody.innerHTML = '<p class="q-empty">Carregando…</p>'
+  queueDialog.showModal()
   await refreshInstanceOptions(totem)
-  renderQueueModal(totem)
+  renderQueue(totem)
 
-  clearInterval(queueModalTimer)
-  queueModalTimer = setInterval(async () => {
+  clearInterval(queueTimer)
+  queueTimer = setInterval(async () => {
     await refreshInstanceOptions(totem)
-    renderQueueModal(totem)
+    renderQueue(totem)
   }, 5_000)
-  openModalA11y(queueModal, closeQueueModal)
 }
 
-function closeQueueModal() {
-  queueModal.style.display = 'none'
-  queueModalTotemId = null
-  queueModalTotem   = null
-  clearInterval(queueModalTimer)
-  queueModalTimer = null
-  closeModalA11y(queueModal)
-}
-
-queueModalClose?.addEventListener('click', closeQueueModal)
-queueModal?.addEventListener('click', (e) => {
-  if (e.target === queueModal) closeQueueModal()
+queueDialog.addEventListener('close', () => {
+  clearInterval(queueTimer)
+  queueTimer = null
+  queueTotem = null
 })
 
-// ── QR Lightbox ───────────────────────────────────────────────────────────────
-// Enlarges a single totem's QR over a darkened, blurred backdrop so an
-// operator scanning with their own phone can't accidentally pick up a
-// neighboring totem's code from the card grid.
-
-function openQrLightbox(totem) {
-  qrLightboxName.textContent = totem.name
-  qrLightboxImg.src = `${API}/${totem._id}/qr`
-  qrLightbox.style.display = 'flex'
-  openModalA11y(qrLightbox, closeQrLightbox, qrLightboxClose)
-}
-
-function closeQrLightbox() {
-  qrLightbox.style.display = 'none'
-  qrLightboxImg.src = ''
-  closeModalA11y(qrLightbox)
-}
-
-qrLightboxClose?.addEventListener('click', closeQrLightbox)
-qrLightbox?.addEventListener('click', (e) => {
-  if (e.target === qrLightbox) closeQrLightbox()
-})
-
-// ── Kick from Queue ───────────────────────────────────────────────────────────
-
-async function kickFromQueue(totemId, playerId, totemName) {
+async function kickFromQueue(totemId, playerId) {
   try {
     const res = await fetch(`${API}/${totemId}/queue/${encodeURIComponent(playerId)}${instQs(queueInstance)}`, { method: 'DELETE' })
     if (!res.ok) throw new Error(`Erro ${res.status}`)
-    Swal.fire({
-      title:             'Jogador Expulso',
-      text:              `O jogador foi removido da fila de "${totemName}".`,
-      icon:              'success',
-      timer:             1500,
-      showConfirmButton: false,
-    })
+    toast('Jogador removido da fila')
   } catch (err) {
-    showTotemError(`Erro ao expulsar da fila: ${err.message}`)
+    toast('Não deu para remover da fila', { tone: 'danger', message: err.message })
   }
 }
 
-async function kickFromSession(sessionId, playerId, totemName) {
+async function kickFromSession(sessionId, playerId) {
   try {
     const res = await fetch(`/api/sessions/${sessionId}/players/${encodeURIComponent(playerId)}/kick`, { method: 'POST' })
     if (!res.ok) throw new Error(`Erro ${res.status}`)
-    Swal.fire({
-      title:             'Jogador Expulso',
-      text:              `O jogador foi removido da sessão de "${totemName}".`,
-      icon:              'success',
-      timer:             1500,
-      showConfirmButton: false,
-    })
+    toast('Jogador expulso', { message: 'A vaga liberou e a fila andou.' })
   } catch (err) {
-    showTotemError(`Erro ao expulsar da sessão: ${err.message}`)
+    toast('Não deu para expulsar', { tone: 'danger', message: err.message })
   }
 }
 
-// ── End All Sessions (operator reset) ─────────────────────────────────────────
+// ── QR dialog ─────────────────────────────────────────────────────────────────
+// Enlarges a single totem's QR so an operator scanning with their own phone
+// can't pick up a neighbouring card's code from the grid.
 
-async function endAllSessions(totemId, totemName) {
-  const result = await Swal.fire({
-    title:              `Encerrar TODAS as sessões de "${escHtml(totemName)}"?`,
-    text:               'Todos os jogadores atuais serão desconectados e a fila avançará.',
-    icon:               'warning',
-    showCancelButton:   true,
-    confirmButtonColor: 'oklch(0.58 0.20 25)',
-    cancelButtonColor:  'oklch(0.52 0.022 230)',
-    confirmButtonText:  'Sim, encerrar',
-    cancelButtonText:   'Cancelar',
-    reverseButtons:     true,
-    focusCancel:        true,
+function openQrDialog(totem) {
+  qrTitle.textContent = totem.name
+  const img = new Image()
+  img.alt = `QR Code de entrada do totem ${totem.name}`
+  img.src = `${API}/${totem._id}/qr`
+  qrBox.replaceChildren(img)
+  qrDialog.showModal()
+}
+qrDialog.addEventListener('close', () => qrBox.replaceChildren())
+
+// ── Operator actions ──────────────────────────────────────────────────────────
+
+async function endAllSessions(totem) {
+  const ok = await confirmAction({
+    title: `Encerrar as partidas de "${totem.name}"?`,
+    message: 'Todos que estão jogando no totem físico são desconectados e a fila avança.',
+    confirmLabel: 'Encerrar todas',
   })
-
-  if (!result.isConfirmed) return
-
+  if (!ok) return false
   try {
-    const res = await fetch(`${API}/${totemId}/end-session`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    '{}',
-    })
-    if (!res.ok) throw new Error(`Erro ${res.status}`)
-
-    Swal.fire({
-      title:             'Encerradas!',
-      text:              'Vagas liberadas — a fila avança automaticamente.',
-      icon:              'success',
-      timer:             2000,
-      showConfirmButton: false,
-    })
+    await apiFetch(`${API}/${totem._id}/end-session`, { method: 'POST', body: '{}' })
+    toast('Partidas encerradas', { message: 'Vagas liberadas. A fila avança sozinha.' })
+    return true
   } catch (err) {
-    showTotemError(`Erro ao encerrar sessões: ${err.message}`)
+    toast('Não deu para encerrar', { tone: 'danger', message: err.message })
+    return false
   }
 }
 
-// ── Form Logic ────────────────────────────────────────────────────────────────
-
-function openTotemModal() {
-  totemFormModal.style.display = 'flex'
-  openModalA11y(totemFormModal, closeTotemModal, formName)
+async function deleteTotem(totem) {
+  const ok = await confirmAction({
+    title: `Excluir "${totem.name}"?`,
+    message: 'As partidas em andamento terminam, a fila é apagada e os iframes nos sites param de funcionar. Não dá para desfazer.',
+    confirmLabel: 'Excluir totem',
+  })
+  if (!ok) return
+  try {
+    await apiFetch(`${API}/${totem._id}`, { method: 'DELETE' })
+    if (editingTotemId === totem._id) resetForm()
+    await loadTotems()
+    toast('Totem excluído', { message: totem.name })
+  } catch (err) {
+    toast('Não deu para excluir', { tone: 'danger', message: err.message })
+  }
 }
 
-function closeTotemModal() {
-  totemFormModal.style.display = 'none'
-  resetForm()
-  closeModalA11y(totemFormModal)
+async function clearTotemQueue(totem) {
+  const ok = await confirmAction({
+    title: `Limpar a fila de "${totem.name}"?`,
+    message: 'Quem está esperando perde o lugar. Quem já está jogando continua.',
+    confirmLabel: 'Limpar fila',
+  })
+  if (!ok) return
+  try {
+    await apiFetch(`${API}/${totem._id}/queue/clear`, { method: 'POST' })
+    await loadTotems()
+    toast('Fila limpa', { message: totem.name })
+  } catch (err) {
+    toast('Não deu para limpar a fila', { tone: 'danger', message: err.message })
+  }
+}
+
+// ── Totem form ────────────────────────────────────────────────────────────────
+
+function openTotemDialog() {
+  hideFormError()
+  totemDialog.showModal()
+  formName.focus()
 }
 
 function startEdit(totem) {
-  editingTotemId             = totem._id
-  formName.value             = totem.name
-  formUrl.value              = totem.ip ? `${totem.ip}:${totem.udpPort}` : ''
-  formGame.value             = totem.game ?? ''
-  formGameConfig.value       = totem.gameConfig ? JSON.stringify(totem.gameConfig, null, 2) : ''
-  formMaxPlayers.value       = String(totem.maxPlayers ?? 2)
-  formDuration.value         = String(totem.sessionDurationMs ?? 1800000)
-  formMaxQueue.value         = totem.maxQueueSize != null ? String(totem.maxQueueSize) : ''
-  totemFormTitle.textContent = 'Editar Totem'
-  openTotemModal()
+  editingTotemId       = totem._id
+  formName.value       = totem.name
+  formUrl.value        = totem.ip ? `${totem.ip}:${totem.udpPort}` : ''
+  formGame.value       = totem.game ?? ''
+  formGameConfig.value = totem.gameConfig ? JSON.stringify(totem.gameConfig, null, 2) : ''
+  formMaxPlayers.value = String(totem.maxPlayers ?? 2)
+  formDuration.value   = String(totem.sessionDurationMs ?? 1800000)
+  formMaxQueue.value   = totem.maxQueueSize != null ? String(totem.maxQueueSize) : ''
+  totemFormTitle.textContent = 'Editar totem'
+  openTotemDialog()
 }
 
 function resetForm() {
-  editingTotemId              = null
-  formName.value              = ''
-  formUrl.value               = ''
-  formGame.value              = ''
-  formGameConfig.value        = ''
-  formMaxPlayers.value        = '2'
-  formDuration.value          = '1800000'
-  formMaxQueue.value          = ''
-  totemFormTitle.textContent  = 'Novo Totem'
+  editingTotemId = null
+  totemForm.reset()
+  formMaxPlayers.value = '2'
+  formDuration.value   = '1800000'
+  totemFormTitle.textContent = 'Novo totem'
 }
 
-btnNewTotem?.addEventListener('click', () => {
+function newTotem() {
   resetForm()
-  openTotemModal()
-})
+  openTotemDialog()
+}
+$('btn-new-totem').addEventListener('click', newTotem)
+document.querySelector('[data-action="new-totem"]').addEventListener('click', newTotem)
+totemDialog.addEventListener('close', resetForm)
 
-totemFormModalClose?.addEventListener('click', closeTotemModal)
-btnCancelEdit?.addEventListener('click', closeTotemModal)
-totemFormModal?.addEventListener('click', (e) => {
-  if (e.target === totemFormModal) closeTotemModal()
-})
+function showFormError(msg, field) {
+  totemError.querySelector('span').textContent = msg
+  totemError.hidden = false
+  field?.focus()
+}
+function hideFormError() { totemError.hidden = true }
 
-btnSaveTotem?.addEventListener('click', async () => {
+totemForm.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  hideFormError()
   const name              = formName.value.trim()
   const maxPlayers        = parseInt(formMaxPlayers.value, 10)
   const sessionDurationMs = parseInt(formDuration.value, 10)
   const maxQueueSize      = formMaxQueue.value.trim() ? parseInt(formMaxQueue.value, 10) : null
-
-  const game = formGame.value || null
+  const game    = formGame.value || null
   const hasAddr = Boolean(formUrl.value.trim())
 
-  if (!name) {
-    showTotemError('Dê um nome ao totem.')
-    return
-  }
-  if (!game && !hasAddr) {
-    showTotemError('Escolha um jogo para incorporar ou informe o endereço do totem físico.')
-    return
-  }
+  if (!name) return showFormError('Dê um nome ao totem.', formName)
+  if (!game && !hasAddr) return showFormError('Escolha um jogo para incorporar ou informe o endereço do totem físico.', formGame)
 
   let ip = null, udpPort = null
   if (hasAddr) {
     const parsed = parseTotemUrl(formUrl.value)
-    if (!parsed) {
-      showTotemError('Endereço inválido. Use IP:Porta, ex: 192.168.1.10:9001')
-      return
-    }
+    if (!parsed) return showFormError('Endereço inválido. Use IP:porta, ex.: 192.168.1.10:9001', formUrl)
     ;({ ip, udpPort } = parsed)
   }
 
@@ -763,113 +720,29 @@ btnSaveTotem?.addEventListener('click', async () => {
       gameConfig = JSON.parse(formGameConfig.value)
       if (typeof gameConfig !== 'object' || Array.isArray(gameConfig) || gameConfig === null) throw new Error()
     } catch {
-      showTotemError('Configuração do jogo precisa ser um objeto JSON, ex: { "gameSpeed": 6 }')
-      return
+      return showFormError('A configuração do jogo precisa ser um objeto JSON, ex.: { "gameSpeed": 6 }', formGameConfig)
     }
   }
 
   const payload = { name, ip, udpPort, game, gameConfig, maxPlayers, sessionDurationMs, maxQueueSize }
+  const wasEditing = Boolean(editingTotemId)
 
-  btnSaveTotem.disabled    = true
-  btnSaveTotem.textContent = 'Salvando...'
-
+  btnSaveTotem.disabled = true
   try {
-    if (editingTotemId) {
+    if (wasEditing) {
       await apiFetch(`${API}/${editingTotemId}`, { method: 'PUT', body: JSON.stringify(payload) })
     } else {
       await apiFetch(API, { method: 'POST', body: JSON.stringify(payload) })
     }
-
-    closeTotemModal()
+    totemDialog.close('saved')
     await loadTotems()
+    toast(wasEditing ? 'Totem atualizado' : 'Totem criado', { message: name })
   } catch (err) {
-    showTotemError(`Não foi possível salvar: ${err.message}`)
+    showFormError(`Não foi possível salvar: ${err.message}`)
   } finally {
-    btnSaveTotem.disabled    = false
-    btnSaveTotem.textContent = 'Salvar Totem'
+    btnSaveTotem.disabled = false
   }
 })
-
-// ── Delete ────────────────────────────────────────────────────────────────────
-
-async function deleteTotem(id, name) {
-  const result = await Swal.fire({
-    title:              `Excluir "${escHtml(name)}"?`,
-    text:               'Esta ação não pode ser desfeita.',
-    icon:               'warning',
-    showCancelButton:   true,
-    confirmButtonColor: 'oklch(0.58 0.20 25)',
-    cancelButtonColor:  'oklch(0.52 0.022 230)',
-    confirmButtonText:  'Sim, excluir',
-    cancelButtonText:   'Cancelar',
-    reverseButtons:     true,
-    focusCancel:        true,
-  })
-
-  if (!result.isConfirmed) return
-
-  try {
-    const res = await fetch(`${API}/${id}`, { method: 'DELETE' })
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      throw new Error(body.error ?? `Erro ${res.status}`)
-    }
-
-    if (editingTotemId === id) resetForm()
-    await loadTotems()
-
-    Swal.fire({
-      title:             'Excluído!',
-      text:              `O totem "${name}" foi removido.`,
-      icon:              'success',
-      timer:             1800,
-      showConfirmButton: false,
-    })
-  } catch (err) {
-    showTotemError(`Erro ao excluir: ${err.message}`)
-  }
-}
-
-// ── Clear Queue ───────────────────────────────────────────────────────────────
-
-async function clearTotemQueue(id, name) {
-  const result = await Swal.fire({
-    title:              `Limpar fila de "${escHtml(name)}"?`,
-    text:               'Todos os jogadores na fila perderão suas vagas.',
-    icon:               'warning',
-    showCancelButton:   true,
-    confirmButtonColor: 'oklch(0.58 0.20 25)',
-    cancelButtonColor:  'oklch(0.52 0.022 230)',
-    confirmButtonText:  'Sim, limpar',
-    cancelButtonText:   'Cancelar',
-    reverseButtons:     true,
-    focusCancel:        true,
-  })
-
-  if (!result.isConfirmed) return
-
-  try {
-    const res = await fetch(`${API}/${id}/queue/clear`, { method: 'POST' })
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      throw new Error(body.error ?? `Erro ${res.status}`)
-    }
-
-    await loadTotems()
-
-    Swal.fire({
-      title:             'Fila Limpa!',
-      text:              `A fila do totem "${name}" foi limpa.`,
-      icon:              'success',
-      timer:             1800,
-      showConfirmButton: false,
-    })
-  } catch (err) {
-    showTotemError(`Erro ao limpar fila: ${err.message}`)
-  }
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -888,34 +761,25 @@ function escHtml(str) {
  *   - "https://brickrush.dbpe.com.br:9101"      (URL completa com porta)
  * A URL sem porta explícita é inválida — a porta 443/80 implícita do
  * esquema NÃO é a porta UDP do jogo, então exigimos que venha escrita.
- * Returns null se o formato não bater com nenhum dos casos acima.
  */
 function parseTotemUrl(input) {
   const trimmed = input.trim()
 
-  // Full URL with scheme (http://, https://, udp://...)
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
     let parsed
-    try {
-      parsed = new URL(trimmed)
-    } catch {
-      return null
-    }
+    try { parsed = new URL(trimmed) } catch { return null }
     const ip = parsed.hostname
     const udpPort = parseInt(parsed.port, 10)
     if (!ip || !Number.isInteger(udpPort) || udpPort < 1 || udpPort > 65535) return null
     return { ip, udpPort }
   }
 
-  // Bare "host:porta" — host can be an IP or a plain domain name.
-  // Splits on the LAST colon so IPv6 hosts (which contain colons) still work.
+  // Bare "host:porta" — splits on the LAST colon so IPv6 hosts still work.
   const sep = trimmed.lastIndexOf(':')
   if (sep <= 0 || sep === trimmed.length - 1) return null
-
   const ip = trimmed.slice(0, sep)
   const udpPort = parseInt(trimmed.slice(sep + 1), 10)
   if (!ip || !Number.isInteger(udpPort) || udpPort < 1 || udpPort > 65535) return null
-
   return { ip, udpPort }
 }
 
@@ -923,18 +787,6 @@ function formatDuration(ms) {
   const min = Math.round(ms / 60000)
   if (min < 60) return `${min} min`
   return `${Math.round(min / 60)}h`
-}
-
-function showTotemError(msg) {
-  const el = document.getElementById('totem-error')
-  if (!el) return
-  el.textContent   = msg
-  el.style.display = 'block'
-  setTimeout(() => { el.style.display = 'none' }, 3500)
-}
-
-function dispatchTotemsUpdated(totems) {
-  window.dispatchEvent(new CustomEvent('totems:updated', { detail: { totems } }))
 }
 
 // ── Embed (n→n) ───────────────────────────────────────────────────────────────
@@ -988,24 +840,18 @@ function openEmbedDialog(totem) {
   embedDialog.showModal()
 }
 
-embedDialog?.addEventListener('close', () => {
+embedDialog.addEventListener('close', () => {
   clearTimeout(previewTimer)
   embedPreview.removeAttribute('src')   // closes the preview's instance
   embedTotem = null
 })
-for (const el of [embedResponsive, embedWidth, embedHeight]) el?.addEventListener('input', () => refreshEmbed())
-embedShowQr?.addEventListener('change', () => refreshEmbed({ reloadPreview: true }))
-embedDialog?.querySelectorAll('input[name="embed-pos"]').forEach(r =>
+for (const el of [embedResponsive, embedWidth, embedHeight]) el.addEventListener('input', () => refreshEmbed())
+embedShowQr.addEventListener('change', () => refreshEmbed({ reloadPreview: true }))
+embedDialog.querySelectorAll('input[name="embed-pos"]').forEach(r =>
   r.addEventListener('change', () => refreshEmbed({ reloadPreview: true })))
 
-embedCopy?.addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(embedCode.textContent)
-    toast('Código copiado — cole no HTML do site')
-  } catch {
-    toast('Não deu para copiar. Selecione o código e copie manualmente.')
-  }
-})
+embedCopy.addEventListener('click', () =>
+  copy(embedCode.textContent, 'Código copiado', 'Cole no HTML do site onde o jogo deve aparecer.'))
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadGames()

@@ -6,7 +6,11 @@ npm-debug.log
 *.log
 .git
 .gitignore
-games
+# games/*/public is served by /embed — only drop what the image does not need
+games/*/node_modules
+games/*/test
+games/*/Dockerfile
+games/*/docker-compose.yml
 docs
 tests
 demo-snake

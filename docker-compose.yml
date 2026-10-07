@@ -1,6 +1,6 @@
 # Runs the Street Arcade dashboard/API server plus its MongoDB and Redis.
-# The UDP totem / game servers (games/snake, games/brick-rush) still run on
-# the host — this stack does not include them.
+# The game bridges for a physical cabinet (games/*/server.js) still run on
+# the host; the browser games themselves are served by the dashboard (/embed).
 #
 # All config comes straight from .env — nothing is overridden here. For this
 # to reach the mongo/redis services below, set in your .env (see .env.example):

@@ -120,8 +120,8 @@ components:
   card:
     backgroundColor: "{colors.surface-white}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    padding: "20px"
+    rounded: "{rounded.lg}"
+    padding: "24px"
   badge-status:
     backgroundColor: "{colors.success}"
     textColor: "{colors.success}"
@@ -145,7 +145,7 @@ This system explicitly rejects both of PRODUCT.md's anti-references: it is not a
 - Light, blue-tinted slate base (`oklch(0.97 0.006 230)`) with white surface cards, never dark-mode-by-default
 - One accent color (DreamBricks Blue `#42b0d5`) carrying all primary CTAs, focus states, and active-tab indicators
 - IBM Plex Mono reserved for anything that reads as data or a system label; Poppins for everything conversational
-- Flat surfaces at rest; shadows and glow appear only as a response to hover, focus, or an open modal — tinted with the brand's own deep ink blue, never pure black
+- Quiet depth: cards carry the DS `--shadow-sm` at rest, everything else is flat; more depth only on hover, toasts and dialogs — always ink-tinted, never pure black
 - Saturated color bursts are scoped tightly: session status badges, the Xbox-palette gamepad buttons, the pulsing "live" dot — never the base chrome
 
 ## 2. Colors
@@ -217,67 +217,81 @@ Icon-scale exceptions (64px empty-state icons, gamepad glyphs at `clamp()` sizes
 
 ## 4. Elevation
 
-Flat-by-default, glow-on-response. Every surface sits flush against the page at rest — cards, headers, and tab bars use a 1px Border Slate line, not a shadow, to separate themselves from the background. Shadow and glow exist only as a reaction to state: a card lifts with a shadow when a modal opens over it, a primary button gains a DreamBricks Blue glow on hover, and a QR card slides up with a shadow as it animates into view. Depth is never used to imply static hierarchy — it always means "something just changed here." Following the DreamBricks system's own shadow tokens, every shadow in this system is tinted with Ink (`oklch(0.16 0.028 230)`), never pure black.
+Follows the DreamBricks Design System's own Card: **a whisper of depth at rest, more on response.** Cards sit on the slate page with a 1px Border Slate line plus `--shadow-sm` (two tiny ink-tinted layers — barely there, it reads as paper on a desk, not a floating panel). Everything else — the top bar, tab bar, sidebar, inputs, badges — is flat. Depth grows only as a reaction: a hoverable card lifts 2px to `--shadow-md`, a toast and the open dialog sit on `--shadow-lg`. Every shadow is tinted with Ink (`oklch(0.16 0.028 230)`), never pure black.
 
-### Shadow Vocabulary
-- **Hover Glow** (`box-shadow: 0 4px 14px oklch(from var(--accent) l c h / 0.4)`): appears on `.btn-primary:hover` — a response to the pointer being on an actionable element, not a resting state.
-- **Card Lift** (`box-shadow: 0 10px 40px oklch(0.16 0.028 230 / 0.1)`): used on the QR card and similar single-focus panels as they animate into view (`revealIn`).
-- **Modal Lift** (`box-shadow: 0 16px 64px oklch(0.16 0.028 230 / 0.4)`): the heaviest shadow in the system, reserved for `.modal-content` sitting over the dimmed/blurred overlay — the one moment depth is meant to feel dramatic.
-- **Gamepad Button Press** (`box-shadow: 0 5px 0 oklch(0.16 0.028 230 / 0.15)` at rest, `0 2px 0` when pressed): a skeuomorphic key-press shadow unique to the face buttons — depth here simulates a physical button, not a UI card.
+### Shadow Vocabulary (DS tokens, `tokens.css`)
+- **`--shadow-sm`**: resting cards (`.db-card`) and the checked segment of `.db-seg`. The only resting shadow in the chrome.
+- **`--shadow-md`**: hovered cards (`.db-card--hover`), hovered primary buttons, tooltips.
+- **`--shadow-lg`**: toasts.
+- **Dialog Lift** (`0 24px 64px oklch(0.16 0.028 230 / 0.28)`): `.db-dialog` over the ink overlay — the one moment depth is meant to feel dramatic.
+- **`--shadow-focus`**: the 3px soft blue ring on every focusable control.
+- **Gamepad Button Press** (`0 5px 0 oklch(0.16 0.028 230 / 0.15)` at rest, `0 2px 0` when pressed): skeuomorphic key-press, unique to the face buttons.
 
 ### Named Rules
-**The Flat-Until-Touched Rule.** Nothing in the system has a resting shadow except the gamepad's face buttons (which are simulating physical keys, not UI chrome). If you're adding a shadow to something that isn't hovered, focused, pressed, or animating in, remove it.
+**The Quiet-Card Rule.** `--shadow-sm` belongs to cards only. Bars, inputs, badges, buttons at rest and list rows never carry a shadow; if a surface needs separation and isn't a card, use the 1px Border Slate line.
 
 ## 5. Radius scale
 
 Adopted directly from the DreamBricks Design System (`tokens/spacing.css`) — generous, consistent rounding, echoing the brandbook's own soft logo-plate corners:
-- `sm`: 6px — small chips (e.g. `.totem-id-chip`)
-- `md`: 10px — default for buttons, inputs, cards (`--radius`)
-- `lg`: 16px — larger single-focus panels (QR image, modal corner treatments where a bigger radius reads better)
+- `sm`: 6px — small chips (`.id-chip`, `.db-tag`), tooltips, inline code
+- `md`: 10px — buttons, inputs, list rows, toasts, recessed blocks (`.entry`)
+- `lg`: 16px — cards (`.db-card`), dialogs, the large QR
 - `xl`: 24px — reserved for large marketing-scale surfaces, not yet used in the shipped product UI
-- `pill`: 999px — badges, chips, pills
+- `pill`: 999px — badges, tab counts
 
 **The Plate Motif.** The brandbook's panels are a rectangle with ONE fully-rounded corner (pages 1, 9, 10, 22). It is used once in the product, on the embed QR card (`16px 16px 16px clamp(40px, 6vmin, 64px)`, mirrored when the card sits on the left) — the one surface a stranger sees on a third-party site, where the brand must read instantly. Don't spread it onto dashboard chrome.
 
 ## 6. Components
 
 ### Where they live
-- `public/css/tokens.css` — the DreamBricks tokens copied verbatim from `docs/design_system/tokens/`, plus short Street Arcade aliases (`--accent`, `--surface`…) kept for the existing page CSS. New code uses the semantic names (`--surface-*`, `--text-*`, `--border-*`).
-- `public/css/components.css` — the DS React components ported to CSS: `db-btn` (`--primary|--secondary|--ghost|--danger`, `--sm|--lg|--block`), `db-badge`, `db-tag`, `db-field/db-label/db-hint`, `db-input/db-select/db-textarea`, `db-seg`, `db-switch`, `db-code`, `db-dialog` (native `<dialog>`), `db-icon-btn`, `db-toast`; plus `sa-*` player-screen compositions (`sa-screen`, `sa-mark`, `sa-mascot`, `sa-title`, `sa-sub`, `sa-loader`, `sa-actions`) shared by the queue entry and the gamepad.
+- `public/css/tokens.css` — the DreamBricks tokens copied verbatim from `docs/design_system/tokens/`, plus the text-on-tint steps (`--db-success-ink`, `--db-warning-ink`, `--db-warning-ink-strong`, `--db-danger-ink`) and short Street Arcade aliases (`--accent`, `--surface`…) kept for older page CSS. New code uses the semantic names (`--surface-*`, `--text-*`, `--border-*`).
+- `public/css/components.css` — the DS React components ported to CSS: `db-btn` (`--primary|--secondary|--ghost|--danger`, `--sm|--lg|--block`), `db-icon-btn` (`--danger`), `db-badge` (`--brand|--success|--warning|--danger`, `--dot`, `--live`), `db-tag`, `db-card` (`--hover`), `db-tabs/db-tab` (+ `db-tab__count`), `[data-tip]` tooltip, `db-callout`, `db-field/db-label/db-hint`, `db-input/db-select/db-textarea`, `db-seg`, `db-switch`, `db-code`, `db-dialog` (native `<dialog>`), `db-toast` (in a `db-toast-stack`); plus `sa-*` player-screen compositions (`sa-screen`, `sa-mark`, `sa-mascot`, `sa-title`, `sa-sub`, `sa-loader`, `sa-actions`) shared by the queue entry and the gamepad.
+- `public/css/dashboard.css` — the operator shell, a port of `docs/design_system/ui_kits/dashboard` (sidebar, top bar, stat cards, totem grid, dialog contents).
 - `public/embed-assets/overlay.{css,js}` — the QR card injected over embedded games. Self-contained (`.dbx` scope with its own few tokens) because the game page doesn't load `tokens.css`.
-- `public/assets/brand/` — DreamBricks mark (SVG) and J0Bson mascot (`jobson-wave.webp` on player end/error screens, `jobson-with-cat.webp` on the dashboard empty state). Never use the mascot reference sheet (`jobson-mascot-standing`): it carries handwritten labels.
+- `public/assets/brand/` — DreamBricks mark, horizontal wordmark on blue (sidebar), J0Bson mascot (`jobson-wave.webp` on player end/error screens, `jobson-with-cat.webp` on the dashboard empty state, `jobson-and-cat-small.webp` at the foot of the sidebar). Never use the mascot reference sheet (`jobson-mascot-standing`): it carries handwritten labels.
+- **Icons:** one inline SVG sprite at the top of `index.html` (`<svg class="ico"><use href="#i-name"/></svg>`), Lucide-style 2px round strokes as the DS readme prescribes. No emoji or Unicode glyphs as icons anywhere, games included.
+
+### Operator shell (DS UI kit)
+- **Sidebar:** 232px, DreamBricks Ink (`--db-blue-900`) panel, horizontal on-blue wordmark + "Street Arcade", nav items at 72% white (active: white on a 14% white wash), J0Bson + cat at the foot, then the live pill ("Operador · ao vivo", pulsing Success dot; Danger and "sem conexão" when `/health` fails). Below 900px it collapses into a slim ink top bar (logo + live pill).
+- **Top bar:** white, 1px bottom border, page title (`--text-lg`, 700) left; search field and the one primary action ("Adicionar totem") right.
+- **Stat cards:** four `db-card`s — Totens, Jogando agora (Success ink), Na fila (Warning ink when > 0), Telas abertas. Value 32px/800 Poppins with tabular numerals, label and sub-line in secondary text. Fed by the same `/instances` polls as the cards — no extra requests.
+- **Tabs:** DS underline tabs with count pills (Todos / Totem físico / Web), filtering the grid together with the search field.
 
 ### Buttons
-- **Shape:** 10px radius (`--radius`, DreamBricks `md`) on primary/secondary buttons; fully round (999px) on icon chips and pills.
-- **Primary:** DreamBricks Blue 700 background (contrast — see Colors), white text, 13px/18px padding, 700-weight Poppins label. Resting shadow: none. Hover: lifts 2px, deepens to Blue 800 and gains a soft ink shadow. Disabled: 0.4 opacity, no transform.
-- **Secondary:** Surface Slate background, Ink Muted text, 1px Border Slate outline, smaller 9px/14px padding and 13px type. Hover fills to Border Slate and darkens text to Ink.
-- **Icon buttons** (`.btn-icon`, `.btn-edit`, `.btn-delete`, `.btn-qr`): Surface White background, 1px border, compact 5px/10px padding, hover state recolors border+text to the semantic color (DreamBricks Blue for edit/QR, Danger for delete) with a matching tinted background wash.
+- **Shape:** 10px radius (`--radius-md`).
+- **Primary:** `--db-blue-700` fill (white on `#42b0d5` is ~2.6:1 — see Colors), white 600 label. Hover deepens to Blue 800 with `--shadow-md`. One per view.
+- **Secondary:** Surface Sunken fill, 1px Border Subtle; the default for card actions ("Incorporar", "Fila").
+- **Ghost:** transparent, Blue 600 text — inline actions such as "Copiar link", "Abrir em nova aba".
+- **Danger:** outlined (danger text + 35% danger border, `--db-danger-100` wash on hover). Destructive actions always go through the confirm dialog first.
+- **Icon buttons** (`db-icon-btn`): 36px square, ghost, with a `data-tip` tooltip; `--danger` recolors to danger ink on hover.
 
-### Chips / Badges
-- **Style:** fully round (999px), 11px uppercase IBM Plex Mono or Poppins depending on context, thin tinted border matching the semantic color at ~20–30% opacity, background tint at ~8–12% opacity of the same color.
-- **State variants:** `badge-active`/`badge-loading`/`badge-inactive` on session cards; `status-waiting`/`status-active`/`status-finished` on the QR panel; `queue-status` on queue rows. All follow the same tint-background + tint-border + solid-text formula, just swapping the semantic color (Success, Danger, Warning, or Ink Muted for neutral states).
+### Badges / Tags
+- **Badge:** DS formula — tone-100 fill, tone text, 12px/600 Poppins, pill, no border, optional leading dot (`--dot`) that can pulse (`--live`) for "people are playing right now". Text uses the `*-ink` steps so 12px labels clear 4.5:1.
+- **Tag** (`db-tag`): mono 11px on Surface Sunken, `--radius-sm` — for addresses (`127.0.0.1:9001`). The totem ID uses the clickable `.id-chip` (same look, copies the full id).
 
 ### Cards / Containers
-- **Corner Style:** 10px radius, matching buttons.
-- **Background:** Surface White on Slate Background page, or Surface Slate for nested/recessed elements (totem cards inside the list).
-- **Shadow Strategy:** none at rest; see Elevation. `.totem-card` and `.session-card` gain a border-color shift and, for session cards, a 2px lift on hover — motion communicates interactivity instead of shadow.
-- **Border:** 1px Border Slate, always.
-- **Internal Padding:** 20px for content cards (`.session-card`), 12–14px for compact list items (`.totem-card`).
+- **Card** (`db-card`): white, 1px Border Subtle, `--radius-lg`, `--shadow-sm`; `--hover` lifts 2px to `--shadow-md`. 24px padding (20px on totem cards).
+- **Totem card:** name + status badge; ID chip, UDP tag and web badge; meta row (players at once, duration, queue, open screens — queue/screens turn Blue 700 when non-zero); for physical totems a recessed "Entrada do totem" block (QR thumbnail → enlarge dialog, "Copiar link", "Encerrar todas" when someone is playing); footer with secondary actions left and icon tools (edit, clear queue, delete) right.
+- **Empty state:** a card with `jobson-with-cat`, a title, one sentence, and the primary action.
 
 ### Inputs / Fields
-- **Style:** Surface Slate background, 1px Border Slate outline, 10px radius, 11px/14px padding, Poppins body type.
-- **Focus:** border shifts to DreamBricks Blue plus a 2px soft blue ring (`box-shadow: 0 0 0 2px oklch(from var(--accent) l c h / 0.18)`) — no glow, a ring, keeping focus distinct from the hover-glow vocabulary used on buttons.
-- **Placeholder:** Ink Muted at 0.7 opacity.
+- **Style:** white fill, 1px Border Default, `--radius-md`, 9px/12px padding, 14px Poppins. Addresses and JSON use the mono face.
+- **Focus:** Border Brand + `--shadow-focus` ring.
+- **Errors:** a `db-callout--danger` at the end of the form body (icon + sentence naming the problem and the fix), and focus moves to the offending field.
 
-### Navigation
-- **Tab Nav:** two-column grid, uppercase 13px/700 Poppins labels, transparent background at rest, Surface Slate on hover. Active tab gets DreamBricks Blue text, a 2px DreamBricks Blue underline, and a faint 4%-opacity blue background wash — no pill, no icon-only compression.
-- **Header:** Surface White bar, 1px bottom border, logo left / live-status pulse right. The pulsing dot (`.dot-pulse`, 2s ease-in-out scale+opacity loop) is the one ambient animation allowed to run at rest — it's a live-status signal, not decoration.
+### Feedback
+- **Dialogs** are native `<dialog class="db-dialog">` (focus trap and Escape from the browser; backdrop click closes). Close/cancel buttons are `type="button" data-close` so Enter in a field never dismisses the form.
+- **Confirm** (`db-dialog--confirm`): danger icon, a question title naming the object, one sentence of consequence, Cancel (focused) + danger action. Replaces SweetAlert2, which is gone.
+- **Toast:** the DS card toast — white, 3px tone edge on the left, title + optional message, close button, bottom-right stack, 3.2s.
 
 ### Gamepad (signature component)
 The gamepad is the product's signature surface and the one deliberate departure from the flat control-room language: circular face buttons rendered with a permanent skeuomorphic key-shadow (`0 5px 0 oklch(0.16 0.028 230 / 0.15)`) in the Xbox four-color palette, arranged in an ABXY cross. Pressing a button drops it 3px, compresses the shadow to `0 2px 0`, scales it to 0.87, and brightens it by 1.35× — a tactile, instant response tuned for thumbs, not cursors. The D-pad beside it stays in the neutral palette (Surface Slate cells, DreamBricks Blue border + glow only when pressed) so the four face buttons remain the only saturated, "arcade" moment on the entire play screen. This component is explicitly excluded from the DreamBricks brand migration — see the Xbox Quarantine Rule.
 
 ### Embed QR card (n→n)
 Floats over an embedded game in a corner (`qrpos=br|bl|tr|tl`), sized in `vmin` so it scales with the iframe. Mark + "Jogue pelo celular" + QR (clickable, opens the entry in a new tab) + a mono status line ("2 vagas livres" in Success with a slow pulse, "3 na fila" in Warning). Collapses to an ink pill ("Jogar pelo celular") so it never has to cover the game. On touch screens the QR is hidden — nobody scans their own phone — and a "Jogar neste celular" button takes its place.
+
+### Game frames (games/)
+The games keep their own playfield art (Brick Rush tiles/minifigs/golden brick, Snake colors). Only the frame is DreamBricks: Brick Rush HUD and phase screens (`render.js` `FRAME`) use Poppins for words, IBM Plex Mono for numbers and ids, `--db-blue-300` for titles and ink-blue scrims instead of black; Snake's page chrome uses the mark, Poppins header in Ink, mono uppercase panel labels and a CSS status dot. No emoji in either.
 
 ### Player screens
 Loading, queue, error and game-over share one composition: centered column, DreamBricks mark (or the waving J0Bson on error/end), a Poppins title in Ink, a short sub-line capped at ~30ch, and one large full-width primary action. The queue screen's whole point is the position number: IBM Plex Mono, `clamp(72px, 26vw, 120px)`, Ink, with a short bump animation each time it changes.
@@ -288,19 +302,21 @@ Loading, queue, error and game-over share one composition: centered column, Drea
 ## 7. Do's and Don'ts
 
 ### Do:
-- **Do** keep the base UI light and flat — Slate Background, Surface White cards, 1px Border Slate dividers, no shadow at rest.
+- **Do** keep the base UI light and quiet — Slate Background, Surface White cards with the DS `--shadow-sm`, 1px Border Slate dividers, an ink sidebar as the one dark surface.
 - **Do** reserve IBM Plex Mono for live/system data (IDs, timers, statuses, panel titles) and Poppins for everything else.
 - **Do** let DreamBricks Blue carry every primary action and focus state; introduce a second color only through the semantic Success/Danger/Warning set, never a new hue.
 - **Do** confine the Xbox four-color palette to the gamepad's face buttons — it is the product's signature moment precisely because it doesn't appear anywhere else, and the one part of the UI the DreamBricks brand migration does not touch.
 - **Do** tint every shadow with Ink (`oklch(0.16 0.028 230)`), matching the DreamBricks system's own shadow tokens — never pure black.
-- **Do** use shadow and glow only as a response to interaction (hover, focus, press, modal-open) — never as static decoration.
+- **Do** grow depth only as a response (hover, toast, open dialog); the resting `--shadow-sm` is for cards alone.
 - **Do** keep motion purposeful and quick (0.15–0.4s transitions, the 2s ambient pulse dot) — arcade energy shows up as responsiveness, not ornament.
 
 ### Don't:
 - **Don't** build a gray, dense, enterprise-admin-panel screen — per PRODUCT.md, this should never read as generic SaaS.
 - **Don't** reach for neon gradients, RGB glow, glitch effects, or a dark-mode-by-default theme — per PRODUCT.md, this should never read as gamer/cyberpunk aesthetic.
 - **Don't** use `background-clip: text` gradients anywhere. Loading/hero titles render in solid DreamBricks Blue; emphasis comes from weight and size, not gradient fills.
-- **Don't** add a resting shadow to a card, button, or badge that isn't hovered, focused, pressed, or animating in.
+- **Don't** add a resting shadow to anything that isn't a card, and never a zero-offset colored glow.
+- **Don't** use emoji or Unicode glyphs as icons — the SVG sprite covers the dashboard; game frames use words and numbers.
+- **Don't** reach for SweetAlert or `window.confirm`; use the confirm `db-dialog` and the DS toast.
 - **Don't** introduce a second accent blue, a new gradient, or an off-palette status color — Success, Danger, Warning and the DreamBricks blue ramp are the complete semantic set.
 - **Don't** let the Xbox button palette leak into dashboard badges, tabs, or any non-gamepad control.
 - **Don't** reach for Fira Code or Fira Sans in new work — both fonts have been fully retired in favor of the DreamBricks IBM Plex Mono / Poppins pair.

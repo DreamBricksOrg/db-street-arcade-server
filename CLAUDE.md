@@ -78,9 +78,10 @@ tests/
 
 public/
 ├── css/tokens.css + components.css    # DreamBricks Design System (fonte: docs/design_system)
+├── css/dashboard.css                  # Shell do painel (porte do ui_kits/dashboard do DS)
 ├── assets/brand/                      # Marca DreamBricks + mascote J0Bson
 ├── embed-assets/overlay.{js,css}      # Cartão de QR injetado sobre o jogo incorporado
-├── index.html / dashboard.js      # Painel do operador (CRUD totens, sessões, Incorporar)
+├── index.html / dashboard.js      # Painel do operador: sidebar + stats + cards, dialogs nativos (sem SweetAlert)
 ├── play.html / session.js         # Gamepad do jogador
 ├── gamepad.js                     # Handler de touch multi-touch
 ├── totem-entry.html / totem-entry.js  # Tela de fila do totem (aceita ?instance=)

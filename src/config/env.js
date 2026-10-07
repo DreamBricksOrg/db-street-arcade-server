@@ -17,6 +17,11 @@ for (const key of required) {
   }
 }
 
+if (process.env.NODE_ENV === 'production' && !process.env.OPERATOR_PASSWORD) {
+  console.error('[env] OPERATOR_PASSWORD is required in production (dashboard + operator API login)')
+  process.exit(1)
+}
+
 export const env = {
   // Server
   port:    parseInt(process.env.PORT ?? '3000', 10),
@@ -42,6 +47,9 @@ export const env = {
   queueReserveMs:   parseInt(process.env.QUEUE_RESERVE_MS ?? '30000', 10),
   queueSweepMs:     parseInt(process.env.QUEUE_SWEEP_MS   ?? '10000', 10),
   queueJoinRateMax: parseInt(process.env.QUEUE_JOIN_RATE_MAX ?? '8', 10),
+
+  // Operator login (dashboard + operator API). Empty = auth off (development only).
+  operatorPassword: process.env.OPERATOR_PASSWORD ?? '',
 
   // Public URL (for QR Code)
   publicUrl: process.env.PUBLIC_URL ?? 'http://localhost:3000',

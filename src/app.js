@@ -10,6 +10,7 @@ import mongoPlugin, { isMongoReachable } from './plugins/mongodb.js'
 import websocketPlugin from './plugins/websocket.js'
 import udpPlugin       from './plugins/udp.js'
 import staticPlugin    from './plugins/static.js'
+import authPlugin      from './plugins/auth.js'
 import swaggerPlugin   from './plugins/swagger.js'
 import gameRoutes      from './modules/game/game.routes.js'
 import sessionRoutes   from './modules/session/session.routes.js'
@@ -26,10 +27,15 @@ export async function buildApp() {
   const app = Fastify({
     loggerInstance: logger,
     disableRequestLogging: env.isProd,
+    // request.ip honours X-Forwarded-For only behind a known proxy (nginx)
+    trustProxy: env.trustProxy,
   })
 
   // ── Health ────────────────────────────────────────────────────────────────
   app.get('/health', async () => ({ status: 'ok', ts: Date.now() }))
+
+  // ── Auth: registered first so its onRequest guard covers every route ─────
+  await app.register(authPlugin)
 
   // ── Phase 7: Static files + /play/:sessionId ─────────────────────────────
   await app.register(staticPlugin)

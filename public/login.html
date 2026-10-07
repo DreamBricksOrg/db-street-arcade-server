@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Street Arcade — Entrar</title>
+  <meta name="description" content="Acesso do operador ao painel do Street Arcade." />
+  <meta name="theme-color" content="#42b0d5" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/assets/brand/dreambricks-mark-blue.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <style>
+    /* DS UI kit login: brand split-screen (blue panel + J0Bson) | form */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { min-height: 100dvh; display: flex; font-family: var(--font-body); color: var(--text-primary); background: var(--surface-card); }
+    [hidden] { display: none !important; }
+
+    .brand {
+      flex: 1; display: flex; flex-direction: column; justify-content: space-between;
+      padding: var(--space-12); overflow: hidden;
+      color: var(--db-white); background: var(--db-blue-900);
+    }
+    .brand img.logo { height: 32px; width: auto; align-self: flex-start; }
+    .brand h1 { max-width: 14ch; font-size: var(--text-3xl); font-weight: var(--weight-extrabold); line-height: 1.1; letter-spacing: var(--tracking-tight); text-wrap: balance; }
+    .brand p { margin-top: var(--space-3); max-width: 36ch; font-size: var(--text-base); font-weight: var(--weight-light); line-height: 1.55; color: oklch(1 0 0 / 0.85); }
+    .brand .mascot { width: min(220px, 40%); height: auto; align-self: flex-end; }
+
+    .panel { width: min(440px, 100%); display: flex; align-items: center; justify-content: center; padding: var(--space-10); }
+    form { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: var(--space-4); }
+    form h2 { font-size: var(--text-xl); font-weight: var(--weight-bold); }
+    form .sub { margin-top: -8px; font-size: var(--text-sm); color: var(--text-secondary); }
+    .pw { position: relative; }
+    .pw .db-input { padding-right: 44px; }
+    .pw .db-icon-btn { position: absolute; right: 2px; top: 2px; }
+
+    @media (max-width: 820px) {
+      body { flex-direction: column; }
+      .brand { flex: none; padding: var(--space-6); gap: var(--space-4); }
+      .brand h1 { font-size: var(--text-xl); }
+      .brand p, .brand .mascot { display: none; }
+      .panel { width: 100%; flex: 1; align-items: flex-start; padding: var(--space-8) var(--space-5); }
+    }
+  </style>
+</head>
+<body>
+  <section class="brand" aria-hidden="true">
+    <img class="logo" src="/assets/brand/dreambricks-horizontal-onblue.svg" alt="" width="88" height="32" />
+    <div>
+      <h1>Street Arcade</h1>
+      <p>Totens, filas e jogos incorporados em sites. Tudo ao vivo, num painel só.</p>
+    </div>
+    <img class="mascot" src="/assets/brand/jobson-and-cat-small.webp" alt="" width="512" height="370" />
+  </section>
+
+  <main class="panel">
+    <form id="login" novalidate>
+      <h2>Entrar no painel</h2>
+      <p class="sub">Acesso do operador.</p>
+      <div class="db-field">
+        <label class="db-label" for="password">Senha</label>
+        <div class="pw">
+          <input class="db-input" id="password" type="password" autocomplete="current-password" required autofocus />
+          <button class="db-icon-btn" type="button" id="toggle" aria-label="Mostrar senha" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="db-callout db-callout--danger" id="error" role="alert" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <span></span>
+      </div>
+      <button class="db-btn db-btn--primary db-btn--lg db-btn--block" type="submit" id="submit">Entrar</button>
+    </form>
+  </main>
+
+  <script>
+    const form = document.getElementById('login')
+    const pw = document.getElementById('password')
+    const err = document.getElementById('error')
+    const submit = document.getElementById('submit')
+    const toggle = document.getElementById('toggle')
+
+    toggle.addEventListener('click', () => {
+      const show = pw.type === 'password'
+      pw.type = show ? 'text' : 'password'
+      toggle.setAttribute('aria-pressed', String(show))
+      toggle.setAttribute('aria-label', show ? 'Esconder senha' : 'Mostrar senha')
+    })
+
+    function fail(msg) {
+      err.querySelector('span').textContent = msg
+      err.hidden = false
+      pw.select()
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      err.hidden = true
+      if (!pw.value) return fail('Digite a senha do operador.')
+      submit.disabled = true
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw.value }),
+        })
+        if (res.ok) {
+          const next = new URLSearchParams(location.search).get('next')
+          location.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : '/')
+          return
+        }
+        fail(res.status === 429
+          ? 'Muitas tentativas. Espere um minuto e tente de novo.'
+          : 'Senha incorreta. Confira com quem administra o evento.')
+      } catch {
+        fail('Sem conexão com o servidor. Tente de novo.')
+      } finally {
+        submit.disabled = false
+      }
+    })
+  </script>
+</body>
+</html>

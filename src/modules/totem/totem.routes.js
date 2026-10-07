@@ -51,6 +51,7 @@ const totemResponseProps = {
   maxPlayers:        { type: 'number', nullable: true },
   sessionDurationMs: { type: 'number', nullable: true },
   maxQueueSize:      { type: 'number', nullable: true },
+  gameKey:           { type: 'string', nullable: true },
   queueSize:         { type: 'number' },
   instances: {
     type: 'object',
@@ -61,6 +62,9 @@ const totemResponseProps = {
 const errorResponse = { type: 'object', properties: { error: { type: 'string' } } }
 
 const instanceOf = (request) => normalizeInstance(request.query?.instance)
+
+// Routes only the logged-in operator may call (see src/plugins/auth.js).
+const OPERATOR = { operator: true }
 
 async function totemRoutes(fastify) {
   if (!fastify.mongo) {
@@ -111,6 +115,7 @@ async function totemRoutes(fastify) {
   // ── Games ──────────────────────────────────────────────────────────────────
 
   fastify.get('/api/games', {
+    config: OPERATOR,
     schema: {
       tags: ['Totems'], summary: 'Embeddable browser games (folders in games/)',
       response: { 200: { type: 'array', items: { type: 'string' } } },
@@ -120,6 +125,7 @@ async function totemRoutes(fastify) {
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
   fastify.post('/api/totems', {
+    config: OPERATOR,
     schema: {
       tags: ['Totems'], summary: 'Create a new totem',
       body: { type: 'object', properties: totemBodyProps, required: ['name'] },
@@ -135,6 +141,7 @@ async function totemRoutes(fastify) {
   })
 
   fastify.get('/api/totems', {
+    config: OPERATOR,
     schema: {
       tags: ['Totems'], summary: 'List all totems',
       response: { 200: { type: 'array', items: { type: 'object', properties: totemResponseProps } } },
@@ -149,6 +156,7 @@ async function totemRoutes(fastify) {
   })
 
   fastify.get('/api/totems/:id', {
+    config: OPERATOR,
     schema: {
       tags: ['Totems'], summary: 'Get a totem by ID', params: totemIdParam,
       response: { 200: { type: 'object', properties: totemResponseProps }, 404: errorResponse },
@@ -160,6 +168,7 @@ async function totemRoutes(fastify) {
   })
 
   fastify.put('/api/totems/:id', {
+    config: OPERATOR,
     schema: {
       tags: ['Totems'], summary: 'Update a totem', params: totemIdParam,
       body: { type: 'object', properties: totemBodyProps },
@@ -174,6 +183,7 @@ async function totemRoutes(fastify) {
   })
 
   fastify.delete('/api/totems/:id', {
+    config: OPERATOR,
     schema: {
       tags: ['Totems'], summary: 'Delete a totem (ends every session of every instance)', params: totemIdParam,
       response: { 204: { type: 'null' }, 404: errorResponse },
@@ -195,6 +205,7 @@ async function totemRoutes(fastify) {
   // ── Instances ──────────────────────────────────────────────────────────────
 
   fastify.get('/api/totems/:id/instances', {
+    config: OPERATOR,
     schema: {
       tags: ['Totems'], summary: 'Instances of a totem: default (physical) + open iframes',
       params: totemIdParam,
@@ -326,10 +337,14 @@ async function totemRoutes(fastify) {
             maxQueueSize: { type: 'number', nullable: true },
           },
         },
-        404: errorResponse,
+        401: errorResponse, 404: errorResponse,
       },
     },
   }, async (request, reply) => {
+    // Operator, or the physical game's bridge (HUD/rotation) with the totem key.
+    const totem = await service.findTotem(request.params.id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+    if (!fastify.isGameCaller(request, totem)) return reply.status(401).send({ error: 'Totem key required' })
     const result = await queue.operatorView(request.params.id, instanceOf(request))
     if (!result.ok) return reply.status(result.code ?? 500).send({ error: result.error })
     const { ok, ...view } = result
@@ -367,6 +382,7 @@ async function totemRoutes(fastify) {
   })
 
   fastify.delete('/api/totems/:id/queue/:playerId', {
+    config: OPERATOR,
     schema: {
       tags: ['Totems', 'Queue'], summary: 'Remove a player from the waiting list',
       params: {
@@ -389,6 +405,7 @@ async function totemRoutes(fastify) {
   })
 
   fastify.post('/api/totems/:id/queue/clear', {
+    config: OPERATOR,
     schema: {
       tags: ['Totems', 'Queue'], summary: 'Clear the waiting list (live sessions untouched)',
       params: totemIdParam, querystring: instanceQuery,
@@ -419,7 +436,7 @@ async function totemRoutes(fastify) {
             endedCount:     { type: 'number', nullable: true },
           },
         },
-        404: errorResponse, 500: errorResponse,
+        401: errorResponse, 404: errorResponse, 500: errorResponse,
       },
     },
   }, async (request, reply) => {
@@ -427,6 +444,8 @@ async function totemRoutes(fastify) {
     const inst = instanceOf(request)
     const totem = await service.findTotem(id)
     if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+    // The game reports deaths with its totem key (X-Totem-Key); the operator may too.
+    if (!fastify.isGameCaller(request, totem)) return reply.status(401).send({ error: 'Totem key required' })
 
     const { playerId } = request.body || {}
     if (playerId) {
@@ -438,9 +457,27 @@ async function totemRoutes(fastify) {
       return { ok: true, endedSessionId: session._id }
     }
 
+    // Reset of every slot: never open, even on legacy totems without a key.
+    if (!fastify.isOperator(request) && !totem.gameKey) {
+      return reply.status(401).send({ error: 'Operator login or totem key required' })
+    }
     const result = await queue.endAllForInstance(id, inst, 'manual')
     log.info({ totemId: id, instanceId: inst, endedCount: result.endedCount }, 'All sessions ended (operator reset)')
     return { ok: true, endedCount: result.endedCount }
+  })
+
+  // ── Totem key (game → backend auth) ────────────────────────────────────────
+  fastify.post('/api/totems/:id/game-key', {
+    config: OPERATOR,
+    schema: {
+      tags: ['Totems'], summary: 'Generate a new totem key (the game sends it as X-Totem-Key)',
+      params: totemIdParam,
+      response: { 200: { type: 'object', properties: { gameKey: { type: 'string' } } }, 404: errorResponse },
+    },
+  }, async (request, reply) => {
+    const result = await service.rotateGameKey(request.params.id)
+    if (!result.ok) return reply.status(404).send({ error: result.error })
+    return { gameKey: result.gameKey }
   })
 
   // ── QR ─────────────────────────────────────────────────────────────────────

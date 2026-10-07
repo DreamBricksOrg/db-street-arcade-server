@@ -19,6 +19,7 @@ const log = createLogger('totem.repository')
  *   maxPlayers:        number,      // max players per session (default: 2)
  *   sessionDurationMs: number,      // session TTL in ms (default: 30 min)
  *   maxQueueSize:      number|null, // cap on waiting-list length (default: null = unlimited)
+ *   gameKey:           string|null, // game → backend auth (X-Totem-Key); null on legacy totems
  *   createdAt:         Date,
  *   updatedAt:         Date,
  * }
@@ -35,7 +36,7 @@ export class TotemRepository {
    * @param {{ name: string, ip: string, udpPort: number, maxPlayers?: number, sessionDurationMs?: number, maxQueueSize?: number }} data
    * @returns {Promise<object>}
    */
-  async create({ name, ip, udpPort, game, gameConfig, maxPlayers, sessionDurationMs, maxQueueSize }) {
+  async create({ name, ip, udpPort, game, gameConfig, maxPlayers, sessionDurationMs, maxQueueSize, gameKey }) {
     const now   = new Date()
     const totem = {
       _id:               uuidv4(),
@@ -47,6 +48,7 @@ export class TotemRepository {
       maxPlayers:        maxPlayers        ?? 2,
       sessionDurationMs: sessionDurationMs ?? 30 * 60 * 1000, // 30 min default
       maxQueueSize:      maxQueueSize      ?? null,           // null = unlimited
+      gameKey:           gameKey           ?? null,
       createdAt:         now,
       updatedAt:         now,
     }

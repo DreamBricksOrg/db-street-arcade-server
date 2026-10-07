@@ -1,5 +1,6 @@
 // src/modules/instance/instance.hub.js
-// Open SSE streams of embedded game iframes, keyed by instance. This is the
+// Open SSE streams of embedded game iframes HELD BY THIS PROCESS, keyed by
+// instance (multi-process delivery: see listen()). This is the
 // web equivalent of the UDP socket a physical totem listens on: packets are
 // written in the exact shape games/*/server.js forwards today, so the games
 // run unchanged under /embed/:totemId/:instanceId/.
@@ -39,9 +40,26 @@ export class InstanceHub {
 
   /** @returns {number} how many streams received the packet */
   push(totemId, instanceId, packet) {
-    const set = this._streams.get(instanceKey(totemId, instanceId))
+    return this._pushKey(instanceKey(totemId, instanceId), packet)
+  }
+
+  /**
+   * Cross-process delivery: GameOutput publishes iframe packets on
+   * `inst:out:{instanceKey}`; every process forwards them to the streams it
+   * holds (usually exactly one process has the iframe's stream).
+   */
+  async listen(subscriber) {
+    subscriber.on('pmessage', (pattern, channel, raw) => {
+      if (pattern !== 'inst:out:*') return
+      this._pushKey(channel.slice('inst:out:'.length), raw, { quiet: true })
+    })
+    await subscriber.psubscribe('inst:out:*')
+  }
+
+  _pushKey(k, packet, { quiet = false } = {}) {
+    const set = this._streams.get(k)
     if (!set?.size) {
-      log.debug({ totemId, instanceId }, 'No open stream for instance — packet dropped')
+      if (!quiet) log.debug({ instance: k }, 'No open stream for instance — packet dropped')
       return 0
     }
     const msg = `data: ${typeof packet === 'string' ? packet : JSON.stringify(packet)}\n\n`

@@ -14,12 +14,12 @@
 //   s    = 1 (pressed) | 0 (released)
 //   ts   = timestamp truncado (últimos 7 dígitos de Date.now())
 //
-// Session target resolution (3-layer, in-memory cache first):
-//   1. In-memory Map (fastest)
-//   2. Redis HASH cache
-//   3. MongoDB fallback
+// Every backend process receives every game:input:* message, so each one
+// only forwards inputs of sessions whose phone WebSocket is connected to IT
+// (GameHandler.onConnect → registerSession). Otherwise N replicas would send
+// every button press N times.
 
-import { parseMessage, SessionKey } from '../../lib/channels.js'
+import { parseMessage } from '../../lib/channels.js'
 import { createLogger } from '../../lib/logger.js'
 
 const log = createLogger('udp.dispatcher')
@@ -31,8 +31,6 @@ export class UdpDispatcher {
   constructor(fastify) {
     this.output     = fastify.gameOutput
     this.subscriber = fastify.redisSubscriber
-    this.redis      = fastify.redisPublisher  // used for HGETALL (read-only commands ok on publisher)
-    this.mongo      = fastify.mongo ?? null
 
     /**
      * sessionId → { totemId, instanceId, totems }
@@ -102,11 +100,9 @@ export class UdpDispatcher {
       return
     }
 
-    const target = await this._resolveTarget(sessionId)
-    if (!target) {
-      log.debug({ sessionId }, 'No target for session — input skipped')
-      return
-    }
+    // Not connected here → another process owns this phone and delivers it.
+    const target = this.targets.get(sessionId)
+    if (!target) return
 
     await this.output.send(target, this._buildPacket(sessionId, playerId, action, state, ts))
   }
@@ -130,47 +126,5 @@ export class UdpDispatcher {
       s:   state === 'pressed' ? 1 : 0,
       ts:  Number(String(ts ?? Date.now()).slice(-7)),
     }
-  }
-
-  async _resolveTarget(sessionId) {
-    // 1. In-memory
-    if (this.targets.has(sessionId)) return this.targets.get(sessionId)
-
-    // 2. Redis HASH
-    if (this.redis) {
-      try {
-        const raw = await this.redis.hgetall(SessionKey(sessionId))
-        if (raw?.id) {
-          const target = this._toTarget({
-            totemId:    raw.totemId || null,
-            instanceId: raw.instanceId || 'default',
-            totems:     JSON.parse(raw.totems || '[]'),
-          })
-          this.targets.set(sessionId, target)
-          return target
-        }
-      } catch (err) {
-        log.warn({ err: err.message, sessionId }, 'Redis HGETALL failed — falling back to Mongo')
-      }
-    }
-
-    // 3. MongoDB
-    if (this.mongo) {
-      try {
-        const doc = await this.mongo.db.collection('sessions').findOne(
-          { _id: sessionId },
-          { projection: { totemId: 1, instanceId: 1, totems: 1 } },
-        )
-        if (doc) {
-          const target = this._toTarget(doc)
-          this.targets.set(sessionId, target)
-          return target
-        }
-      } catch (err) {
-        log.warn({ err: err.message, sessionId }, 'MongoDB lookup failed')
-      }
-    }
-
-    return null
   }
 }

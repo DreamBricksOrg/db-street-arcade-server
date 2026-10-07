@@ -58,7 +58,7 @@ export class TotemQueueService {
   async _joinLocked(totemId, instanceId, playerId, metadata) {
     const totem = await this._totems.findTotem(totemId)
     if (!totem) return { ok: false, code: 404, error: 'Totem not found' }
-    const closed = this._checkInstance(totemId, instanceId)
+    const closed = await this._checkInstance(totemId, instanceId)
     if (closed) return closed
 
     const existing = await this.repo.findCurrentByPlayer(totemId, instanceId, playerId)
@@ -92,7 +92,7 @@ export class TotemQueueService {
     return this._lock(totemId, inst, async () => {
       const totem = await this._totems.findTotem(totemId)
       if (!totem) return { ok: false, code: 404, error: 'Totem not found' }
-      const closed = this._checkInstance(totemId, inst)
+      const closed = await this._checkInstance(totemId, inst)
       if (closed) return closed
 
       let session = await this.repo.findCurrentByPlayer(totemId, inst, playerId)
@@ -352,9 +352,9 @@ export class TotemQueueService {
   _mKey(playerId)  { return `player:metadata:${playerId}` }
 
   /** Web instances must still be open (or within their grace period). */
-  _checkInstance(totemId, instanceId) {
+  async _checkInstance(totemId, instanceId) {
     if (isDefaultInstance(instanceId)) return null
-    if (this._fastify.instances?.isLive(totemId, instanceId)) return null
+    if (await this._fastify.instances?.isLive(totemId, instanceId)) return null
     return { ok: false, code: 410, error: 'Instance closed' }
   }
 

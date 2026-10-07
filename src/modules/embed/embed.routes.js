@@ -122,7 +122,7 @@ export default async function embedRoutes(fastify) {
     if (!totem) return reply
 
     const conn = {}
-    const att  = instances.attach(totemId, instanceId, conn, clientIp(request))
+    const att  = await instances.attach(totemId, instanceId, conn, clientIp(request))
     if (!att.ok) return reply.status(att.code).send({ error: att.error })
 
     reply.hijack()
@@ -140,7 +140,8 @@ export default async function embedRoutes(fastify) {
 
     request.raw.on('close', () => {
       hub.remove(totemId, instanceId, reply.raw)
-      instances.detach(totemId, instanceId, conn)
+      Promise.resolve(instances.detach(totemId, instanceId, conn)).catch(err =>
+        log.warn({ err: err.message, totemId, instanceId }, 'Instance detach failed'))
       log.info({ totemId, instanceId }, 'Instance stream closed')
     })
   })

@@ -101,6 +101,11 @@ export class GameHandler {
     this.connections.delete(socket)
     log.info({ sessionId, playerId, remaining: this.connections.size }, 'Player disconnected')
 
+    // Stop forwarding this session's inputs from here: if the phone reconnects
+    // it may land on another backend process, which registers it there.
+    const stillHere = [...this.connections.values()].some(m => m.sessionId === sessionId)
+    if (!stillHere) this.fastify.udpDispatcher?.unregisterSession(sessionId)
+
     // Session stays live — the phone may reconnect. The sweeper/timeout or a
     // death event is what actually frees the slot.
     await this._publish(Channels.sessionSync(sessionId), 'sync', sessionId, playerId, {

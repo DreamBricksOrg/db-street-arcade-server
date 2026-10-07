@@ -20,6 +20,7 @@ import { UdpDispatcher } from './modules/udp/udp.dispatcher.js'
 import { InstanceHub }   from './modules/instance/instance.hub.js'
 import { GameOutput }    from './modules/game/game.output.js'
 import { createInstanceRegistry } from './lib/instances.js'
+import { createRedisInstanceRegistry } from './lib/instances.redis.js'
 
 const log = createLogger('app')
 
@@ -77,15 +78,28 @@ export async function buildApp() {
   // ── Phase 5.5: n→n instances ─────────────────────────────────────────────
   // Registry of embedded iframes + their SSE streams, and the single router
   // that sends game packets via UDP (physical totem) or SSE (iframe).
+  // With Redis the registry and the iframe packets are shared by every
+  // backend process (several replicas, restarts without dropping players);
+  // without it (dev) everything stays in this process.
   const hub = new InstanceHub()
-  app.decorate('instances', createInstanceRegistry({
+  const limits = {
     graceMs:     env.instanceGraceMs,
     maxPerIp:    env.maxInstancesPerIp,
     maxPerTotem: env.maxInstancesPerTotem,
-  }))
+  }
+  const registry = app.redisPublisher
+    ? createRedisInstanceRegistry({ redis: app.redisPublisher, ...limits, onClosed: (t, i) => hub.closeInstance(t, i) })
+    : createInstanceRegistry(limits)
+  registry.start?.()
+  if (app.redisSubscriber) await hub.listen(app.redisSubscriber)
+  app.decorate('instances', registry)
   app.decorate('instanceHub', hub)
-  app.decorate('gameOutput', new GameOutput({ udpSend: app.udpSend, hub }))
-  app.addHook('onClose', async () => hub.close())
+  app.decorate('gameOutput', new GameOutput({
+    udpSend: app.udpSend,
+    hub,
+    publish: app.redisPublisher ? (channel, msg) => app.redisPublisher.publish(channel, msg) : null,
+  }))
+  app.addHook('onClose', async () => { registry.stop?.(); hub.close() })
 
   // ── Phase 6: Session + Totem REST API + Embed ──────────────────────────────
   await app.register(sessionRoutes)

@@ -83,7 +83,7 @@ async function totemRoutes(fastify) {
   const sweepTimer = setInterval(async () => {
     try {
       await queue.sweep()
-      for (const inst of instances.sweep()) {
+      for (const inst of await instances.sweep()) {
         await queue.dropInstance(inst.totemId, inst.id)
       }
     } catch (err) {
@@ -149,7 +149,7 @@ async function totemRoutes(fastify) {
   }, async () => {
     const totems = await service.listTotems()
     for (const t of totems) {
-      const list = instances.list(t._id)
+      const list = await instances.list(t._id)
       t.instances = { open: list.length, online: list.filter(i => i.online).length }
     }
     return totems
@@ -190,10 +190,10 @@ async function totemRoutes(fastify) {
     },
   }, async (request, reply) => {
     const { id } = request.params
-    for (const inst of instances.list(id)) {
+    for (const inst of await instances.list(id)) {
       await queue.dropInstance(id, inst.id)
       fastify.instanceHub.closeInstance(id, inst.id)
-      instances.remove(id, inst.id)
+      await instances.remove(id, inst.id)
     }
     await queue.endAllForTotem(id, 'manual')
     await queue.clearQueue(id)
@@ -230,7 +230,7 @@ async function totemRoutes(fastify) {
     const { id } = request.params
     const totem = await service.findTotem(id)
     if (!totem) return reply.status(404).send({ error: 'Totem not found' })
-    const rows = [{ id: 'default', online: null, createdAt: null }, ...instances.list(id)]
+    const rows = [{ id: 'default', online: null, createdAt: null }, ...(await instances.list(id))]
     return Promise.all(rows.map(async (r) => ({ ...r, ...(await queue.instanceCounts(id, r.id)) })))
   })
 

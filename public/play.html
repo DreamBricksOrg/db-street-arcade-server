@@ -26,14 +26,14 @@
       --btn-B: #e23c28;
       --btn-X: #0078d4;
       --btn-Y: #ffb900;
-      --dpad:  oklch(0.89 0.014 230);
+      --dpad:  var(--db-slate-200);
     }
 
     html, body {
       height: 100%; width: 100%;
       overflow: hidden;
-      background: var(--bg);
-      color: var(--text);
+      background: var(--surface-page);
+      color: var(--text-primary);
       font-family: var(--font-body);
       -webkit-tap-highlight-color: transparent;
       user-select: none;
@@ -59,8 +59,8 @@
     .play-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 10px 16px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      background: var(--surface-card);
+      border-bottom: 1px solid var(--border-subtle);
       flex-shrink: 0;
     }
 
@@ -119,15 +119,15 @@
     }
 
     .dpad-btn.pressed {
-      background: var(--surface2);
+      background: var(--surface-sunken);
       transform: scale(0.9);
-      border-color: var(--accent);
-      box-shadow: var(--glow);
+      border-color: var(--border-brand);
+      box-shadow: 0 4px 14px oklch(from var(--db-blue-500) l c h / 0.4);
     }
 
     .dpad-btn:focus-visible,
     .face-btn:focus-visible {
-      outline: 3px solid var(--accent);
+      outline: 3px solid var(--border-brand);
       outline-offset: 3px;
     }
 
@@ -196,10 +196,10 @@
     #input-log {
       position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%);
       background: rgba(255,255,255,0.8);
-      border: 1px solid var(--border);
+      border: 1px solid var(--border-subtle);
       border-radius: 10px;
       padding: 4px 12px;
-      font-size: 11px; font-family: var(--font-mono); color: var(--muted);
+      font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary);
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.5s;

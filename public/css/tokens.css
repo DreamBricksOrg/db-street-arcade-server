@@ -155,35 +155,15 @@
   --duration-slow: 280ms; /* @kind other */
 }
 
-/* ── Street Arcade aliases ────────────────────────────────────────────────────
-   Short names the pages have always used, now resolved from the DreamBricks
-   semantic layer above. New code should prefer the semantic names
-   (--surface-*, --text-*, --border-*); these exist so the migration keeps
-   visual parity. There is deliberately no --cta: the brandbook is blue-only. */
-/* Text-on-tint steps: semantic text that sits on its own -100 tint (badges,
+/* ── Street Arcade additions ──────────────────────────────────────────────────
+   Text-on-tint steps: semantic text that sits on its own -100 tint (badges,
    callouts). The 500s read ~3:1 there; these keep the hue and reach 4.5:1.
-   Warning values are the DS UI kit's own (#8a5a00 badge, #5c3d00 callout). */
+   Warning values are the DS UI kit's own (#8a5a00 badge, #5c3d00 callout).
+   (The old short aliases --bg/--accent/--text-muted… were removed: every page
+   uses the DS semantic names now.) */
 :root {
   --db-success-ink: oklch(0.45 0.12 155);
   --db-warning-ink: #8a5a00;
   --db-warning-ink-strong: #5c3d00;
   --db-danger-ink: oklch(0.45 0.17 25);
-}
-
-:root {
-  --bg:         var(--surface-page);
-  --surface:    var(--surface-card);
-  --surface2:   var(--surface-sunken);
-  --border:     var(--border-subtle);
-  --accent:     var(--surface-brand);
-  --accent2:    var(--db-blue-300);
-  --accent-ink: var(--surface-brand-strong);
-  --text:       var(--text-primary);
-  --text-muted: var(--text-secondary);
-  --muted:      var(--text-secondary);
-  --success:    var(--db-success-500);
-  --danger:     var(--db-danger-500);
-  --warning:    var(--db-warning-500);
-  --radius:     var(--radius-md);
-  --glow:       0 4px 14px oklch(from var(--surface-brand) l c h / 0.4);
 }

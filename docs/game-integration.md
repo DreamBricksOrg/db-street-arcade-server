@@ -116,9 +116,18 @@ Quando o avatar de um jogador morre no seu jogo:
 ```
 POST {BACKEND_URL}/api/totems/{TOTEM_ID}/end-session
 Content-Type: application/json
+X-Totem-Key: {TOTEM_KEY}
 
 { "playerId": "qp_a1b2c" }     ← o pid (truncado) que veio nos pacotes UDP
 ```
+
+> 🔑 **Chave do totem** (`X-Totem-Key`): todo totem criado no painel ganha uma
+> chave (painel → **Editar** → *Chave do jogo*, com botão de copiar e de gerar
+> outra). Sem ela o backend responde `401`. Na ponte Node (`games/*/server.js`)
+> basta pôr `TOTEM_KEY=...` no `.env`. A mesma chave libera
+> `GET /api/totems/{TOTEM_ID}/queue` (HUD/rotação). Totens criados antes da
+> chave existir não têm uma: a morte por jogador segue aceita sem header até o
+> operador gerar a chave; o reset sem body exige a chave ou o operador.
 
 O backend então:
 1. Encerra **só** a sessão daquele jogador (`endReason: 'died'`);
@@ -132,7 +141,8 @@ Resposta: `200 { "ok": true, "endedSessionId": "..." }` |
 `404` se o jogador não tem sessão viva (ex.: já expirou — ignore com segurança).
 
 **Reset total (operador/fim de rodada geral)**: o mesmo endpoint **sem body**
-encerra TODAS as sessões do totem de uma vez:
+(com `X-Totem-Key`, ou logado como operador) encerra TODAS as sessões do
+totem de uma vez:
 
 ```
 POST /api/totems/{TOTEM_ID}/end-session      → { "ok": true, "endedCount": N }
@@ -226,6 +236,10 @@ O backend implementa, por instância, exatamente o contrato da ponte local:
   na ponte local (servida em `/`) quanto no embed.
 - `config` no embed devolve `{ debugPanel: false, ...totem.gameConfig }` —
   trate campos ausentes com defaults no próprio jogo.
+- `queue-state` no embed é público (qualquer visitante do site lê), então só traz
+  contagens: `{ sessions: [{ pid, status }], queue: [{ position }], maxPlayers,
+  maxQueueSize }` — `pid` com 8 chars, sem IP, navegador nem id completo. Use
+  `queue.length` e `maxPlayers`, como o brick-rush já faz.
 - O QR fica por conta do backend (overlay injetado no `index.html`); o jogo não
   precisa desenhar QR nem conhecer o `instanceId` (vem no SSE `init` se quiser).
 

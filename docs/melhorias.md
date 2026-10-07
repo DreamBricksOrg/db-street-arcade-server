@@ -7,29 +7,38 @@ Levantamento feito em 07/10/2026 sobre a branch `feat/n-para-n-instancias` (inst
 - **Média**: dívida que custa caro com o tempo (operação, qualidade, desempenho). Planejar para as próximas semanas.
 - **Baixa**: acabamento e conveniência. Fazer quando houver folga.
 
+## Situação (07/10/2026)
+
+Os itens de prioridade **alta** e **baixa** foram implementados na branch `feat/n-para-n-instancias` (commits locais `1cdb288` a `a991e60`), com testes: 28 unitários e 4 suítes de ponta a ponta (27 cenários, incluindo dois processos e restart no meio da partida). Os itens de prioridade **média** continuam em aberto, exceto o 11, que saiu junto com o login. O item 18 depende dos arquivos da fonte Araboto.
+
+O que mudou para quem opera:
+- **Senha do painel:** `OPERATOR_PASSWORD` no `.env`, obrigatória em produção.
+- **Chave do totem:** cada totem físico tem uma chave (painel → Editar → Chave do jogo), que vai em `TOTEM_KEY` no `.env` da ponte do jogo (`games/*/server.js`). Totens antigos seguem funcionando sem chave até alguém gerar uma.
+- **Histórico:** botão de gráfico em cada card do painel.
+
 ## Resumo
 
-| # | Melhoria | Prioridade | Área |
-|---|----------|-----------|------|
-| 1 | Autenticação no painel e nas rotas de operação | **Alta** | Segurança |
-| 2 | Proteger o `end-session` chamado pelo jogo | **Alta** | Segurança |
-| 3 | Incluir `games/` na imagem Docker | **Alta** | Deploy |
-| 4 | Atualizar Node 20 (fora de suporte) | **Alta** | Infra |
-| 5 | Registro de instâncias fora da memória do processo | **Alta** | Escala / resiliência |
-| 6 | Validar e limitar os inputs do WebSocket | Média | Segurança / estabilidade |
-| 7 | CI no GitHub (lint + testes) | Média | Qualidade |
-| 8 | Configuração do ESLint (o `npm run lint` não roda) | Média | Qualidade |
-| 9 | Health check que olha Mongo e Redis | Média | Operação |
-| 10 | `TRUST_PROXY` ligado em produção | Média | Operação |
-| 11 | Esconder o Swagger em produção | Média | Segurança |
-| 12 | Limpeza das sessões encerradas no Mongo | Média | Dados |
-| 13 | Painel: trocar N pollings por um stream único | Média | Desempenho |
-| 14 | Testes de interface (fluxo do jogador e painel) | Média | Qualidade |
-| 15 | Limpar arquivos que não são do projeto | Baixa | Repositório |
-| 16 | Remover os aliases antigos de cor | Baixa | Front-end |
-| 17 | Lugar na fila sobreviver a fechar a aba | Baixa | Experiência do jogador |
-| 18 | Fonte oficial Araboto | Baixa | Marca |
-| 19 | Histórico e métricas por totem | Baixa | Produto |
+| # | Melhoria | Prioridade | Área | Situação |
+|---|----------|-----------|------|----------|
+| 1 | Autenticação no painel e nas rotas de operação | **Alta** | Segurança | ✅ feito |
+| 2 | Proteger o `end-session` chamado pelo jogo | **Alta** | Segurança | ✅ feito |
+| 3 | Incluir `games/` na imagem Docker | **Alta** | Deploy | ✅ feito |
+| 4 | Atualizar Node 20 (fora de suporte) | **Alta** | Infra | ✅ feito |
+| 5 | Registro de instâncias fora da memória do processo | **Alta** | Escala / resiliência | ✅ feito |
+| 6 | Validar e limitar os inputs do WebSocket | Média | Segurança / estabilidade | pendente |
+| 7 | CI no GitHub (lint + testes) | Média | Qualidade | pendente |
+| 8 | Configuração do ESLint (o `npm run lint` não roda) | Média | Qualidade | pendente |
+| 9 | Health check que olha Mongo e Redis | Média | Operação | pendente |
+| 10 | `TRUST_PROXY` ligado em produção | Média | Operação | pendente |
+| 11 | Esconder o Swagger em produção | Média | Segurança | ✅ feito (junto com o item 1) |
+| 12 | Limpeza das sessões encerradas no Mongo | Média | Dados | pendente |
+| 13 | Painel: trocar N pollings por um stream único | Média | Desempenho | pendente |
+| 14 | Testes de interface (fluxo do jogador e painel) | Média | Qualidade | pendente |
+| 15 | Limpar arquivos que não são do projeto | Baixa | Repositório | ✅ feito |
+| 16 | Remover os aliases antigos de cor | Baixa | Front-end | ✅ feito |
+| 17 | Lugar na fila sobreviver a fechar a aba | Baixa | Experiência do jogador | ✅ feito |
+| 18 | Fonte oficial Araboto | Baixa | Marca | ⏸ aguardando arquivos da fonte |
+| 19 | Histórico e métricas por totem | Baixa | Produto | ✅ feito |
 
 ---
 
@@ -137,6 +146,8 @@ Levantamento feito em 07/10/2026 sobre a branch `feat/n-para-n-instancias` (inst
 **Problema.** O brandbook pede Araboto, e o design system usa Poppins como substituta, porque a fonte é comercial.
 
 **O que fazer.** Pedir os arquivos `.woff2` à marca e trocar em `tokens/fonts.css` e no `public/css`.
+
+**Situação.** A fonte não está no repositório nem na máquina de desenvolvimento. Com os arquivos em mãos: colocar em `public/assets/fonts/`, declarar `@font-face` para Araboto Bold (700) e Light (300) em `public/css/tokens.css` e pôr `'Araboto'` na frente de `--font-brand` e `--font-body`. Poppins fica como fallback.
 
 ### 19. Histórico e métricas por totem
 **Problema.** O painel mostra só o agora. Não dá para responder quantas partidas houve no evento, qual o tempo médio de fila ou qual site trouxe mais jogadores.

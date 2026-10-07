@@ -3,7 +3,7 @@
 //
 // Responsibilities:
 //   1. Read sessionId from URL: /play/<sessionId>
-//   2. Generate or restore playerId from sessionStorage (survives page refresh)
+//   2. Generate or restore playerId (player-store.js: survives refresh and tab close)
 //   3. Validate session via GET /api/sessions/:id
 //   4. Manage visual states: loading → error | playing
 //   5. Build WebSocket URL and hand off to ArcadeWsClient (C9.1)
@@ -11,6 +11,7 @@
 
 import { ArcadeWsClient } from '/websocket-client.js'
 import { initGamepad }    from '/gamepad.js'
+import { getPlayer, setPlayer } from '/player-store.js'
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 const $loading    = document.getElementById('loading')
@@ -58,10 +59,10 @@ async function boot(sid) {
 
   // 2. Generate or restore playerId (C9.2: persists across refreshes)
   const storageKey = `sa_player_${sid}`
-  let playerId = sessionStorage.getItem(storageKey)
+  let playerId = getPlayer(storageKey)
   if (!playerId) {
     playerId = 'p_' + crypto.randomUUID().slice(0, 8)
-    sessionStorage.setItem(storageKey, playerId)
+    setPlayer(storageKey, playerId)
   }
 
   // 3. Update page metadata

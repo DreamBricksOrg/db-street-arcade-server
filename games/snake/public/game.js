@@ -196,12 +196,12 @@ function addPlayer(pid) {
 const evtSource = new EventSource('events');
 
 evtSource.onopen = function() {
-  connStatus.textContent = "🟢 SSE Conectado ao Demo Server";
+  connStatus.textContent = "SSE conectado";
   connStatus.className = "conn-status conn-status--connected";
 };
 
 evtSource.onerror = function() {
-  connStatus.textContent = "🔴 SSE Erro/Desconectado";
+  connStatus.textContent = "SSE desconectado, tentando de novo…";
   connStatus.className = "conn-status conn-status--error";
 };
 

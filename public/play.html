@@ -74,26 +74,6 @@
     .dpad-btn svg { width: 45%; height: 45%; color: var(--text-secondary); }
     .dpad-btn.pressed svg { color: var(--surface-brand-strong); }
 
-    .header-center {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 11px; color: var(--muted);
-    }
-
-    .status-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--muted);
-      transition: background 0.4s, box-shadow 0.4s;
-    }
-
-    .status-dot.connected {
-      background: var(--success);
-      box-shadow: 0 0 8px var(--success);
-    }
-
-    .status-dot.error { background: var(--danger); }
-
-    #conn-status-text { font-size: 11px; color: var(--muted); }
-
     #sid-label { font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary); }
 
     /* ── Gamepad area ────────────────────────────────────────────────────── */
@@ -265,10 +245,7 @@
     <!-- Status header -->
     <div class="play-header">
       <span class="play-title"><img src="/assets/brand/dreambricks-mark-blue.svg" alt="" /> Street Arcade</span>
-      <div class="header-center">
-        <div id="conn-dot" class="status-dot"></div>
-        <span id="conn-status-text">Conectando…</span>
-      </div>
+      <span id="conn" class="db-badge db-badge--dot" role="status">Conectando…</span>
       <span id="sid-label">—</span>
     </div>
 

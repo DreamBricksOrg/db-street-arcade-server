@@ -19,6 +19,10 @@ const sessionIdParam = {
 
 const errorResponse = { type: 'object', properties: { error: { type: 'string' } } }
 
+// Routes only the logged-in operator may call (see src/plugins/auth.js).
+// GET /:id and /:id/qr stay public: the player's phone reads its own session.
+const OPERATOR = { operator: true }
+
 const sessionShape = {
   type: 'object',
   properties: {
@@ -57,6 +61,7 @@ async function sessionRoutes(fastify) {
   const repo = new SessionRepository(fastify.mongo)
 
   fastify.get('/api/sessions', {
+    config: OPERATOR,
     schema: {
       tags: ['Sessions'], summary: 'List live (reserved/active) sessions',
       response: { 200: { type: 'array', items: sessionShape } },
@@ -78,6 +83,7 @@ async function sessionRoutes(fastify) {
   })
 
   fastify.post('/api/sessions/:id/end', {
+    config: OPERATOR,
     schema: {
       tags: ['Sessions'], summary: "End a player's session (frees the slot, queue advances)",
       params: sessionIdParam,
@@ -91,6 +97,7 @@ async function sessionRoutes(fastify) {
 
   // Kept for URL compatibility with the dashboard — same effect as /end.
   fastify.post('/api/sessions/:id/players/:playerId/kick', {
+    config: OPERATOR,
     schema: {
       tags: ['Sessions'], summary: 'Kick the player (ends their session, queue advances)',
       params: {
@@ -107,6 +114,7 @@ async function sessionRoutes(fastify) {
   })
 
   fastify.delete('/api/sessions/:id', {
+    config: OPERATOR,
     schema: {
       tags: ['Sessions'], summary: 'Hard delete a session (admin)', params: sessionIdParam,
       response: { 204: { type: 'null' }, 404: errorResponse },

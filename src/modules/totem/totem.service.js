@@ -11,6 +11,7 @@ import { isKnownGame }     from '../../lib/games.js'
 import { queueKey }        from '../../lib/channels.js'
 import { env }             from '../../config/env.js'
 import { createLogger }    from '../../lib/logger.js'
+import { newTotemKey }     from '../../lib/auth.js'
 
 const log = createLogger('totem.service')
 
@@ -96,7 +97,7 @@ export class TotemService {
     if (!v.ok) return v
     if (!v.patch.ip && !v.patch.game) return { ok: false, error: 'Set a game (embed) and/or an ip + udpPort (physical totem)' }
 
-    const totem = await this.repo.create(v.patch)
+    const totem = await this.repo.create({ ...v.patch, gameKey: newTotemKey() })
     log.info({ totemId: totem._id, name: totem.name, game: totem.game }, 'Totem created')
     return { ok: true, totem }
   }
@@ -127,6 +128,16 @@ export class TotemService {
     await this.repo.update(id, v.patch)
     log.info({ totemId: id }, 'Totem updated')
     return { ok: true }
+  }
+
+  /** New key for the game/bridge; the old one stops working immediately. */
+  async rotateGameKey(id) {
+    const exists = await this.repo.findById(id)
+    if (!exists) return { ok: false, error: 'Totem not found' }
+    const gameKey = newTotemKey()
+    await this.repo.update(id, { gameKey })
+    log.info({ totemId: id }, 'Totem key rotated')
+    return { ok: true, gameKey }
   }
 
   async deleteTotem(id) {

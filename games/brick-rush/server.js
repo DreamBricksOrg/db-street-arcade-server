@@ -35,6 +35,10 @@ try {
 const HTTP_PORT   = 9100;
 const UDP_PORT    = 9101;
 const BACKEND_URL = process.env.BACKEND_URL || '';
+// Totem key from the dashboard (Editar → Chave do jogo). Sent as X-Totem-Key on
+// every backend call; required for totems created after keys were introduced.
+const TOTEM_KEY   = process.env.TOTEM_KEY || '';
+const keyHeader   = TOTEM_KEY ? { 'X-Totem-Key': TOTEM_KEY } : {};
 
 // Static identity of this totem — set in .env, or learned from player_join packets.
 let currentTotemId = process.env.TOTEM_ID || null;
@@ -88,7 +92,7 @@ const server = http.createServer((req, res) => {
       console.log(`[HTTP] Eliminating player — totem: ${currentTotemId}, player: ${playerId || '(unknown)'}`);
       fetch(`${BACKEND_URL}/api/totems/${currentTotemId}/end-session`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...keyHeader },
         body:    JSON.stringify({ playerId }),
       })
         .then(r => r.json())
@@ -126,7 +130,7 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ sessions: [], queue: [], maxPlayers: 0 }));
       return;
     }
-    fetch(`${BACKEND_URL}/api/totems/${currentTotemId}/queue`)
+    fetch(`${BACKEND_URL}/api/totems/${currentTotemId}/queue`, { headers: keyHeader })
       .then(r => r.json())
       .then(json => {
         res.writeHead(200, { 'Content-Type': 'application/json' });

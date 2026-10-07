@@ -86,7 +86,7 @@ const join = (tid, inst, playerId) =>
 const server = spawn(process.execPath, ['src/server.js'], {
   env: {
     ...process.env,
-    PORT: String(PORT),
+    PORT: String(PORT), OPERATOR_PASSWORD: '',
     QUEUE_RESERVE_MS: '5000', QUEUE_SWEEP_MS: '500', QUEUE_JOIN_RATE_MAX: '1000',
     INSTANCE_GRACE_MS: '1500', MAX_INSTANCES_PER_IP: '3', TRUST_PROXY: 'true',
   },

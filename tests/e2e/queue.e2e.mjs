@@ -51,7 +51,7 @@ function wsConnect(sessionId, playerId) {
 
 // ── Boot server ───────────────────────────────────────────────────────────────
 const server = spawn(process.execPath, ['src/server.js'], {
-  env: { ...process.env, PORT: String(PORT), QUEUE_RESERVE_MS: '2000', QUEUE_SWEEP_MS: '500', QUEUE_JOIN_RATE_MAX: '1000' },
+  env: { ...process.env, PORT: String(PORT), OPERATOR_PASSWORD: '', QUEUE_RESERVE_MS: '2000', QUEUE_SWEEP_MS: '500', QUEUE_JOIN_RATE_MAX: '1000' },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 server.stderr.on('data', d => process.stderr.write(`[server] ${d}`))

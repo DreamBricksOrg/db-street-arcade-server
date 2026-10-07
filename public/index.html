@@ -41,6 +41,8 @@
       <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></symbol>
       <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></symbol>
       <symbol id="i-gamepad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><rect x="2" y="6" width="20" height="12" rx="4"/></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2 2"/></symbol>
       <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
     </defs>
   </svg>
@@ -61,6 +63,7 @@
         <div class="live" id="live" role="status">
           <span class="live__dot"></span>
           <span><strong>Operador</strong> · <span id="live-text">ao vivo</span></span>
+          <button class="live__out" id="btn-logout" type="button" aria-label="Sair do painel" data-tip="Sair" hidden><svg class="ico"><use href="#i-logout"/></svg></button>
         </div>
       </div>
     </aside>
@@ -197,6 +200,15 @@
           <label class="db-label" for="tf-game-config">Configuração do jogo <span class="opt">(JSON, opcional)</span></label>
           <textarea class="db-textarea" id="tf-game-config" rows="3" spellcheck="false" placeholder='{ "gameSpeed": 6 }'></textarea>
           <span class="db-hint">Enviado ao jogo incorporado em <code>/config</code>. Ex.: snake <code>gameSpeed</code>; brick-rush <code>rounds</code>, <code>roundMs</code>.</span>
+        </div>
+        <div class="db-field" id="tf-key-field" hidden>
+          <span class="db-label" id="tf-key-label">Chave do jogo</span>
+          <div class="key-row">
+            <code class="key-value" id="tf-key" aria-labelledby="tf-key-label"></code>
+            <button class="db-icon-btn" type="button" id="tf-key-copy" data-tip="Copiar chave" aria-label="Copiar chave do jogo"><svg><use href="#i-copy"/></svg></button>
+          </div>
+          <span class="db-hint">A máquina do jogo envia esta chave (<code>TOTEM_KEY</code> no .env, header <code>X-Totem-Key</code>) para reportar mortes e ler a fila.</span>
+          <button class="db-btn db-btn--secondary db-btn--sm" type="button" id="tf-key-rotate" style="align-self:flex-start"><svg class="ico"><use href="#i-key"/></svg>Gerar nova chave</button>
         </div>
         <div class="db-callout db-callout--danger" id="totem-error" role="alert" hidden>
           <svg><use href="#i-alert"/></svg><span></span>

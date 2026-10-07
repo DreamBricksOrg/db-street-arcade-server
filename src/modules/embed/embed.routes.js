@@ -170,8 +170,15 @@ export default async function embedRoutes(fastify) {
   }, async (request, reply) => {
     const result = await queue.operatorView(request.params.totemId, request.params.instanceId)
     if (!result.ok) return reply.status(result.code ?? 500).send({ sessions: [], queue: [], maxPlayers: 0 })
-    const { ok, ...view } = result
-    return view
+    // Public (any visitor of the iframe): counts and 8-char pids only — never
+    // the players' user agent, IP or full ids.
+    return {
+      instanceId: result.instanceId,
+      sessions:   result.sessions.map(s => ({ pid: String(s.playerId).slice(0, 8), status: s.status })),
+      queue:      result.queue.map((_q, i) => ({ position: i + 1 })),
+      maxPlayers:   result.maxPlayers,
+      maxQueueSize: result.maxQueueSize,
+    }
   })
 
   fastify.get('/embed/:totemId/:instanceId/config', {

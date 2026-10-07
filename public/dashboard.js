@@ -32,6 +32,8 @@ const formMaxQueue   = $('tf-max-queue')
 const formGame       = $('tf-game')
 const formGameConfig = $('tf-game-config')
 const btnSaveTotem   = $('btn-save-totem')
+const keyField       = $('tf-key-field')
+const keyValue       = $('tf-key')
 
 const queueDialog      = $('queueDialog')
 const queueTotemName   = $('queue-totem-name')
@@ -74,8 +76,18 @@ let embedTotem     = null
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
+/** fetch that sends the operator back to /login when the session expired. */
+async function api(url, options) {
+  const res = await fetch(url, options)
+  if (res.status === 401) {
+    location.href = '/login'
+    throw new Error('Sessão expirada — entre de novo')
+  }
+  return res
+}
+
 async function apiFetch(url, options = {}) {
-  const res = await fetch(url, {
+  const res = await api(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   })
@@ -305,7 +317,7 @@ async function copy(text, title, message) {
 
 async function fetchTotemState(totemId) {
   try {
-    const res = await fetch(`${API}/${totemId}/instances`)
+    const res = await api(`${API}/${totemId}/instances`)
     if (!res.ok) return null
     return res.json()
   } catch {
@@ -435,7 +447,7 @@ function shortPid(pid) {
 async function renderQueue(totem) {
   let data
   try {
-    const res = await fetch(`${API}/${totem._id}/queue${instQs(queueInstance)}`)
+    const res = await api(`${API}/${totem._id}/queue${instQs(queueInstance)}`)
     data = res.ok ? await res.json() : null
   } catch { data = null }
 
@@ -566,7 +578,7 @@ queueDialog.addEventListener('close', () => {
 
 async function kickFromQueue(totemId, playerId) {
   try {
-    const res = await fetch(`${API}/${totemId}/queue/${encodeURIComponent(playerId)}${instQs(queueInstance)}`, { method: 'DELETE' })
+    const res = await api(`${API}/${totemId}/queue/${encodeURIComponent(playerId)}${instQs(queueInstance)}`, { method: 'DELETE' })
     if (!res.ok) throw new Error(`Erro ${res.status}`)
     toast('Jogador removido da fila')
   } catch (err) {
@@ -576,7 +588,7 @@ async function kickFromQueue(totemId, playerId) {
 
 async function kickFromSession(sessionId, playerId) {
   try {
-    const res = await fetch(`/api/sessions/${sessionId}/players/${encodeURIComponent(playerId)}/kick`, { method: 'POST' })
+    const res = await api(`/api/sessions/${sessionId}/players/${encodeURIComponent(playerId)}/kick`, { method: 'POST' })
     if (!res.ok) throw new Error(`Erro ${res.status}`)
     toast('Jogador expulso', { message: 'A vaga liberou e a fila andou.' })
   } catch (err) {
@@ -654,7 +666,7 @@ async function clearTotemQueue(totem) {
 
 function openTotemDialog() {
   hideFormError()
-  totemDialog.showModal()
+  if (!totemDialog.open) totemDialog.showModal()
   formName.focus()
 }
 
@@ -668,11 +680,16 @@ function startEdit(totem) {
   formDuration.value   = String(totem.sessionDurationMs ?? 1800000)
   formMaxQueue.value   = totem.maxQueueSize != null ? String(totem.maxQueueSize) : ''
   totemFormTitle.textContent = 'Editar totem'
+  // The key only matters to a physical cabinet's bridge (games/*/server.js).
+  keyField.hidden = !totem.ip
+  keyValue.textContent = totem.gameKey ?? 'Sem chave: as chamadas do jogo estão abertas. Gere uma para proteger.'
+  keyValue.dataset.empty = String(!totem.gameKey)
   openTotemDialog()
 }
 
 function resetForm() {
   editingTotemId = null
+  keyField.hidden = true
   totemForm.reset()
   formMaxPlayers.value = '2'
   formDuration.value   = '1800000'
@@ -743,6 +760,48 @@ totemForm.addEventListener('submit', async (e) => {
     btnSaveTotem.disabled = false
   }
 })
+
+// ── Totem key (physical game → backend) ───────────────────────────────────────
+
+$('tf-key-copy').addEventListener('click', () => {
+  if (keyValue.dataset.empty === 'true') return toast('Este totem ainda não tem chave', { tone: 'warning', message: 'Use "Gerar nova chave".' })
+  copy(keyValue.textContent, 'Chave copiada', 'Cole em TOTEM_KEY no .env da máquina do jogo.')
+})
+
+$('tf-key-rotate').addEventListener('click', async () => {
+  const id = editingTotemId
+  const hadKey = keyValue.dataset.empty !== 'true'
+  if (hadKey) {
+    totemDialog.close('cancel')
+    const ok = await confirmAction({
+      title: 'Gerar uma nova chave?',
+      message: 'A chave atual para de funcionar na hora. A máquina do jogo só volta a reportar mortes depois que você trocar o TOTEM_KEY no .env dela.',
+      confirmLabel: 'Gerar nova chave',
+    })
+    if (!ok) return
+  }
+  try {
+    const { gameKey } = await apiFetch(`${API}/${id}/game-key`, { method: 'POST' })
+    await loadTotems()
+    const t = totems.find(x => x._id === id)
+    if (t) startEdit(t)
+    keyValue.textContent = gameKey
+    keyValue.dataset.empty = 'false'
+    toast('Nova chave gerada', { message: 'Atualize o TOTEM_KEY no .env da máquina do jogo.' })
+  } catch (err) {
+    toast('Não deu para gerar a chave', { tone: 'danger', message: err.message })
+  }
+})
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+
+$('btn-logout').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+  location.href = '/login'
+})
+
+// Hide the logout button when auth is off (development without OPERATOR_PASSWORD).
+fetch('/api/auth/me').then(r => r.json()).then(me => { $('btn-logout').hidden = !me.authEnabled }).catch(() => {})
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

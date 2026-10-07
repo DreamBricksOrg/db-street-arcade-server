@@ -62,6 +62,23 @@ img { display: block; max-width: 100%; }
 }
 .live[data-state="off"] .live__dot { background: var(--db-danger-500); animation: none; }
 .live strong { color: var(--db-white); font-weight: var(--weight-semibold); }
+.live__out {
+  display: grid; place-items: center; width: 28px; height: 28px; margin: -4px -6px -4px auto;
+  color: oklch(1 0 0 / 0.7); background: transparent; border: none; border-radius: var(--radius-sm); cursor: pointer;
+}
+.live__out .ico { width: 16px; height: 16px; }
+.live__out:hover { color: var(--db-white); background: oklch(1 0 0 / 0.1); }
+.live__out:focus-visible { outline: 2px solid var(--db-blue-300); outline-offset: 1px; }
+
+/* Totem key (edit dialog) */
+.key-row { display: flex; align-items: center; gap: var(--space-2); }
+.key-value {
+  flex: 1; min-width: 0; padding: 9px 12px;
+  font: var(--weight-medium) var(--text-xs)/1.4 var(--font-mono);
+  color: var(--text-primary); background: var(--surface-sunken);
+  border-radius: var(--radius-md); overflow-wrap: anywhere;
+}
+.key-value[data-empty="true"] { font-family: var(--font-body); color: var(--db-warning-ink); background: var(--db-warning-100); }
 
 /* ── Top bar ────────────────────────────────────────────────────────────────── */
 .topbar {

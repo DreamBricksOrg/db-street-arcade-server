@@ -8,6 +8,8 @@
 //   3. If 'play', redirect to /play/:sessionId
 //   4. If 'queue', display queue UI and poll GET /api/totems/:id/queue/status
 
+import { getPlayer, setPlayer } from '/player-store.js'
+
 const params     = new URLSearchParams(window.location.search)
 const totemId    = params.get('id')
 // Embedded iframe instance (n→n). Absent = the physical totem ('default').
@@ -58,12 +60,14 @@ function showQueue(pos, estimatedWaitMs) {
   $queueEta.textContent      = estimatedWaitMs ? `espera ${formatEta(estimatedWaitMs)}` : ''
 }
 
+// Survives closing the tab for a few minutes (player-store.js): coming back
+// to the same totem/instance resumes the same place in line.
 async function getPlayerId() {
   const storageKey = `sa_queue_pid_${totemId}${instanceId ? `_${instanceId}` : ''}`
-  let pid = sessionStorage.getItem(storageKey)
+  let pid = getPlayer(storageKey)
   if (!pid) {
     pid = 'qp_' + crypto.randomUUID().slice(0, 8)
-    sessionStorage.setItem(storageKey, pid)
+    setPlayer(storageKey, pid)
   }
   return pid
 }
@@ -118,7 +122,7 @@ async function pollQueueStatus(playerId) {
 
     if (data.status === 'play') {
       stopQueueEvents()
-      sessionStorage.setItem(`sa_player_${data.sessionId}`, playerId)
+      setPlayer(`sa_player_${data.sessionId}`, playerId)
       window.location.replace(`/play/${data.sessionId}`)
       return
     }
@@ -187,7 +191,7 @@ async function resolveAndRedirect() {
     if (data.status === 'play') {
       $loadingSub.textContent = 'Redirecionando…'
       // Share playerId so session.js uses the same ID for WS connection
-      sessionStorage.setItem(`sa_player_${data.sessionId}`, playerId)
+      setPlayer(`sa_player_${data.sessionId}`, playerId)
       await new Promise(r => setTimeout(r, 400))
       window.location.replace(`/play/${data.sessionId}`)
       return

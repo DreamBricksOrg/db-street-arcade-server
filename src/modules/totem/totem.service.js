@@ -130,6 +130,15 @@ export class TotemService {
     return { ok: true }
   }
 
+  async setPaused(id, paused, by = null) {
+    const exists = await this.repo.findById(id)
+    if (!exists) return { ok: false, error: 'Totem not found' }
+    await this.repo.update(id, paused
+      ? { paused: true, pausedAt: new Date(), pausedBy: by }
+      : { paused: false, pausedAt: null, pausedBy: null })
+    return { ok: true }
+  }
+
   /** New key for the game/bridge; the old one stops working immediately. */
   async rotateGameKey(id) {
     const exists = await this.repo.findById(id)

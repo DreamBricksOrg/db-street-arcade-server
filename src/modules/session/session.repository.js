@@ -31,13 +31,14 @@ export class SessionRepository {
    * @param {{ totemId: string, instanceId?: string, playerId: string, totems: Array<{id, ip, udpPort}>,
    *           metadata?: object|null, reserveMs: number, playMs: number }} data
    */
-  async create({ totemId, instanceId, playerId, totems, metadata = null, reserveMs, playMs, queuedAt = null, site = null }) {
+  async create({ totemId, instanceId, playerId, totems, metadata = null, reserveMs, playMs, queuedAt = null, site = null, nickname = null }) {
     const now = new Date()
     const session = {
       _id:            uuidv4(),
       totemId,
       instanceId:     normalizeInstance(instanceId),
       playerId,
+      nickname,                     // anonymous animal name ("Capivara Veloz")
       status:         'reserved',
       totems,
       metadata,
@@ -54,6 +55,21 @@ export class SessionRepository {
     await this.col.insertOne(session)
     log.debug({ sessionId: session._id, totemId, instanceId: session.instanceId, playerId }, 'Session created (reserved)')
     return session
+  }
+
+  /**
+   * Best scores (totemId = null → every totem). Ties: who got there first.
+   * @returns {Promise<Array<{ nickname, score, endedAt, totemId, instanceId, site }>>}
+   */
+  async listRanking({ totemId = null, since = null, limit = 10 } = {}) {
+    const q = { score: { $type: 'number' } }
+    if (totemId) q.totemId = totemId
+    if (since) q.endedAt = { $gte: since }
+    return this.col.find(q, {
+      projection: { _id: 0, nickname: 1, score: 1, endedAt: 1, totemId: 1, instanceId: 1, site: 1 },
+      sort: { score: -1, endedAt: 1 },
+      limit,
+    }).toArray()
   }
 
   /** Sessions of a totem created since `since` — light projection for stats. */
@@ -111,10 +127,10 @@ export class SessionRepository {
   }
 
   /** → finished. Returns updated doc, or null if it was already finished. */
-  async markEnded(id, reason) {
+  async markEnded(id, reason, { score = null } = {}) {
     return this.col.findOneAndUpdate(
       { _id: id, status: { $in: CURRENT } },
-      { $set: { status: 'finished', endedAt: new Date(), endReason: reason } },
+      { $set: { status: 'finished', endedAt: new Date(), endReason: reason, ...(score !== null ? { score } : {}) } },
       { returnDocument: 'after' },
     )
   }

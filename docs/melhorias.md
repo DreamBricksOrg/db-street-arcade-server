@@ -199,3 +199,23 @@ Pontos levantados depois dos 19 itens. Todos na branch `feat/n-para-n-instancias
 - **24, limites.** Entrada na fila e tentativas de login contam no Redis (`rl:{nome}:{ip}:{janela}`), somando todos os processos. Sem Redis, cada processo conta sozinho.
 - **25, pontes.** A ponte local (`games/*/server.js`) servia qualquer arquivo: `GET /../.env` devolvia o `.env` da máquina, com a chave do totem. Isso foi confirmado no código antigo. Agora `games/shared/static.js` só serve o que está em `public/`, mais a marca do repositório. As portas aceitam `BRIDGE_HTTP_PORT`/`BRIDGE_UDP_PORT`, as imagens Docker das pontes usam Node 22 com contexto na raiz do repositório, e `tests/e2e/bridges.e2e.mjs` testa as duas pontes.
 - **26, documentação.** Foram atualizados `CLAUDE.md`, `README.md` (que só falava de `npm run dev`), `DESIGN.md` (de volta à Poppins) e o arquivo de apoio do impeccable (`.impeccable/design.json`), que ainda tinha a cor laranja aposentada e componentes antigos.
+
+---
+
+## Terceira rodada: funcionalidades (08/10/2026)
+
+O que faltava de funcionalidade, levantado no código em 08/10/2026. As decisões são do produto: o item 30 foi descartado e o 31 foi redefinido.
+
+| # | Funcionalidade | Prioridade | Situação |
+|---|----------------|-----------|----------|
+| 29 | Avisar o jogador quando chega a vez (vibração, som, título da aba, notificação) | **Alta** | em andamento |
+| 30 | Tempo restante no controle | — | descartado: o Snake não tem tempo limite, a partida acaba quando o jogador morre |
+| 31 | Nome do jogador → **apelido de animal gerado** ("Capivara Veloz"), sem o jogador digitar nada; listas editáveis no painel | **Alta** | em andamento |
+| 32 | Ranking (pontos guardados no backend, placar do dia/evento) | Média | em andamento |
+| 33 | Pausar um totem (fecha a entrada da fila para manutenção/intervalo) | **Alta** | em andamento |
+| 34 | Usuários individuais de operador, com papéis e registro de atividade | Média | em andamento |
+| 35 | Exportar o histórico em CSV | Média | em andamento |
+| 36 | Histórico do evento inteiro (todos os totens juntos) | Média | em andamento |
+| 37 | Sites permitidos por totem (`frame-ancestors` por jogo) | Baixa | pendente |
+| 38 | Configuração do jogo por formulário (sem editar JSON) | Média | em andamento |
+| 39 | Mais jogos além de Snake e Brick Rush | Baixa | pendente |

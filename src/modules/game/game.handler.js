@@ -73,6 +73,7 @@ export class GameHandler {
       sid:  sessionId.slice(0, 8),
       pid:  playerId.slice(0, 8),
       tid:  session.totemId ?? null,
+      nm:   session.nickname ?? null,   // anonymous animal name to show instead of the pid
     }).catch(err => log.warn({ err: err.message, sessionId }, 'player_join send failed'))
 
     await this._publish(Channels.sessionSync(sessionId), 'sync', sessionId, playerId, {

@@ -32,7 +32,7 @@ evtSource.onmessage = (event) => {
       console.log('[SSE] totem:', data.totemId)
       return
     case 'player_join':
-      match.onPlayerJoin(data.pid, now)
+      match.onPlayerJoin(data.pid, now, data.nm ?? null)
       return
     case 'player_leave':
       match.onPlayerLeave(data.pid, now)
@@ -56,6 +56,16 @@ async function pollQueueState() {
 }
 pollQueueState()
 setInterval(pollQueueState, 5000)
+
+// ── Best scores today (lobby board) — /ranking on the bridge and the embed ──
+async function pollRanking() {
+  try {
+    const res = await fetch('ranking', { cache: 'no-store' })
+    if (res.ok) match.ranking = await res.json()
+  } catch { /* keep last known */ }
+}
+pollRanking()
+setInterval(pollRanking, 30000)
 
 // ── Game loop ────────────────────────────────────────────────────────────────
 let lastT = performance.now()

@@ -249,7 +249,7 @@ function drawHud(ctx, match, now) {
     ctx.fillRect(12, y - 10, 12, 12)
     ctx.fillStyle = p.left ? FRAME.dim : FRAME.ink
     const flag = p.finishedAt !== null ? ' · chegou' : (p.left ? ' (saiu)' : '')
-    ctx.fillText(`${p.pid.slice(0, 8)}  ${p.points}pt${flag}`, 30, y)
+    ctx.fillText(`${label(p)}  ${p.points}pt${flag}`, 30, y)
     y += 24
   }
 }
@@ -259,6 +259,40 @@ export function rankedPlayers(match) {
     b.points - a.points ||
     a.totalCaptureMs - b.totalCaptureMs ||
     a.joinedAt - b.joinedAt)
+}
+
+/** Anonymous animal name when the backend sent one, else the short pid. */
+function label(p) {
+  return p.name ?? p.pid.slice(0, 8)
+}
+
+/** Lobby board: best scores today (match.ranking from /ranking). */
+function drawRanking(ctx, ranking) {
+  const rows = (ranking ?? []).slice(0, 5)
+  if (!rows.length) return
+  const x = CW - 330, w = 300
+  let y = 150
+  ctx.fillStyle = FRAME.bar
+  ctx.fillRect(x - 16, y - 34, w + 32, 54 + rows.length * 34)
+  ctx.textAlign = 'left'
+  ctx.fillStyle = FRAME.title
+  ctx.font = `700 18px ${FONT_UI}`
+  ctx.fillText('Melhores de hoje', x, y)
+  y += 38
+  for (const r of rows) {
+    ctx.fillStyle = FRAME.muted
+    ctx.font = `600 16px ${FONT_DATA}`
+    ctx.fillText(`${r.position}º`, x, y)
+    ctx.fillStyle = FRAME.ink
+    ctx.font = `600 16px ${FONT_UI}`
+    const name = String(r.name).length > 20 ? `${String(r.name).slice(0, 19)}…` : String(r.name)
+    ctx.fillText(name, x + 40, y)
+    ctx.textAlign = 'right'
+    ctx.font = `600 16px ${FONT_DATA}`
+    ctx.fillText(String(r.score), x + w, y)
+    ctx.textAlign = 'left'
+    y += 34
+  }
 }
 
 function centerText(ctx, text, y, size = 42, color = FRAME.ink, family = FONT_UI) {
@@ -294,9 +328,10 @@ function drawLobby(ctx, match, now) {
     centerText(ctx, `Começa em ${remain}s (ou quando encher)`, CH / 2 + 120, 22, FRAME.title)
   }
   if (match.winStreakPid) {
-    centerText(ctx, `${match.winStreakPid.slice(0, 8)} defende o título (${match.winStreakCount}x)`, CH / 2 + 160, 18, FRAME.muted)
+    centerText(ctx, `${match.winStreakName ?? match.winStreakPid.slice(0, 8)} defende o título (${match.winStreakCount}x)`, CH / 2 + 160, 18, FRAME.muted)
   }
   centerText(ctx, `Fila: ${match.queueSize}`, CH - 40, 18, FRAME.dim, FONT_DATA)
+  drawRanking(ctx, match.ranking)
 }
 
 function drawCountdown(ctx, match, now) {
@@ -317,7 +352,7 @@ function drawRoundEnd(ctx, match, _now) {
     ctx.fillStyle = FRAME.ink
     ctx.font = `600 24px ${FONT_DATA}`
     ctx.textAlign = 'left'
-    ctx.fillText(`${p.pid.slice(0, 8)}  +${p.roundPoints} → ${p.points} pts`, CW / 2 - 140, y)
+    ctx.fillText(`${label(p)}  +${p.roundPoints} → ${p.points} pts`, CW / 2 - 140, y)
     y += 44
   }
 }
@@ -333,7 +368,7 @@ function drawMatchEnd(ctx, match, _now) {
     ctx.fillStyle = FRAME.ink
     ctx.font = `${i === 0 ? 700 : 600} ${i === 0 ? 34 : 26}px ${FONT_DATA}`
     ctx.textAlign = 'left'
-    ctx.fillText(`${medals[i] ?? '  '} ${p.pid.slice(0, 8)} — ${p.points} pts`, CW / 2 - 160, y)
+    ctx.fillText(`${medals[i] ?? '  '} ${label(p)} — ${p.points} pts`, CW / 2 - 160, y)
     y += 54
   })
 }

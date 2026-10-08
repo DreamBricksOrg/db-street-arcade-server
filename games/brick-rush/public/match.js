@@ -41,6 +41,8 @@ export function createMatch() {
     themes: [],
     maxPlayers: 0,           // learned from /queue-state
     queueSize: 0,
+    ranking: [],              // best scores today: [{ position, name, score }]
+    names: new Map(),         // pid → anonymous animal name (player_join nm)
     lobbyDeadline: null,
     countdownDeadline: 0,
     roundDeadline: 0,
@@ -50,6 +52,7 @@ export function createMatch() {
     lavaY: Infinity,
     finishOrder: [],
     winStreakPid: null,
+    winStreakName: null,
     winStreakCount: 0,
     nextThemeName: '',
     rotationStartedAt: 0,
@@ -64,7 +67,12 @@ export function createMatch() {
     },
 
     // ── Events from SSE ──────────────────────────────────────────────────────
-    onPlayerJoin(pid, now) {
+    onPlayerJoin(pid, now, name = null) {
+      if (name) {
+        this.names.set(pid, name)
+        const known = this.players.get(pid)
+        if (known) known.name = name
+      }
       if (this.players.has(pid)) return // reconnection of a current player
       // lobby AND countdown accept players — someone connecting during the 3s
       // countdown belongs to this match (the round hasn't started yet).
@@ -231,6 +239,7 @@ export function createMatch() {
       const color = PALETTE[this.players.size % PALETTE.length]
       const p = createPlayer(pid, color, { x: 100, y: 100 })
       p.joinedAt = now
+      p.name = this.names.get(pid) ?? null
       this.players.set(pid, p)
     },
 
@@ -287,6 +296,7 @@ export function createMatch() {
       // Champion is remembered for the lobby HUD, but leaves like everyone
       // else — playing again means reconnecting through the queue.
       this.winStreakPid = ranked[0]?.pid ?? null
+      this.winStreakName = ranked[0]?.name ?? null
       this.winStreakCount = this.winStreakPid === this._lastWinnerPid
         ? this.winStreakCount + 1 : 1
       this._lastWinnerPid = this.winStreakPid
@@ -302,7 +312,7 @@ export function createMatch() {
         fetch('end-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pid: p.pid }),
+          body: JSON.stringify({ pid: p.pid, score: p.points }),   // points go to the ranking
         }).catch(() => { /* rotation timeout will clean up */ })
       }
     },

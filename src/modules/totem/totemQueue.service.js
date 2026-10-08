@@ -24,10 +24,12 @@ import {
 import { createKeyedMutex }  from '../../lib/mutex.js'
 import { env }               from '../../config/env.js'
 import { createLogger }      from '../../lib/logger.js'
+import { drawNickname }      from '../../lib/nicknames.js'
 
 const log = createLogger('totem.queue')
 
 const HEARTBEAT_SECS = 120
+const NICK_SECS      = 6 * 3600   // a returning player keeps the same animal
 
 export class TotemQueueService {
   /**
@@ -62,15 +64,19 @@ export class TotemQueueService {
     if (closed) return closed
 
     const existing = await this.repo.findCurrentByPlayer(totemId, instanceId, playerId)
-    if (existing) return { ok: true, status: 'play', sessionId: existing._id }
+    if (existing) return { ok: true, status: 'play', sessionId: existing._id, nickname: existing.nickname ?? null }
 
+    // Paused by the operator: nobody new gets in (players already waiting stay).
+    if (totem.paused) return { ok: false, code: 423, error: 'Totem paused' }
+
+    const nickname = await this._nicknameFor(totemId, instanceId, playerId)
     const maxPlayers = totem.maxPlayers ?? env.sessionMaxPlayers
     const occupied   = await this.repo.countCurrent(totemId, instanceId)
     const queueSize  = await this._queueLen(totemId, instanceId)
 
     if (occupied < maxPlayers && queueSize === 0) {
-      const session = await this._createReserved(totem, instanceId, playerId, metadata)
-      return { ok: true, status: 'play', sessionId: session._id }
+      const session = await this._createReserved(totem, instanceId, playerId, metadata, null, nickname)
+      return { ok: true, status: 'play', sessionId: session._id, nickname }
     }
 
     if (!this._redis) return { ok: false, code: 503, error: 'Queue unavailable (Redis offline)' }
@@ -80,7 +86,7 @@ export class TotemQueueService {
 
     const position = await this._enqueue(totemId, instanceId, playerId, metadata)
     const estimatedWaitMs = await this.estimateWait(totem, position)
-    return { ok: true, status: 'queue', position, estimatedWaitMs }
+    return { ok: true, status: 'queue', position, estimatedWaitMs, nickname }
   }
 
   /**
@@ -101,7 +107,7 @@ export class TotemQueueService {
         await this._advanceLocked(totem, inst)
         session = await this.repo.findCurrentByPlayer(totemId, inst, playerId)
       }
-      if (session) return { ok: true, status: 'play', sessionId: session._id }
+      if (session) return { ok: true, status: 'play', sessionId: session._id, nickname: session.nickname ?? null }
 
       if (!this._redis) return { ok: false, code: 404, error: 'Not in queue' }
       const pos = await this._redis.lpos(queueKey(totemId, inst), playerId)
@@ -109,7 +115,8 @@ export class TotemQueueService {
 
       const size = await this._queueLen(totemId, inst)
       const estimatedWaitMs = await this.estimateWait(totem, pos + 1)
-      return { ok: true, status: 'queue', position: pos + 1, size, estimatedWaitMs }
+      const nickname = await this._redis.get(this._nKey(playerId))
+      return { ok: true, status: 'queue', position: pos + 1, size, estimatedWaitMs, nickname, paused: Boolean(totem.paused) }
     })
   }
 
@@ -145,14 +152,14 @@ export class TotemQueueService {
    * Ends ONE player's session (death, kick, timeout, no_show, manual,
    * instance_closed) and advances that instance's queue into the freed slot.
    */
-  async endSession(sessionId, reason = 'manual') {
+  async endSession(sessionId, reason = 'manual', { score = null } = {}) {
     const session = await this.repo.findById(sessionId)
     if (!session) return { ok: false, code: 404, error: 'Session not found' }
     if (session.status === 'finished') return { ok: true, alreadyEnded: true }
 
     const inst = normalizeInstance(session.instanceId)
     return this._lock(session.totemId, inst, async () => {
-      const ended = await this.repo.markEnded(sessionId, reason)
+      const ended = await this.repo.markEnded(sessionId, reason, { score })
       if (!ended) return { ok: true, alreadyEnded: true }
 
       await this.cache.del(sessionId)
@@ -211,6 +218,7 @@ export class TotemQueueService {
    */
   async _advanceLocked(totem, instanceId) {
     if (!this._redis) return
+    if (totem.paused) return   // paused: freed slots stay free, the line waits
     const totemId    = totem._id.toString()
     const maxPlayers = totem.maxPlayers ?? env.sessionMaxPlayers
     let advanced = 0
@@ -234,12 +242,28 @@ export class TotemQueueService {
       const joined = await this._redis.get(this._jKey(playerId))
       await this._redis.del(this._hbKey(playerId), this._jKey(playerId))
       const queuedAt = joined ? new Date(Number(joined)) : null
-      const session = await this._createReserved(totem, instanceId, playerId, metadata, queuedAt)
+      const nickname = await this._redis.get(this._nKey(playerId)) ??
+        await this._nicknameFor(totemId, instanceId, playerId)
+      const session = await this._createReserved(totem, instanceId, playerId, metadata, queuedAt, nickname)
       advanced++
       log.info({ totemId, instanceId, playerId, sessionId: session._id }, 'Queue advanced — slot reserved')
     }
 
     if (advanced > 0) await this._publishQueueEvent(totemId, instanceId)
+  }
+
+  /** Fills free slots from the line (e.g. when a paused totem resumes). */
+  async advance(totemId, instanceId) {
+    const inst = normalizeInstance(instanceId)
+    return this._lock(totemId, inst, async () => {
+      const totem = await this._totems.findTotem(totemId)
+      if (totem) await this._advanceLocked(totem, inst)
+    })
+  }
+
+  /** Pings the waiting phones of an instance to re-check their status. */
+  notifyQueue(totemId, instanceId) {
+    return this._publishQueueEvent(totemId, normalizeInstance(instanceId))
   }
 
   /**
@@ -289,6 +313,7 @@ export class TotemQueueService {
 
     const sessions = await this.repo.listCurrentByInstance(totemId, inst)
     const ids = this._redis ? await this._redis.lrange(queueKey(totemId, inst), 0, -1) : []
+    const nicks = this._redis && ids.length ? await this._redis.mget(ids.map(id => this._nKey(id))) : []
     const queue = await Promise.all(ids.map(async (pid, i) => {
       let metadata = null
       try {
@@ -297,6 +322,7 @@ export class TotemQueueService {
       } catch { /* best-effort */ }
       return {
         id: pid,
+        nickname: nicks[i] ?? null,
         metadata,
         heartbeatTtl:    this._redis ? await this._redis.ttl(this._hbKey(pid)) : null,
         estimatedWaitMs: await this.estimateWait(totem, i + 1),
@@ -309,6 +335,7 @@ export class TotemQueueService {
       sessions: sessions.map(s => ({
         sessionId: s._id,
         playerId:  s.playerId,
+        nickname:  s.nickname ?? null,
         status:    s.status,
         metadata:  s.metadata,
         createdAt: s.createdAt,
@@ -356,6 +383,27 @@ export class TotemQueueService {
   _hbKey(playerId) { return `queue:heartbeat:${playerId}` }
   _mKey(playerId)  { return `player:metadata:${playerId}` }
   _jKey(playerId)  { return `queue:joined:${playerId}` }
+  _nKey(playerId)  { return `player:nick:${playerId}` }
+
+  /**
+   * The player's anonymous animal name. Same name while they keep coming back
+   * (Redis, 6h); a new one avoids the names in use on this instance.
+   */
+  async _nicknameFor(totemId, instanceId, playerId) {
+    if (this._redis) {
+      const known = await this._redis.get(this._nKey(playerId))
+      if (known) { await this._redis.expire(this._nKey(playerId), NICK_SECS); return known }
+    }
+    const taken = new Set((await this.repo.listCurrentByInstance(totemId, instanceId)).map(s => s.nickname).filter(Boolean))
+    if (this._redis) {
+      const ids = await this._redis.lrange(queueKey(totemId, instanceId), 0, -1)
+      if (ids.length) for (const n of await this._redis.mget(ids.map(id => this._nKey(id)))) if (n) taken.add(n)
+    }
+    const lists = await this._fastify.settings?.nicknameLists?.() ?? {}
+    const name = drawNickname(lists, taken)
+    if (this._redis) await this._redis.setex(this._nKey(playerId), NICK_SECS, name)
+    return name
+  }
 
   /** Web instances must still be open (or within their grace period). */
   async _checkInstance(totemId, instanceId) {
@@ -384,7 +432,7 @@ export class TotemQueueService {
     return this._redis.llen(key)
   }
 
-  async _createReserved(totem, instanceId, playerId, metadata, queuedAt = null) {
+  async _createReserved(totem, instanceId, playerId, metadata, queuedAt = null, nickname = null) {
     const totemId = totem._id.toString()
     const site = !isDefaultInstance(instanceId) && this._redis
       ? await this._redis.get(`inst:site:${instanceKey(totemId, instanceId)}`).catch(() => null)
@@ -402,6 +450,7 @@ export class TotemQueueService {
       playMs:    totem.sessionDurationMs ?? env.sessionTimeoutMs,
       queuedAt,
       site,
+      nickname,
     })
     await this.cache.set(session)
     await this._publishQueueEvent(totemId, instanceId)

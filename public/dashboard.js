@@ -86,9 +86,11 @@ async function api(url, options) {
 }
 
 async function apiFetch(url, options = {}) {
+  // Content-Type only with a body: Fastify rejects an empty JSON body (400),
+  // which broke DELETE /api/totems/:id, queue/clear and game-key.
   const res = await api(url, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: options.body ? { 'Content-Type': 'application/json', ...options.headers } : options.headers,
   })
   if (res.status === 204) return null
   const body = await res.json().catch(() => null)

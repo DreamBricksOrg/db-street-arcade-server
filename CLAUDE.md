@@ -27,7 +27,7 @@ Backend Node.js + Fastify para um sistema de arcade real-time chamado **Street A
 - **Docs**: `@fastify/swagger` + `@fastify/swagger-ui`
 - **Dev**: `node --watch` (sem nodemon)
 - **Qualidade**: ESLint 9 flat config (`npm run lint`, CI com `--max-warnings=0`), `node:test`, Playwright 1.63 (UI), GitHub Actions (`.github/workflows/ci.yml`)
-- **Fonte da marca**: Araboto self-hosted (`public/assets/fonts/araboto/*.woff2`, subset latino); Poppins como fallback
+- **Fontes**: Poppins (OFL) + IBM Plex Mono via Google Fonts. A Araboto do brandbook **não está licenciada**; os arquivos foram retirados do repositório (que é público). Veja `docs/design_system/assets/fonts/araboto/LICENSE.md`. **Nunca commitar arquivos de fonte** (o `.gitignore` bloqueia).
 
 ---
 
@@ -42,7 +42,8 @@ src/
 │   ├── logger.js              # Pino logger factory
 │   ├── channels.js            # Nomes de canais Redis + builders de mensagem
 │   ├── mutex.js               # Mutex por chave (serializa fila por instância)
-│   ├── rateLimit.js           # Rate limiter fixed-window em memória
+│   ├── rateLimit.js           # Rate limiter fixed-window por IP: Redis (compartilhado entre processos) ou memória
+│   ├── envCheck.js            # Regras de prontidão do .env de produção (boot + npm run ops:check-env)
 │   ├── auth.js                # Cookie HMAC do operador, comparação constante, chave do totem
 │   ├── instances.js           # Registro das instâncias web em memória (dev sem Redis)
 │   ├── instances.redis.js     # Registro das instâncias no Redis (multi-processo, sobrevive a restart)
@@ -81,11 +82,12 @@ src/
         └── udp.dispatcher.js  # Subscriber Redis game:input:* → GameOutput (UDP ou SSE)
 
 tests/
-├── unit/*.test.mjs            # npm run test:unit — instâncias (memória e Redis falso), auth, stats, inputs
+├── unit/*.test.mjs            # npm run test:unit — instâncias, auth (inclui canonicalPath), stats, inputs, rateLimit, envCheck
 ├── e2e/queue.e2e.mjs          # npm run test:e2e — 9 cenários: fila (totem físico) + health/ready e retenção
 ├── e2e/instances.e2e.mjs      # 10 cenários n→n (iframes), validação de inputs, stream do operador
-├── e2e/auth.e2e.mjs           # 8 cenários: login, chave do totem, queue-state público, histórico
-├── e2e/cluster.e2e.mjs        # 3 cenários: 2 processos + restart no meio da partida
+├── e2e/auth.e2e.mjs           # 8 cenários: login (e caminhos codificados), chave do totem, ops:totem-keys, queue-state público, histórico
+├── e2e/cluster.e2e.mjs        # 4 cenários: 2 processos, restart no meio da partida, limite de login do cluster
+├── e2e/bridges.e2e.mjs        # 8 cenários: pontes locais (snake, brick-rush) contra backend falso
 └── ui/*.spec.mjs              # npm run test:ui — Playwright: painel, celular (Pixel 7), embed
 
 .github/workflows/ci.yml       # lint + unit → e2e + UI (mongo/redis) + checagens da imagem Docker
@@ -94,7 +96,6 @@ public/
 ├── css/tokens.css + components.css    # DreamBricks Design System (fonte: docs/design_system)
 ├── css/dashboard.css                  # Shell do painel (porte do ui_kits/dashboard do DS)
 ├── assets/brand/                      # Marca DreamBricks + mascote J0Bson
-├── assets/fonts/araboto/              # Araboto woff2 (fonte: docs/design_system/assets/fonts/araboto)
 ├── embed-assets/overlay.{js,css}      # Cartão de QR injetado sobre o jogo incorporado
 ├── login.html                     # Login do operador (split-screen do UI kit)
 ├── index.html / dashboard.js      # Painel do operador: sidebar + stats + cards, histórico, dialogs nativos
@@ -105,6 +106,14 @@ public/
 └── websocket-client.js            # ArcadeWsClient com reconexão exponencial
 
 games/                               # Jogos browser; servidos pelo backend em /embed (URLs RELATIVAS)
+├── shared/static.js                 # Arquivos estáticos das pontes: só dentro de public/ (+ marca do repo)
+└── */server.js                      # Ponte local do totem físico (UDP → SSE); BRIDGE_HTTP_PORT/BRIDGE_UDP_PORT
+
+scripts/
+├── check-env.mjs                    # npm run ops:check-env [arquivo] — .env pronto para produção?
+└── totem-keys.mjs                   # npm run ops:totem-keys [--apply] — totens sem chave do jogo
+
+.env.production.example              # Modelo do .env de produção
 ```
 
 ---
@@ -316,6 +325,7 @@ Query do iframe: `showqr=false`, `qrpos=br|bl|tr|tl`, `qrmin=true`.
 | `inst:totems` | SET | totens com instâncias (índice do sweep) |
 | `inst:sweep-lock` | STRING | um sweeper por vez entre processos |
 | `inst:site:{totemId}:{instanceId}` | STRING | origem do site que incorporou (TTL 24h) |
+| `rl:{name}:{ip}:{janela}` | STRING | contador do limitador por IP (`queue-join`, `login`), expira com a janela |
 
 Canais extras Pub/Sub: `queue:event:{totemId}[:{instanceId}]` — ping "queue_changed" (join/saída/avanço/claim/fim de sessão) para os SSE da fila e do painel; `inst:out:{totemId}:{instanceId}` — pacote do jogo para o processo que tem o SSE do iframe; `ops:totem:{totemId}` / `ops:totems` — iframe aberto/fechado e CRUD de totem (stream do operador).
 
@@ -326,8 +336,8 @@ Canais extras Pub/Sub: `queue:event:{totemId}[:{instanceId}]` — ping "queue_ch
 | Canal | Publisher | Subscriber | Payload |
 |-------|-----------|-----------|---------|
 | `game:input:{sessionId}` | game.handler (WS) | udp.dispatcher | `{ type:'input', sessionId, playerId, data:{action,state}, ts }` |
-| `game:event:{sessionId}` | session.service | Frontend WS | `{ type:'event', ... }` |
-| `session:sync:{sessionId}` | game.handler | Frontend WS | `{ type:'sync', ... }` (player joined/left) |
+| `game:event:{sessionId}` | totemQueue.service (`session_ended`) | game.handler (repassa ao WS do celular) e udp.dispatcher | `{ type:'event', data:{ event, reason } }` |
+| `session:sync:{sessionId}` | game.handler | (nenhum hoje — publicado para uso futuro) | `{ type:'sync', ... }` (player connected/disconnected) |
 
 ---
 
@@ -397,9 +407,8 @@ Todo o ciclo é serializado por mutex por-totem (`src/lib/mutex.js`).
 - **Factory Pattern** — `buildApp()` para app testável
 - **Multi-processo** — registro de instâncias no Redis; pacotes de iframe via `inst:out:*`; o dispatcher só repassa inputs de celulares conectados no PRÓPRIO processo (sem duplicar com N réplicas); sweeper com lock
 - **Session cache** — Redis HASH `session:{id}` (a sessão em si vive no MongoDB)
-- **Circular Dependency Injection** — SessionService ↔ TotemService wired no `onReady`
 - **Graceful Degradation** — Redis/MongoDB opcionais em dev
-- **Soft TTL** — expiresAt no documento; watcher remove manualmente
+- **Soft TTL** — `expiresAt`/`reservedUntil` no documento; o sweeper encerra (`timeout`/`no_show`). Sessões encerradas somem pelo índice TTL (`SESSION_RETENTION_DAYS`)
 - **Exponential Backoff** — reconexão WebSocket (1s → 2s → 4s … max 30s)
 
 ---

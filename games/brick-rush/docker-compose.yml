@@ -13,7 +13,9 @@
 
 services:
   brick-rush:
-    build: .
+    build:
+      context: ../..            # repo root: needs games/shared + public/assets
+      dockerfile: games/brick-rush/Dockerfile
     image: street-arcade-brick-rush
     ports:
       - "9100:9100"

@@ -74,6 +74,10 @@ jobs:
       - run: docker build -t street-arcade:ci .
       - name: Image carries the embeddable games
         run: docker run --rm --entrypoint sh street-arcade:ci -c "node -v && ls /app/games/*/public/index.html"
+      - name: Game bridge images build (context = repo root)
+        run: |
+          docker build -f games/snake/Dockerfile -t street-arcade-snake:ci .
+          docker build -f games/brick-rush/Dockerfile -t street-arcade-brick-rush:ci .
       - name: Production refuses to boot without OPERATOR_PASSWORD
         run: |
           set +e

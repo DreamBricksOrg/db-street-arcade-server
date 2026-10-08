@@ -139,6 +139,7 @@ async function totemRoutes(fastify) {
   }, async (request, reply) => {
     const result = await service.createTotem(request.body ?? {})
     if (!result.ok) return reply.status(400).send({ error: result.error })
+    fastify.opsNotify?.()
     return reply.status(201).send(result.totem)
   })
 
@@ -181,6 +182,7 @@ async function totemRoutes(fastify) {
     if (!result.ok) {
       return reply.status(result.error === 'Totem not found' ? 404 : 400).send({ error: result.error })
     }
+    fastify.opsNotify?.()
     return reply.status(204).send()
   })
 
@@ -201,6 +203,7 @@ async function totemRoutes(fastify) {
     await queue.clearQueue(id)
     const result = await service.deleteTotem(id)
     if (!result.ok) return reply.status(404).send({ error: result.error })
+    fastify.opsNotify?.()
     return reply.status(204).send()
   })
 
@@ -505,6 +508,7 @@ async function totemRoutes(fastify) {
   }, async (request, reply) => {
     const result = await service.rotateGameKey(request.params.id)
     if (!result.ok) return reply.status(404).send({ error: result.error })
+    fastify.opsNotify?.()
     return { gameKey: result.gameKey }
   })
 

@@ -129,6 +129,7 @@ export class TotemQueueService {
       const activated = await this.repo.activate(sessionId)
       if (activated) {
         await this.cache.set(activated)
+        await this._publishQueueEvent(session.totemId, session.instanceId)
         log.info({ sessionId, playerId }, 'Session claimed (reserved → active)')
         return { ok: true, session: activated }
       }
@@ -163,6 +164,8 @@ export class TotemQueueService {
       })
 
       log.info({ sessionId, playerId: ended.playerId, instanceId: inst, reason }, 'Session ended')
+      // Slot freed — the operator stream refreshes even if nobody is waiting.
+      await this._publishQueueEvent(session.totemId, inst)
 
       // A closed instance has nobody left to advance into.
       if (reason !== 'instance_closed') {

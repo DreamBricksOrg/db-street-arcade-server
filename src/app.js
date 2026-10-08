@@ -16,6 +16,7 @@ import gameRoutes      from './modules/game/game.routes.js'
 import sessionRoutes   from './modules/session/session.routes.js'
 import totemRoutes     from './modules/totem/totem.routes.js'
 import embedRoutes     from './modules/embed/embed.routes.js'
+import operatorRoutes  from './modules/operator/operator.routes.js'
 import { UdpDispatcher } from './modules/udp/udp.dispatcher.js'
 import { InstanceHub }   from './modules/instance/instance.hub.js'
 import { GameOutput }    from './modules/game/game.output.js'
@@ -131,6 +132,7 @@ export async function buildApp() {
   // ── Phase 6: Session + Totem REST API + Embed ──────────────────────────────
   await app.register(sessionRoutes)
   await app.register(totemRoutes)
+  await app.register(operatorRoutes)
   await app.register(embedRoutes)
 
   // Start UDP dispatcher after all plugins are ready.

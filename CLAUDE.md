@@ -16,7 +16,7 @@ Backend Node.js + Fastify para um sistema de arcade real-time chamado **Street A
 
 ## Stack & Dependências Principais
 
-- **Runtime**: Node.js ≥ 20, ES Modules (`"type": "module"`)
+- **Runtime**: Node.js ≥ 22 (Docker `node:22-alpine`), ES Modules (`"type": "module"`)
 - **Framework**: Fastify 5.x
 - **Banco**: MongoDB (`@fastify/mongodb`)
 - **Cache/Pub-Sub**: Redis via ioredis (2 clientes separados: publisher + subscriber)
@@ -26,6 +26,8 @@ Backend Node.js + Fastify para um sistema de arcade real-time chamado **Street A
 - **Logs**: Pino + pino-pretty
 - **Docs**: `@fastify/swagger` + `@fastify/swagger-ui`
 - **Dev**: `node --watch` (sem nodemon)
+- **Qualidade**: ESLint 9 flat config (`npm run lint`, CI com `--max-warnings=0`), `node:test`, Playwright 1.63 (UI), GitHub Actions (`.github/workflows/ci.yml`)
+- **Fonte da marca**: Araboto self-hosted (`public/assets/fonts/araboto/*.woff2`, subset latino); Poppins como fallback
 
 ---
 
@@ -45,6 +47,7 @@ src/
 │   ├── instances.js           # Registro das instâncias web em memória (dev sem Redis)
 │   ├── instances.redis.js     # Registro das instâncias no Redis (multi-processo, sobrevive a restart)
 │   ├── stats.js               # Agregação pura do histórico por totem
+│   ├── inputs.js              # Ações válidas do gamepad + token bucket por socket
 │   └── games.js               # Jogos incorporáveis (pastas em games/ com public/index.html)
 ├── plugins/
 │   ├── auth.js                # Login do operador + guarda das rotas (config.operator) — registrado PRIMEIRO
@@ -59,6 +62,8 @@ src/
     │   ├── game.routes.js     # WebSocket endpoint: /ws/game
     │   ├── game.handler.js    # Lifecycle: connect, message, close, heartbeat
     │   └── game.output.js     # ÚNICO ponto que entrega pacote ao jogo: UDP (default) ou SSE (iframe)
+    ├── operator/
+    │   └── operator.routes.js # SSE único do painel (/api/operator/events) + fastify.opsNotify()
     ├── instance/
     │   └── instance.hub.js    # Streams SSE DESTE processo + entrega via Redis inst:out:* (o "socket UDP" do iframe)
     ├── embed/
@@ -76,16 +81,20 @@ src/
         └── udp.dispatcher.js  # Subscriber Redis game:input:* → GameOutput (UDP ou SSE)
 
 tests/
-├── unit/*.test.mjs            # npm run test:unit — instâncias (memória e Redis falso), auth, stats
-├── e2e/queue.e2e.mjs          # npm run test:e2e — 8 cenários da fila (totem físico)
-├── e2e/instances.e2e.mjs      # 8 cenários n→n (iframes)
+├── unit/*.test.mjs            # npm run test:unit — instâncias (memória e Redis falso), auth, stats, inputs
+├── e2e/queue.e2e.mjs          # npm run test:e2e — 9 cenários: fila (totem físico) + health/ready e retenção
+├── e2e/instances.e2e.mjs      # 10 cenários n→n (iframes), validação de inputs, stream do operador
 ├── e2e/auth.e2e.mjs           # 8 cenários: login, chave do totem, queue-state público, histórico
-└── e2e/cluster.e2e.mjs        # 3 cenários: 2 processos + restart no meio da partida
+├── e2e/cluster.e2e.mjs        # 3 cenários: 2 processos + restart no meio da partida
+└── ui/*.spec.mjs              # npm run test:ui — Playwright: painel, celular (Pixel 7), embed
+
+.github/workflows/ci.yml       # lint + unit → e2e + UI (mongo/redis) + checagens da imagem Docker
 
 public/
 ├── css/tokens.css + components.css    # DreamBricks Design System (fonte: docs/design_system)
 ├── css/dashboard.css                  # Shell do painel (porte do ui_kits/dashboard do DS)
 ├── assets/brand/                      # Marca DreamBricks + mascote J0Bson
+├── assets/fonts/araboto/              # Araboto woff2 (fonte: docs/design_system/assets/fonts/araboto)
 ├── embed-assets/overlay.{js,css}      # Cartão de QR injetado sobre o jogo incorporado
 ├── login.html                     # Login do operador (split-screen do UI kit)
 ├── index.html / dashboard.js      # Painel do operador: sidebar + stats + cards, histórico, dialogs nativos
@@ -113,6 +122,7 @@ games/                               # Jogos browser; servidos pelo backend em /
 7.5. Instâncias: `fastify.instances` (Redis se disponível, senão memória), `instanceHub` (SSE local + `listen` em `inst:out:*`), `gameOutput` (UDP ou SSE via Redis)
 8. Session Routes
 9. Totem Routes (+ sweeper de sessões e de instâncias)
+9.2. Operator Routes (`/api/operator/events`, `fastify.opsNotify`)
 9.5. Embed Routes (`/embed/*`)
 10. **onReady**: inicia `UdpDispatcher`
 
@@ -133,6 +143,7 @@ games/                               # Jogos browser; servidos pelo backend em /
 | `NODE_ENV` | ❌ | development | Ambiente |
 | `SESSION_TIMEOUT_MS` | ❌ | 300000 | Fallback de duração de jogo (ms) |
 | `SESSION_MAX_PLAYERS` | ❌ | 2 | Fallback de vagas por totem |
+| `SESSION_RETENTION_DAYS` | ❌ | 90 | Sessões encerradas são apagadas (índice TTL em `endedAt`); 0 = nunca |
 | `PUBLIC_URL` | ❌ | http://localhost:3000 | URL base para QR codes (https → cookie `Secure`) |
 | `OPERATOR_PASSWORD` | ✅ em produção | — | Senha do painel/API de operação. Vazia em dev = sem login |
 | `QUEUE_RESERVE_MS` | ❌ | 30000 | Prazo do chamado da fila conectar |
@@ -147,7 +158,7 @@ games/                               # Jogos browser; servidos pelo backend em /
 
 Em `development`, Redis/MongoDB indisponíveis geram warning (não fatal). Em `production`, falham na inicialização — e `OPERATOR_PASSWORD` é obrigatória.
 
-**Docker**: `node:22-alpine`; a imagem leva `games/` (o `/embed` serve `games/*/public`).
+**Docker**: `node:22-alpine`; a imagem leva `games/` (o `/embed` serve `games/*/public`) e tem `HEALTHCHECK` em `/health/ready`. Atrás do nginx, use `TRUST_PROXY=true` (em produção o servidor avisa no log se receber `X-Forwarded-For` sem ela).
 
 ---
 
@@ -202,6 +213,7 @@ Sessões são criadas SOMENTE pelo fluxo de fila (`queue/join`) — não há rot
 | POST | `/api/totems/:id/end-session` | 🔑 Com `{playerId}` (aceita pid truncado 8 chars): encerra a sessão daquele jogador (morte no jogo). Sem body: encerra TODAS da instância (reset) |
 | GET | `/api/totems/:id/instances` | 🔒 `default` + iframes abertos, com nº de sessões e fila |
 | GET | `/api/games` | 🔒 Jogos incorporáveis (pastas de `games/`) |
+| GET | `/api/operator/events` | 🔒 SSE do painel: `state` (retrato), `totem` (só o que mudou), `totems_changed` |
 
 🔒 = operador · 🔑 = operador ou `X-Totem-Key`
 
@@ -227,11 +239,14 @@ Query do iframe: `showqr=false`, `qrpos=br|bl|tr|tl`, `qrmin=true`.
 |------|--------|-----------|
 | `/ws/game` | `?sessionId=&playerId=` | Conexão do jogador ao jogo |
 
-**Heartbeat**: ping a cada 15s, encerra se sem pong em 30s.
+**Heartbeat**: ping a cada 15s, encerra se sem pong em 30s. O `{type:'ping'}` JSON do cliente recebe `{type:'pong'}`.
+
+**Validação** (`src/lib/inputs.js`): só as 8 ações do gamepad (`dpad_up|down|left|right`, `btn_A|B|X|Y`) com `pressed|released`; 30 inputs/s por socket (rajadas de 40). Mais de 200 mensagens recusadas em 10 s fecha o socket (1008).
 
 ### Outros
 
-- `GET /health` → `{ status: 'ok', ts }`
+- `GET /health` → `{ status: 'ok', ts }` (liveness)
+- `GET /health/ready` → `{ status, mongo, redis }`, 503 se Mongo ou Redis não respondem (readiness, Docker HEALTHCHECK)
 - `GET /documentation` → Swagger UI
 - `GET /play/totem` → `totem-entry.html` (QR permanente)
 - `GET /play/:sessionId` → `play.html`
@@ -264,7 +279,7 @@ Query do iframe: `showqr=false`, `qrpos=br|bl|tr|tl`, `qrmin=true`.
   endReason: 'died'|'kicked'|'timeout'|'no_show'|'manual'|'instance_closed'|null
 }
 ```
-Índices: `{ status: 1 }`, `{ expiresAt: 1 }`, `{ totemId: 1, status: 1 }`, `{ totemId: 1, instanceId: 1, status: 1 }`, `{ totemId: 1, createdAt: -1 }` (histórico).
+Índices: `{ status: 1 }`, `{ expiresAt: 1 }`, `{ totemId: 1, status: 1 }`, `{ totemId: 1, instanceId: 1, status: 1 }`, `{ totemId: 1, createdAt: -1 }` (histórico), `{ endedAt: 1 }` TTL `sessions_finished_ttl` (`SESSION_RETENTION_DAYS`).
 
 ### Collection `totems`
 ```js
@@ -302,7 +317,7 @@ Query do iframe: `showqr=false`, `qrpos=br|bl|tr|tl`, `qrmin=true`.
 | `inst:sweep-lock` | STRING | um sweeper por vez entre processos |
 | `inst:site:{totemId}:{instanceId}` | STRING | origem do site que incorporou (TTL 24h) |
 
-Canais extras Pub/Sub: `queue:event:{totemId}[:{instanceId}]` — ping "queue_changed" para SSE; `inst:out:{totemId}:{instanceId}` — pacote do jogo para o processo que tem o SSE do iframe.
+Canais extras Pub/Sub: `queue:event:{totemId}[:{instanceId}]` — ping "queue_changed" (join/saída/avanço/claim/fim de sessão) para os SSE da fila e do painel; `inst:out:{totemId}:{instanceId}` — pacote do jogo para o processo que tem o SSE do iframe; `ops:totem:{totemId}` / `ops:totems` — iframe aberto/fechado e CRUD de totem (stream do operador).
 
 ---
 
@@ -345,7 +360,7 @@ backend resolve por prefixo quando o jogo reporta morte (`end-session`).
 reserved ──(WS conecta / claim)──► active ──(morte/kick/timeout)──► finished
 reserved ──(30s sem conectar → no_show / kick)────────────────────► finished
 ```
-Sessões `finished` persistem no banco (não são deletadas automaticamente).
+Sessões `finished` ficam no banco por `SESSION_RETENTION_DAYS` (90) e depois o índice TTL as apaga.
 
 **Fila**: quando qualquer sessão encerra, `TotemQueueService._advanceLocked()`
 puxa o próximo jogador vivo da fila e cria uma sessão `reserved` pra ele.
@@ -357,7 +372,7 @@ Todo o ciclo é serializado por mutex por-totem (`src/lib/mutex.js`).
 
 ```
 1. Jogador escaneia QR do totem → GET /play/totem?id={totemId}
-2. totem-entry.js: gera playerId (sessionStorage) → POST /api/totems/:id/queue/join
+2. totem-entry.js: gera playerId (player-store.js: localStorage 10 min) → POST /api/totems/:id/queue/join
    - Vaga livre e fila vazia: sessão própria criada (reserved) → redirect /play/:sessionId
    - Senão: fila — polling queue/status a cada 3s + SSE queue/events (push)
 3. play.html: session.js valida sessão via GET /api/sessions/:id
@@ -395,7 +410,8 @@ Todo o ciclo é serializado por mutex por-totem (`src/lib/mutex.js`).
 
 | Arquivo | URL | Usuário |
 |---------|-----|---------|
-| `index.html` | `/` | Operador — CRUD totens/sessões |
+| `login.html` | `/login` | Operador — senha |
+| `index.html` | `/` | Operador — totens, fila, histórico, incorporar (atualiza pelo stream) |
 | `play.html` | `/play/:sessionId` | Jogador — gamepad touch |
 | `totem-entry.html` | `/play/totem?id=` | Jogador — fila do totem |
 

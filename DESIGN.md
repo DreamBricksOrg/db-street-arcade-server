@@ -33,7 +33,7 @@ typography:
     lineHeight: 1.1
     letterSpacing: "-0.5px"
   subtitle:
-    fontFamily: "'Poppins', sans-serif"
+    fontFamily: "'Araboto', 'Poppins', sans-serif"
     fontSize: "20px"
     fontWeight: 700
     lineHeight: 1.2
@@ -45,25 +45,25 @@ typography:
     lineHeight: 1.2
     letterSpacing: "normal"
   title:
-    fontFamily: "'Poppins', sans-serif"
+    fontFamily: "'Araboto', 'Poppins', sans-serif"
     fontSize: "14px"
     fontWeight: 700
     lineHeight: 1.3
     letterSpacing: "normal"
   body:
-    fontFamily: "'Poppins', sans-serif"
+    fontFamily: "'Araboto', 'Poppins', sans-serif"
     fontSize: "15px"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
   caption:
-    fontFamily: "'Poppins', sans-serif"
+    fontFamily: "'Araboto', 'Poppins', sans-serif"
     fontSize: "13px"
     fontWeight: 400
     lineHeight: 1.4
     letterSpacing: "normal"
   label:
-    fontFamily: "'Poppins', sans-serif"
+    fontFamily: "'Araboto', 'Poppins', sans-serif"
     fontSize: "12px"
     fontWeight: 700
     lineHeight: 1.3
@@ -77,7 +77,7 @@ typography:
     letterSpacing: "1px"
     textTransform: "uppercase"
   micro:
-    fontFamily: "'Poppins', sans-serif"
+    fontFamily: "'Araboto', 'Poppins', sans-serif"
     fontSize: "10px"
     fontWeight: 500
     lineHeight: 1.3
@@ -144,7 +144,7 @@ This system explicitly rejects both of PRODUCT.md's anti-references: it is not a
 **Key Characteristics:**
 - Light, blue-tinted slate base (`oklch(0.97 0.006 230)`) with white surface cards, never dark-mode-by-default
 - One accent color (DreamBricks Blue `#42b0d5`) carrying all primary CTAs, focus states, and active-tab indicators
-- IBM Plex Mono reserved for anything that reads as data or a system label; Poppins for everything conversational
+- IBM Plex Mono reserved for anything that reads as data or a system label; Araboto for everything conversational
 - Quiet depth: cards carry the DS `--shadow-sm` at rest, everything else is flat; more depth only on hover, toasts and dialogs — always ink-tinted, never pure black
 - Saturated color bursts are scoped tightly: session status badges, the Xbox-palette gamepad buttons, the pulsing "live" dot — never the base chrome
 
@@ -188,12 +188,12 @@ All three are DreamBricks' own semantic tokens (`--db-success-500` / `--db-dange
 ## 3. Typography
 
 **Display Font:** 'IBM Plex Mono', monospace (with system monospace fallback)
-**Body Font:** 'Poppins', sans-serif
+**Body Font:** 'Araboto', 'Poppins', sans-serif
 **Label/Mono Font:** 'IBM Plex Mono', monospace (same family as Display, used at smaller sizes for meta labels)
 
-Both are the DreamBricks Design System's own font tokens (`--font-body` / `--font-mono`) — Poppins substitutes for the brandbook's proprietary Araboto (see the design system's `readme.md`), IBM Plex Mono is DreamBricks' own data/label font, adopted here for exactly the role Fira Code used to play.
+Both are the DreamBricks Design System's own font tokens (`--font-body` / `--font-mono`). **Araboto** is the brandbook's typeface, self-hosted as a Latin woff2 subset in `public/assets/fonts/araboto/` (sources in `docs/design_system/assets/fonts/araboto/`): Thin 100, Light 300, Normal 400, Medium 500, Bold 700 (also serves 600) and Black 900 (also serves 800). Poppins stays loaded as the fallback (missing glyphs such as →, the games' local bridge where `/assets` is not served). IBM Plex Mono is DreamBricks' own data/label font.
 
-**Character:** A single contrast pair rather than two families: Poppins carries every sentence a human reads, IBM Plex Mono marks anything that is system state — IDs, timers, panel titles, uppercase labels. The pairing itself is the "control room" read; switching fonts mid-UI is how the system tells you "this is a live value, not prose."
+**Character:** A single contrast pair rather than two families: Araboto carries every sentence a human reads, IBM Plex Mono marks anything that is system state — IDs, timers, panel titles, uppercase labels. The pairing itself is the "control room" read; switching fonts mid-UI is how the system tells you "this is a live value, not prose."
 
 ### Hierarchy
 
@@ -201,19 +201,19 @@ The system runs a fuller integer-px micro-scale than a strict 6-step ramp — de
 
 - **Hero** (700, 26px, 1.1 line-height, IBM Plex Mono): The single largest text in the system — `play.html`'s in-game loading title only.
 - **Display** (700, 24px, 1.1, IBM Plex Mono, -0.5px tracking): Loading-screen titles and hero panel titles ("Street Arcade", "Fila de Espera"), rendered in solid DreamBricks Blue.
-- **Subtitle** (700, 20-22px, 1.2, Poppins or IBM Plex Mono): Sessions-header `<h2>`, error-screen titles.
+- **Subtitle** (700, 20-22px, 1.2, Araboto or IBM Plex Mono): Sessions-header `<h2>`, error-screen titles.
 - **Headline** (700, 18px, 1.2, IBM Plex Mono): Modal titles, section headers ("Sessões Ativas" secondary heads).
-- **Title** (700, 14px, 1.3, Poppins): Card titles, totem names, button labels.
-- **Body** (400, 15px, 1.5, Poppins): Form inputs, descriptions, hint text. Cap prose blocks at ~65–75ch even though most surfaces here are short-form.
-- **Caption** (400-600, 13px, 1.4, Poppins): Secondary descriptive text — QR captions, form hints, session meta.
-- **Label** (700, 12px, 1.3, Poppins, 0.5px tracking, uppercase): Field labels, tab labels.
+- **Title** (700, 14px, 1.3, Araboto): Card titles, totem names, button labels.
+- **Body** (400, 15px, 1.5, Araboto): Form inputs, descriptions, hint text. Cap prose blocks at ~65–75ch even though most surfaces here are short-form.
+- **Caption** (400-600, 13px, 1.4, Araboto): Secondary descriptive text — QR captions, form hints, session meta.
+- **Label** (700, 12px, 1.3, Araboto, 0.5px tracking, uppercase): Field labels, tab labels.
 - **Mono Label** (700, 11px, 1.3, IBM Plex Mono, 1px tracking, uppercase): Panel titles, queue headers, status-badge text.
-- **Micro** (500-700, 10px, 1.3, Poppins or IBM Plex Mono): The floor of the scale — queue-row device meta, ETA text, timestamp chips. Never used for anything a user must read at a glance from a distance; always paired with an icon or adjacent larger text for context.
+- **Micro** (500-700, 10px, 1.3, Araboto or IBM Plex Mono): The floor of the scale — queue-row device meta, ETA text, timestamp chips. Never used for anything a user must read at a glance from a distance; always paired with an icon or adjacent larger text for context.
 
 Icon-scale exceptions (64px empty-state icons, gamepad glyphs at `clamp()` sizes tuned to touch-target geometry) sit outside this ramp by design — they size to their container, not to a reading hierarchy.
 
 ### Named Rules
-**The Data-Is-Mono Rule.** Any value that represents live or identifying system state — session IDs, player IDs, timers, IPs, ports, queue positions — renders in IBM Plex Mono, regardless of its surrounding context. If it's a fact about the system, it's mono; if it's a sentence to a human, it's Poppins.
+**The Data-Is-Mono Rule.** Any value that represents live or identifying system state — session IDs, player IDs, timers, IPs, ports, queue positions — renders in IBM Plex Mono, regardless of its surrounding context. If it's a fact about the system, it's mono; if it's a sentence to a human, it's Araboto.
 
 ## 4. Elevation
 
@@ -254,7 +254,7 @@ Adopted directly from the DreamBricks Design System (`tokens/spacing.css`) — g
 ### Operator shell (DS UI kit)
 - **Sidebar:** 232px, DreamBricks Ink (`--db-blue-900`) panel, horizontal on-blue wordmark + "Street Arcade", nav items at 72% white (active: white on a 14% white wash), J0Bson + cat at the foot, then the live pill ("Operador · ao vivo", pulsing Success dot; Danger and "sem conexão" when `/health` fails). Below 900px it collapses into a slim ink top bar (logo + live pill).
 - **Top bar:** white, 1px bottom border, page title (`--text-lg`, 700) left; search field and the one primary action ("Adicionar totem") right.
-- **Stat cards:** four `db-card`s — Totens, Jogando agora (Success ink), Na fila (Warning ink when > 0), Telas abertas. Value 32px/800 Poppins with tabular numerals, label and sub-line in secondary text. Fed by the same `/instances` polls as the cards — no extra requests.
+- **Stat cards:** four `db-card`s — Totens, Jogando agora (Success ink), Na fila (Warning ink when > 0), Telas abertas. Value 32px/800 Araboto with tabular numerals, label and sub-line in secondary text. Fed by the same `/instances` polls as the cards — no extra requests.
 - **Tabs:** DS underline tabs with count pills (Todos / Totem físico / Web), filtering the grid together with the search field.
 
 ### Buttons
@@ -272,7 +272,7 @@ The DS UI kit's login: ink brand panel (on-blue wordmark, "Street Arcade" at `--
 Per-totem stats (`db-dialog--wide`): a `db-seg` range (24 horas / 7 dias / 30 dias); four KPI tiles on Surface Sunken (Partidas, Espera média, Tempo médio de jogo, Não apareceram); one bar chart. It is a **single series**, so it gets one hue (`--db-blue-700`, ≥3:1 on white; hover deepens to Blue 800), no legend (the section title names it), bars with a rounded top only and a 2px gap, one dashed max gridline labelled in mono, and mono tick labels. Every bar has a hover tooltip, and a `Ver em tabela` disclosure gives the exact numbers. Below the chart are two rank lists ("De onde vieram" with thin Blue 700 bars, "Como terminaram"). The SVG is drawn at the container's real width, never `preserveAspectRatio="none"`.
 
 ### Badges / Tags
-- **Badge:** DS formula — tone-100 fill, tone text, 12px/600 Poppins, pill, no border, optional leading dot (`--dot`) that can pulse (`--live`) for "people are playing right now". Text uses the `*-ink` steps so 12px labels clear 4.5:1.
+- **Badge:** DS formula — tone-100 fill, tone text, 12px/600 Araboto, pill, no border, optional leading dot (`--dot`) that can pulse (`--live`) for "people are playing right now". Text uses the `*-ink` steps so 12px labels clear 4.5:1.
 - **Tag** (`db-tag`): mono 11px on Surface Sunken, `--radius-sm` — for addresses (`127.0.0.1:9001`). The totem ID uses the clickable `.id-chip` (same look, copies the full id).
 
 ### Cards / Containers
@@ -281,7 +281,7 @@ Per-totem stats (`db-dialog--wide`): a `db-seg` range (24 horas / 7 dias / 30 di
 - **Empty state:** a card with `jobson-with-cat`, a title, one sentence, and the primary action.
 
 ### Inputs / Fields
-- **Style:** white fill, 1px Border Default, `--radius-md`, 9px/12px padding, 14px Poppins. Addresses and JSON use the mono face.
+- **Style:** white fill, 1px Border Default, `--radius-md`, 9px/12px padding, 14px Araboto. Addresses and JSON use the mono face.
 - **Focus:** Border Brand + `--shadow-focus` ring.
 - **Errors:** a `db-callout--danger` at the end of the form body (icon + sentence naming the problem and the fix), and focus moves to the offending field.
 
@@ -297,10 +297,10 @@ The gamepad is the product's signature surface and the one deliberate departure 
 Floats over an embedded game in a corner (`qrpos=br|bl|tr|tl`), sized in `vmin` so it scales with the iframe. Mark + "Jogue pelo celular" + QR (clickable, opens the entry in a new tab) + a mono status line ("2 vagas livres" in Success with a slow pulse, "3 na fila" in Warning). Collapses to an ink pill ("Jogar pelo celular") so it never has to cover the game. On touch screens the QR is hidden — nobody scans their own phone — and a "Jogar neste celular" button takes its place.
 
 ### Game frames (games/)
-The games keep their own playfield art (Brick Rush tiles/minifigs/golden brick, Snake colors). Only the frame is DreamBricks: Brick Rush HUD and phase screens (`render.js` `FRAME`) use Poppins for words, IBM Plex Mono for numbers and ids, `--db-blue-300` for titles and ink-blue scrims instead of black; Snake's page chrome uses the mark, Poppins header in Ink, mono uppercase panel labels and a CSS status dot. No emoji in either.
+The games keep their own playfield art (Brick Rush tiles/minifigs/golden brick, Snake colors). Only the frame is DreamBricks: Brick Rush HUD and phase screens (`render.js` `FRAME`) use Araboto for words, IBM Plex Mono for numbers and ids, `--db-blue-300` for titles and ink-blue scrims instead of black; Snake's page chrome uses the mark, Araboto header in Ink, mono uppercase panel labels and a CSS status dot. No emoji in either.
 
 ### Player screens
-Loading, queue, error and game-over share one composition: centered column, DreamBricks mark (or the waving J0Bson on error/end), a Poppins title in Ink, a short sub-line capped at ~30ch, and one large full-width primary action. The queue screen's whole point is the position number: IBM Plex Mono, `clamp(72px, 26vw, 120px)`, Ink, with a short bump animation each time it changes.
+Loading, queue, error and game-over share one composition: centered column, DreamBricks mark (or the waving J0Bson on error/end), a Araboto title in Ink, a short sub-line capped at ~30ch, and one large full-width primary action. The queue screen's whole point is the position number: IBM Plex Mono, `clamp(72px, 26vw, 120px)`, Ink, with a short bump animation each time it changes.
 
 ### Entrance motion
 - **Reveal-in** (`animation: revealIn 0.5s cubic-bezier(0.16,1,0.3,1)`): the logo-mark entrance on loading/queue screens — an ease-out fade + scale from 0.5→1, not a bounce/elastic curve despite the visual energy. Named to avoid implying overshoot; the curve itself (`cubic-bezier(0.16,1,0.3,1)`) is a standard ease-out-quint.
@@ -309,7 +309,7 @@ Loading, queue, error and game-over share one composition: centered column, Drea
 
 ### Do:
 - **Do** keep the base UI light and quiet — Slate Background, Surface White cards with the DS `--shadow-sm`, 1px Border Slate dividers, an ink sidebar as the one dark surface.
-- **Do** reserve IBM Plex Mono for live/system data (IDs, timers, statuses, panel titles) and Poppins for everything else.
+- **Do** reserve IBM Plex Mono for live/system data (IDs, timers, statuses, panel titles) and Araboto for everything else.
 - **Do** let DreamBricks Blue carry every primary action and focus state; introduce a second color only through the semantic Success/Danger/Warning set, never a new hue.
 - **Do** confine the Xbox four-color palette to the gamepad's face buttons — it is the product's signature moment precisely because it doesn't appear anywhere else, and the one part of the UI the DreamBricks brand migration does not touch.
 - **Do** tint every shadow with Ink (`oklch(0.16 0.028 230)`), matching the DreamBricks system's own shadow tokens — never pure black.
@@ -325,4 +325,4 @@ Loading, queue, error and game-over share one composition: centered column, Drea
 - **Don't** reach for SweetAlert or `window.confirm`; use the confirm `db-dialog` and the DS toast.
 - **Don't** introduce a second accent blue, a new gradient, or an off-palette status color — Success, Danger, Warning and the DreamBricks blue ramp are the complete semantic set.
 - **Don't** let the Xbox button palette leak into dashboard badges, tabs, or any non-gamepad control.
-- **Don't** reach for Fira Code or Fira Sans in new work — both fonts have been fully retired in favor of the DreamBricks IBM Plex Mono / Poppins pair.
+- **Don't** reach for Fira Code or Fira Sans in new work — both fonts have been fully retired in favor of the DreamBricks IBM Plex Mono / Araboto pair.

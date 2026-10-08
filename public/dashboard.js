@@ -240,6 +240,7 @@ function buildTotemCard(totem) {
         <div class="totem__modes">
           <button class="id-chip" type="button" data-action="copy-id" data-tip="Copiar ID completo" aria-label="Copiar ID ${escHtml(totem._id)}">${shortId}</button>
           ${physical ? `<span class="db-tag" title="Endereço UDP da máquina">${escHtml(totem.ip)}:${totem.udpPort}</span>` : ''}
+          ${physical && !totem.gameKey ? `<span class="db-badge db-badge--warning" data-tip="Qualquer um com o ID do totem pode encerrar partidas. Edite e gere a chave.">${icon('key')}Sem chave</span>` : ''}
           ${web ? `<span class="db-badge db-badge--brand">${icon('globe')}Web · ${escHtml(totem.game)}</span>` : ''}
         </div>
       </div>

@@ -22,7 +22,7 @@ export default [
 
   // Backend, tests and the games' local bridges (Node, ES modules)
   {
-    files: ['src/**/*.js', 'tests/**/*.mjs', 'games/*/server.js', 'games/shared/**/*.js', 'games/*/test/**/*.mjs', '*.js', '*.mjs'],
+    files: ['src/**/*.js', 'tests/**/*.mjs', 'games/*/server.js', 'games/shared/**/*.js', 'scripts/**/*.mjs', 'games/*/test/**/*.mjs', '*.js', '*.mjs'],
     languageOptions: { ecmaVersion: 2024, sourceType: 'module', globals: node },
     rules: { 'no-unused-vars': unused, 'no-empty': emptyCatchOk },
   },

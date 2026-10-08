@@ -81,6 +81,15 @@ async function totemRoutes(fastify) {
     getRedis: () => fastify.redisPublisher,
   })
   fastify.decorate('totemQueue', queue)
+
+  // Physical totems without a game key accept death reports from anyone who
+  // has the totem id (it is in the QR). Say so at boot until it's fixed.
+  fastify.addHook('onReady', async () => {
+    const n = await service.repo.col.countDocuments({
+      ip: { $nin: [null, ''] }, $or: [{ gameKey: { $exists: false } }, { gameKey: null }, { gameKey: '' }],
+    }).catch(() => 0)
+    if (n) log.warn({ totems: n }, `${n} physical totem(s) without a game key — run "npm run ops:totem-keys" or generate it in the dashboard`)
+  })
   fastify.decorate('totemService', service)
 
   // Sweeper: expires no_show reservations and timed-out actives, and drops

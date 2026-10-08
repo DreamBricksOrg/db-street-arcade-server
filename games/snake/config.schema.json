@@ -1,0 +1,9 @@
+{
+  "title": "Snake",
+  "fields": [
+    { "key": "gameSpeed", "label": "Velocidade da cobra", "type": "number", "unit": "movimentos/s", "min": 2, "max": 20, "step": 1, "default": 5, "help": "Quanto maior, mais difícil." },
+    { "key": "pointsPerFood", "label": "Pontos por comida", "type": "number", "unit": "pontos", "min": 1, "max": 100, "step": 1, "default": 10 },
+    { "key": "boostMoves", "label": "Turbo (botão B)", "type": "number", "unit": "movimentos por passo", "min": 1, "max": 10, "step": 1, "default": 3, "help": "Quantas casas a cobra anda por passo segurando B." },
+    { "key": "debugPanel", "label": "Mostrar painel de debug", "type": "boolean", "default": false, "help": "Coluna com a conexão e o log de comandos. Deixe desligado para o público." }
+  ]
+}

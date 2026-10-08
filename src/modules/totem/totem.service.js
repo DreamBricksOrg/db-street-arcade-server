@@ -7,7 +7,7 @@
 // of a physical cabinet. At least one of `game` or `ip` must be set.
 
 import { TotemRepository } from './totem.repository.js'
-import { isKnownGame }     from '../../lib/games.js'
+import { isKnownGame, gameConfigSchema, validateGameConfig } from '../../lib/games.js'
 import { queueKey }        from '../../lib/channels.js'
 import { env }             from '../../config/env.js'
 import { createLogger }    from '../../lib/logger.js'
@@ -57,6 +57,13 @@ function validate(fields, { creating }) {
       return { ok: false, error: 'gameConfig must be an object or null' }
     }
     patch.gameConfig = gc
+  }
+
+  // Fields the game's config.schema.json knows must be in range.
+  const game = patch.game !== undefined ? patch.game : fields.currentGame
+  if (patch.gameConfig && game) {
+    const problem = validateGameConfig(gameConfigSchema(env.gamesDir, game), patch.gameConfig)
+    if (problem) return { ok: false, error: problem }
   }
 
   if (fields.maxPlayers !== undefined && fields.maxPlayers !== null) {
@@ -120,7 +127,7 @@ export class TotemService {
     const exists = await this.repo.findById(id)
     if (!exists) return { ok: false, error: 'Totem not found' }
 
-    const v = validate(fields ?? {}, { creating: false })
+    const v = validate({ ...(fields ?? {}), currentGame: exists.game }, { creating: false })
     if (!v.ok) return v
     const next = { ...exists, ...v.patch }
     if (!next.ip && !next.game) return { ok: false, error: 'Set a game (embed) and/or an ip + udpPort (physical totem)' }

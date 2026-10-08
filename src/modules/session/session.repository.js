@@ -72,11 +72,18 @@ export class SessionRepository {
     }).toArray()
   }
 
-  /** Sessions of a totem created since `since` — light projection for stats. */
+  /**
+   * Sessions created since `since` (totemId null = every totem) — light
+   * projection for stats and CSV export, oldest first.
+   */
   async listForStats(totemId, since, limit = 100_000) {
     return this.col.find(
-      { totemId, createdAt: { $gte: since } },
-      { projection: { instanceId: 1, status: 1, createdAt: 1, queuedAt: 1, startedAt: 1, endedAt: 1, endReason: 1, site: 1 }, limit },
+      { ...(totemId ? { totemId } : {}), createdAt: { $gte: since } },
+      {
+        projection: { totemId: 1, instanceId: 1, status: 1, createdAt: 1, queuedAt: 1, startedAt: 1, endedAt: 1, endReason: 1, site: 1, nickname: 1, score: 1 },
+        sort: { createdAt: 1 },
+        limit,
+      },
     ).toArray()
   }
 

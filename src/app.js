@@ -33,7 +33,34 @@ export async function buildApp() {
   })
 
   // ── Health ────────────────────────────────────────────────────────────────
+  // /health: liveness (the process answers). /health/ready: readiness — MongoDB
+  // and Redis answer too; 503 otherwise (Docker HEALTHCHECK, load balancer).
   app.get('/health', async () => ({ status: 'ok', ts: Date.now() }))
+
+  app.get('/health/ready', async (_request, reply) => {
+    const probe = (fn) => Promise.race([
+      fn().then(() => 'ok'),
+      new Promise((resolve) => setTimeout(() => resolve('timeout'), 1500)),
+    ]).catch(() => 'down')
+    const [mongo, redis] = await Promise.all([
+      app.mongo ? probe(() => app.mongo.client.db().command({ ping: 1 })) : 'disabled',
+      app.redisPublisher ? probe(() => app.redisPublisher.ping()) : 'disabled',
+    ])
+    const ready = [mongo, redis].every(s => s === 'ok' || (s === 'disabled' && env.isDev))
+    return reply.status(ready ? 200 : 503).send({ status: ready ? 'ready' : 'unavailable', mongo, redis, ts: Date.now() })
+  })
+
+  // Behind nginx without TRUST_PROXY every visitor shares nginx's IP, so the
+  // per-IP limits (queue/join, open iframes) block real people. Say so once.
+  if (env.isProd && !env.trustProxy) {
+    let warned = false
+    app.addHook('onRequest', async (request) => {
+      if (!warned && request.headers['x-forwarded-for']) {
+        warned = true
+        log.warn('Requests carry X-Forwarded-For but TRUST_PROXY is off — set TRUST_PROXY=true behind nginx, or per-IP limits will hit every visitor at once')
+      }
+    })
+  }
 
   // ── Auth: registered first so its onRequest guard covers every route ─────
   await app.register(authPlugin)

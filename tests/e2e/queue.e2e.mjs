@@ -5,6 +5,7 @@
 
 import { spawn } from 'node:child_process'
 import assert from 'node:assert/strict'
+import { MongoClient } from 'mongodb'
 
 const PORT = 3100
 const BASE = `http://localhost:${PORT}`
@@ -181,6 +182,20 @@ await scenario('kick de sessão encerra e fila anda', async () => {
   assert.equal(s1.body.endReason, 'kicked')
   const st2 = await j('GET', `/api/totems/${tid}/queue/status?playerId=e2e_x2`)
   assert.equal(st2.body.status, 'play')
+})
+
+// ── 9. Operations ─────────────────────────────────────────────────────────────
+await scenario('/health/ready confere Mongo e Redis; sessões encerradas têm retenção (TTL)', async () => {
+  const ready = await j('GET', '/health/ready')
+  assert.equal(ready.status, 200, ready.text)
+  assert.deepEqual([ready.body.mongo, ready.body.redis], ['ok', 'ok'])
+  const mongo = new MongoClient(process.env.MONGO_URI)
+  await mongo.connect()
+  const idx = (await mongo.db().collection('sessions').indexes()).find(i => i.name === 'sessions_finished_ttl')
+  await mongo.close()
+  assert.ok(idx, 'índice TTL criado')
+  assert.deepEqual(idx.key, { endedAt: 1 })
+  assert.equal(idx.expireAfterSeconds, 90 * 86_400)
 })
 
 // ── Cleanup ──────────────────────────────────────────────────────────────────

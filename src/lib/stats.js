@@ -13,6 +13,12 @@ export const RANGES = {
 
 const time = (d) => (d ? new Date(d).getTime() : null)
 
+/** Start of a ranking window ('all' → null = no limit). */
+export function rankingSince(range, now = Date.now()) {
+  if (range === 'all') return null
+  return new Date(now - (RANGES[range] ?? RANGES['24h']).ms)
+}
+
 export function isPlay(s) {
   if (s.startedAt) return true
   if (s.status === 'active') return true

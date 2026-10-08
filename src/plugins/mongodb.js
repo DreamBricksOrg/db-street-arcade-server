@@ -55,6 +55,10 @@ async function ensureIndexes(db) {
   // Per-totem history (GET /api/totems/:id/stats)
   await sessions.createIndex({ totemId: 1, createdAt: -1 }, { name: 'sessions_totem_created' })
 
+  // Ranking (best scores per totem / overall)
+  await sessions.createIndex({ totemId: 1, score: -1 }, { name: 'sessions_totem_score', partialFilterExpression: { score: { $type: 'number' } } })
+  await sessions.createIndex({ score: -1 }, { name: 'sessions_score', partialFilterExpression: { score: { $type: 'number' } } })
+
   await ensureRetention(db, sessions, env.sessionRetentionDays)
 
   log.debug('Indexes verified')

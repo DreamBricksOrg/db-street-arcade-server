@@ -4,6 +4,7 @@ const ctx = canvas.getContext('2d');
 const scoreList = document.getElementById('scoreList');
 const connStatus = document.getElementById('connStatus');
 const debugLog = document.getElementById('debugLog');
+const rankList = document.getElementById('rankList');
 
 const GRID_SIZE = 20;
 const TILE_COUNT_X = canvas.width / GRID_SIZE;
@@ -24,6 +25,8 @@ let players = {};
 // player format: { pid, color, path: [{x,y}], dir: {x,y}, pendingDir: {x,y}, score, alive, gameOver }
 
 let currentTotemId = null; // learned from SSE 'init' handshake
+// Anonymous animal names from player_join (nm), keyed by the 8-char pid.
+const names = {};
 let food = spawnFood();
 
 // ── Lógica Central do Jogo ──────────────────────────────────────────────────
@@ -104,9 +107,38 @@ function die(player) {
   fetch('end-session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pid: player.pid }),
-  }).catch(() => {});
+    body: JSON.stringify({ pid: player.pid, score: player.score }),
+  }).catch(() => {}).finally(() => setTimeout(loadRanking, 800));
 }
+
+// ── Ranking de hoje (backend: /ranking, mesmo formato no embed e na ponte) ──
+function loadRanking() {
+  if (!rankList) return;
+  fetch('ranking', { cache: 'no-store' })
+    .then(r => (r.ok ? r.json() : []))
+    .then(rows => {
+      rankList.replaceChildren();
+      if (!rows.length) {
+        const li = document.createElement('li');
+        li.className = 'rank-empty';
+        li.textContent = 'Ninguém pontuou hoje ainda.';
+        rankList.appendChild(li);
+        return;
+      }
+      for (const r of rows.slice(0, 10)) {
+        const li = document.createElement('li');
+        li.className = 'rank-item';
+        const pos = document.createElement('span'); pos.className = 'rank-pos'; pos.textContent = `${r.position}º`;
+        const name = document.createElement('span'); name.className = 'rank-name'; name.textContent = r.name;
+        const pts = document.createElement('span'); pts.className = 'rank-score'; pts.textContent = r.score;
+        li.append(pos, name, pts);
+        rankList.appendChild(li);
+      }
+    })
+    .catch(() => {});
+}
+loadRanking();
+setInterval(loadRanking, 30000);
 
 function draw() {
   // Limpa tela
@@ -162,11 +194,17 @@ function updateScoreboard() {
       li.className = 'score-item';
       li.style.opacity = p.alive ? '1' : '0.4';
       
-      li.innerHTML = `
-        <div class="score-color" style="background:${p.color}; box-shadow: ${p.boosting ? '0 0 10px ' + p.color : 'none'};"></div>
-        <span>${p.pid.slice(0, 6)}</span>
-        <span style="margin-left:auto">${p.score}</span>
-      `;
+      // textContent: names come from editable lists — never HTML.
+      const dot = document.createElement('div');
+      dot.className = 'score-color';
+      dot.style.background = p.color;
+      dot.style.boxShadow = p.boosting ? `0 0 10px ${p.color}` : 'none';
+      const name = document.createElement('span');
+      name.textContent = names[p.pid] ?? p.pid.slice(0, 6);
+      const pts = document.createElement('span');
+      pts.style.marginLeft = 'auto';
+      pts.textContent = p.score;
+      li.append(dot, name, pts);
       scoreList.appendChild(li);
     });
 }
@@ -222,8 +260,9 @@ evtSource.onmessage = function(event) {
 
     // Jogadores entram e saem individualmente — nunca há reset de board.
     if (data.type === 'player_join') {
-      console.log('[SSE] player_join:', data.pid);
+      console.log('[SSE] player_join:', data.pid, data.nm ?? '');
       if (data.tid) currentTotemId = data.tid;
+      if (data.nm) { names[data.pid] = data.nm; updateScoreboard(); }
       return;
     }
 

@@ -163,3 +163,12 @@ canvas {
 .debug-log-line { margin-bottom: 4px; }
 .debug-log-time  { color: var(--text-muted); }
 .debug-log-value { color: var(--accent-text); }
+
+/* Ranking de hoje (side panel) */
+.rank-heading { margin-top: 1.5rem; }
+#rankList { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.rank-item { display: grid; grid-template-columns: 2.5ch 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+.rank-pos { font-family: var(--font-mono); color: var(--text-muted); }
+.rank-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-score { font-family: var(--font-mono); font-weight: 600; }
+.rank-empty { font-size: 13px; color: var(--text-muted); }

@@ -89,13 +89,19 @@ const server = http.createServer((req, res) => {
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
       let playerId = null;
-      try { playerId = JSON.parse(body || '{}').pid ?? null; } catch {}
+      let score = null;
+      try {
+        const msg = JSON.parse(body || '{}');
+        playerId = msg.pid ?? null;
+        // points for the ranking (optional, forwarded as-is)
+        if (Number.isFinite(msg.score) && msg.score >= 0) score = msg.score;
+      } catch {}
 
       console.log(`[HTTP] Eliminating player — totem: ${currentTotemId}, player: ${playerId || '(unknown)'}`);
       fetch(`${BACKEND_URL}/api/totems/${currentTotemId}/end-session`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', ...keyHeader },
-        body:    JSON.stringify({ playerId }),
+        body:    JSON.stringify(score === null ? { playerId } : { playerId, score }),
       })
         .then(r => r.json())
         .then(json => {
@@ -126,6 +132,24 @@ const server = http.createServer((req, res) => {
   }
 
   // Proxy: totem queue/sessions view (rotation K and HUD queue size)
+  // Proxy: best scores of this totem today (lobby/side board). Same shape as
+  // the embed's /ranking: [{ position, name, score }].
+  if (req.method === 'GET' && req.url === '/ranking') {
+    if (!BACKEND_URL || !currentTotemId) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('[]');
+      return;
+    }
+    fetch(`${BACKEND_URL}/api/totems/${currentTotemId}/ranking?range=24h&limit=10`, { headers: keyHeader })
+      .then(r => (r.ok ? r.json() : []))
+      .then(rows => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify((Array.isArray(rows) ? rows : []).map(r => ({ position: r.position, name: r.nickname ?? 'Jogador', score: r.score }))));
+      })
+      .catch(() => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('[]'); });
+    return;
+  }
+
   if (req.method === 'GET' && req.url === '/queue-state') {
     if (!BACKEND_URL || !currentTotemId) {
       res.writeHead(200, { 'Content-Type': 'application/json' });

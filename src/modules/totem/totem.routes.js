@@ -14,7 +14,7 @@ import { createLogger }      from '../../lib/logger.js'
 import { env }               from '../../config/env.js'
 import { createRateLimiter } from '../../lib/rateLimit.js'
 import { listGames }         from '../../lib/games.js'
-import { computeStats, RANGES } from '../../lib/stats.js'
+import { computeStats, RANGES, rankingSince } from '../../lib/stats.js'
 import { SessionRepository } from '../session/session.repository.js'
 import { instanceKey, normalizeInstance, isDefaultInstance } from '../../lib/channels.js'
 
@@ -51,6 +51,9 @@ const totemResponseProps = {
   sessionDurationMs: { type: 'number', nullable: true },
   maxQueueSize:      { type: 'number', nullable: true },
   gameKey:           { type: 'string', nullable: true },
+  paused:            { type: 'boolean' },
+  pausedAt:          { type: 'string', nullable: true },
+  pausedBy:          { type: 'string', nullable: true },
   queueSize:         { type: 'number' },
   instances: {
     type: 'object',
@@ -272,9 +275,10 @@ async function totemRoutes(fastify) {
             sessionId:       { type: 'string' },
             position:        { type: 'number' },
             estimatedWaitMs: { type: 'number', nullable: true },
+            nickname:        { type: 'string', nullable: true },
           },
         },
-        404: errorResponse, 409: errorResponse, 410: errorResponse, 429: errorResponse, 500: errorResponse, 503: errorResponse,
+        404: errorResponse, 409: errorResponse, 410: errorResponse, 423: errorResponse, 429: errorResponse, 500: errorResponse, 503: errorResponse,
       },
     },
   }, async (request, reply) => {
@@ -303,6 +307,8 @@ async function totemRoutes(fastify) {
             position:        { type: 'number' },
             size:            { type: 'number' },
             estimatedWaitMs: { type: 'number', nullable: true },
+            nickname:        { type: 'string', nullable: true },
+            paused:          { type: 'boolean' },
           },
         },
         404: errorResponse, 410: errorResponse, 500: errorResponse,
@@ -331,6 +337,7 @@ async function totemRoutes(fastify) {
                 properties: {
                   sessionId: { type: 'string' },
                   playerId:  { type: 'string' },
+                  nickname:  { type: 'string', nullable: true },
                   status:    { type: 'string' },
                   metadata:  { type: 'object', additionalProperties: true, nullable: true },
                   createdAt: { type: 'string' },
@@ -344,6 +351,7 @@ async function totemRoutes(fastify) {
                 type: 'object',
                 properties: {
                   id:              { type: 'string' },
+                  nickname:        { type: 'string', nullable: true },
                   metadata:        { type: 'object', additionalProperties: true, nullable: true },
                   heartbeatTtl:    { type: 'number', nullable: true },
                   estimatedWaitMs: { type: 'number', nullable: true },
@@ -443,7 +451,13 @@ async function totemRoutes(fastify) {
       tags: ['Totems'], summary: "End one player's session (game death) or all sessions of the instance (reset)",
       params: totemIdParam,
       querystring: instanceQuery,
-      body: { type: 'object', properties: { playerId: { type: 'string' } } },
+      body: {
+        type: 'object',
+        properties: {
+          playerId: { type: 'string' },
+          score:    { type: 'number', minimum: 0, maximum: 1e9 },   // points for the ranking (optional)
+        },
+      },
       response: {
         200: {
           type: 'object',
@@ -468,7 +482,7 @@ async function totemRoutes(fastify) {
     if (playerId) {
       const session = await queue.findCurrentByPidPrefix(id, inst, playerId)
       if (!session) return reply.status(404).send({ error: 'No live session for this player' })
-      const result = await queue.endSession(session._id, 'died')
+      const result = await queue.endSession(session._id, 'died', { score: request.body?.score ?? null })
       if (!result.ok) return reply.status(result.code ?? 500).send({ error: result.error })
       log.info({ totemId: id, instanceId: inst, playerId, sessionId: session._id }, 'Player died — session ended')
       return { ok: true, endedSessionId: session._id }
@@ -507,6 +521,81 @@ async function totemRoutes(fastify) {
     const now = Date.now()
     const docs = await sessionsRepo.listForStats(request.params.id, new Date(now - RANGES[range].ms))
     return computeStats(docs, { range, now, tzOffsetMin: request.query.tz ?? 0 })
+  })
+
+  // ── Ranking ────────────────────────────────────────────────────────────────
+  const rankingQuery = {
+    type: 'object',
+    properties: {
+      range: { type: 'string', enum: [...Object.keys(RANGES), 'all'] },
+      limit: { type: 'integer', minimum: 1, maximum: 50 },
+    },
+  }
+  const rankingRow = {
+    type: 'object',
+    properties: {
+      position: { type: 'integer' }, nickname: { type: 'string', nullable: true }, score: { type: 'number' },
+      endedAt: { type: 'string' }, totemId: { type: 'string' }, totemName: { type: 'string', nullable: true },
+      instanceId: { type: 'string', nullable: true }, site: { type: 'string', nullable: true },
+    },
+  }
+  const ranked = (rows, names = null) => rows.map((r, i) => ({
+    position: i + 1, ...r, instanceId: r.instanceId ?? 'default', totemName: names?.get(r.totemId) ?? null,
+  }))
+
+  // Operator, or the physical game's bridge with the totem key (lobby board).
+  fastify.get('/api/totems/:id/ranking', {
+    schema: {
+      tags: ['Totems'], summary: 'Best scores of a totem (operator or X-Totem-Key)',
+      params: totemIdParam, querystring: rankingQuery,
+      response: { 200: { type: 'array', items: rankingRow }, 401: errorResponse, 404: errorResponse },
+    },
+  }, async (request, reply) => {
+    const totem = await service.findTotem(request.params.id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+    if (!fastify.isGameCaller(request, totem)) return reply.status(401).send({ error: 'Totem key required' })
+    const rows = await sessionsRepo.listRanking({
+      totemId: request.params.id, since: rankingSince(request.query.range ?? '24h'), limit: request.query.limit ?? 10,
+    })
+    return ranked(rows)
+  })
+
+  // Every totem together (event view).
+  fastify.get('/api/ranking', {
+    config: OPERATOR,
+    schema: {
+      tags: ['Totems'], summary: 'Best scores across all totems',
+      querystring: rankingQuery,
+      response: { 200: { type: 'array', items: rankingRow } },
+    },
+  }, async (request) => {
+    const rows = await sessionsRepo.listRanking({ since: rankingSince(request.query.range ?? '24h'), limit: request.query.limit ?? 10 })
+    const names = new Map((await service.listTotems()).map(t => [t._id, t.name]))
+    return ranked(rows, names)
+  })
+
+  // ── Pause (maintenance / break) ────────────────────────────────────────────
+  // Paused: nobody new joins; freed slots stay free and the line waits.
+  // Running games keep going. Resuming fills the free slots from the line.
+  fastify.post('/api/totems/:id/pause', {
+    config: { ...OPERATOR, audit: 'totem.pause' },
+    schema: {
+      tags: ['Totems'], summary: 'Pause or resume a totem (entry closed while paused)',
+      params: totemIdParam,
+      body: { type: 'object', properties: { paused: { type: 'boolean' } }, required: ['paused'] },
+      response: { 200: { type: 'object', properties: { paused: { type: 'boolean' } } }, 404: errorResponse },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params
+    const paused = request.body.paused
+    const result = await service.setPaused(id, paused, request.operator?.username ?? null)
+    if (!result.ok) return reply.status(404).send({ error: result.error })
+    const instanceIds = ['default', ...(await instances.list(id)).map(i => i.id)]
+    if (!paused) for (const inst of instanceIds) await queue.advance(id, inst)
+    for (const inst of instanceIds) await queue.notifyQueue(id, inst)
+    fastify.opsNotify?.()
+    log.info({ totemId: id, paused }, paused ? 'Totem paused' : 'Totem resumed')
+    return { paused }
   })
 
   // ── Totem key (game → backend auth) ────────────────────────────────────────

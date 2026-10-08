@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-unit:
+    name: Lint + unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx eslint . --max-warnings=0
+      - run: npm run test:unit
+      - run: node --test games/brick-rush/test/*.test.mjs
+
+  e2e:
+    name: End-to-end (API + UI)
+    runs-on: ubuntu-latest
+    needs: lint-unit
+    services:
+      mongo:
+        image: mongo:7
+        ports: ['27017:27017']
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1})'"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MONGO_URI: mongodb://localhost:27017/street-arcade-ci
+      REDIS_URL: redis://localhost:6379
+      UDP_HOST: 127.0.0.1
+      UDP_PORT: '9001'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:e2e
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    needs: lint-unit
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t street-arcade:ci .
+      - name: Image carries the embeddable games
+        run: docker run --rm --entrypoint sh street-arcade:ci -c "node -v && ls /app/games/*/public/index.html"
+      - name: Production refuses to boot without OPERATOR_PASSWORD
+        run: |
+          set +e
+          docker run --rm -e NODE_ENV=production -e MONGO_URI=x -e REDIS_URL=x -e UDP_HOST=x -e UDP_PORT=1 street-arcade:ci
+          test $? -ne 0

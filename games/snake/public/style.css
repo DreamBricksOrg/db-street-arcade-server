@@ -5,12 +5,6 @@
    (game.js draw()) keeps its own gameplay palette untouched.
    Built on the DreamBricks Design System base tokens (colors/type/spacing) —
    see docs/design_system. */
-/* Brand typeface. Served by the backend under /embed and by the local bridge
-   (games/shared/static.js); Poppins only covers missing glyphs. */
-@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
-@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
-@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-bold.woff2') format('woff2'); font-weight: 600 700; font-display: swap; }
-
 :root {
   --bg:         oklch(0.97 0.006 230);
   --surface:    #ffffff;
@@ -25,7 +19,7 @@
   --danger:     oklch(0.58 0.20 25);
   --waiting:    oklch(0.78 0.15 80);
   --radius:     10px;
-  --font-body:  'Araboto', 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --font-body:  'Poppins', ui-sans-serif, system-ui, sans-serif;
   --font-mono:  'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
 }
 

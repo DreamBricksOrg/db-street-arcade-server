@@ -42,3 +42,9 @@ Na pesquisa de 08/10/2026, o preço era de US$ 30 por peso ou US$ 120 a família
 **Atenção: o repositório `DreamBricksOrg/db-street-arcade-server` é PÚBLICO (conferido em 08/10/2026), e os TTFs e os `.woff2` já foram enviados para lá (commit `c9f2f69`).** Isso é redistribuição pública dos arquivos. Mesmo comprando a licença Web, ela normalmente não permite deixar os arquivos da fonte baixáveis num repositório público. Opções:
 - tornar o repositório privado; ou
 - tirar os arquivos do repositório (e do histórico, com `git filter-repo` + push forçado) e entregá-los fora do git no deploy.
+
+## Situação em 08/10/2026
+
+Os arquivos foram **retirados do repositório** (commit seguinte a `6b7d492`) e o sistema voltou para a Poppins. O `.gitignore` agora barra `public/assets/fonts/` e os TTF/OTF/WOFF2 desta pasta. O histórico do GitHub ainda contém os arquivos (commit `c9f2f69`). Limpar o histórico exige push forçado e fica a critério da equipe.
+
+Para religar depois de comprar a licença, reverta as mudanças de fonte do commit que retirou os arquivos (`@font-face` em `public/css/tokens.css` e no overlay, `--font-brand`/`--font-body`, os jogos e o `COPY public/assets/fonts` nos Dockerfiles das pontes). Os arquivos licenciados vão para o servidor fora do git.

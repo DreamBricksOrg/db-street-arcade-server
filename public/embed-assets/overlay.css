@@ -5,10 +5,6 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
 
-/* Brand typeface, served by the backend that injects this overlay. */
-@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-medium.woff2') format('woff2'); font-weight: 500;     font-display: swap; }
-@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-bold.woff2') format('woff2');   font-weight: 600 700; font-display: swap; }
-
 .dbx {
   --dbx-ink:     oklch(0.16 0.028 230);
   --dbx-muted:   oklch(0.42 0.024 230);
@@ -22,7 +18,7 @@
 
   position: fixed; z-index: 2147483000;
   inset: auto clamp(10px, 2.2vmin, 24px) clamp(10px, 2.2vmin, 24px) auto;
-  font-family: 'Araboto', 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
   color: var(--dbx-ink);
   -webkit-font-smoothing: antialiased;
 }
@@ -88,7 +84,7 @@
 .dbx-phone {
   display: none; margin-top: 8px; width: 100%; min-height: 40px;
   align-items: center; justify-content: center;
-  font: 600 13px/1 'Araboto', 'Poppins', sans-serif; color: #fff; text-decoration: none;
+  font: 600 13px/1 'Poppins', sans-serif; color: #fff; text-decoration: none;
   background: var(--dbx-brand-7); border-radius: 10px;
 }
 /* On a phone the QR is useless (nobody scans their own screen) and it would
@@ -101,7 +97,7 @@
 .dbx-pill {
   display: none; align-items: center; gap: 8px;
   min-height: 40px; padding: 0 14px 0 10px;
-  font: 600 13px/1 'Araboto', 'Poppins', sans-serif; color: #fff;
+  font: 600 13px/1 'Poppins', sans-serif; color: #fff;
   background: var(--dbx-strong); border: 0; border-radius: 999px; cursor: pointer;
   box-shadow: 0 8px 20px oklch(0.16 0.028 230 / 0.3);
   animation: dbx-in 0.4s var(--dbx-ease);

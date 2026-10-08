@@ -43,7 +43,7 @@ function boot(port) {
     env: {
       ...process.env, PORT: String(port), OPERATOR_PASSWORD: '',
       QUEUE_RESERVE_MS: '20000', QUEUE_SWEEP_MS: '500', QUEUE_JOIN_RATE_MAX: '1000',
-      INSTANCE_GRACE_MS: String(GRACE),
+      INSTANCE_GRACE_MS: String(GRACE), TRUST_PROXY: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -148,6 +148,23 @@ await scenario('reiniciar o processo do iframe não derruba a partida', async ()
   assert.equal(died.status, 200, died.text)
   await sleep(400)
   assert.ok(streamA.packets.some(p => p.type === 'player_leave' && p.pid === 'e2e_cl1'), 'player_leave no stream novo')
+})
+
+// ── 4. Shared rate limits ────────────────────────────────────────────────────
+await scenario('limite de login é do cluster: 10/min somando os dois processos', async () => {
+  const ip = `198.18.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`
+  const login = (port) => fetch(`http://localhost:${port}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': ip },
+    body: JSON.stringify({ password: 'x' }),
+  }).then(r => r.status)
+  // Fixed 60s windows: don't start right before a boundary (would split the count).
+  const into = Date.now() % 60_000
+  if (into > 55_000) await sleep(60_500 - into)
+  const statuses = []
+  for (let i = 0; i < 6; i++) statuses.push(await login(A), await login(B))
+  assert.equal(statuses.filter(s => s !== 429).length, 10, `aceitas: ${statuses.join(',')}`)
+  assert.deepEqual(statuses.slice(10), [429, 429])
 })
 
 // ── Cleanup ──────────────────────────────────────────────────────────────────

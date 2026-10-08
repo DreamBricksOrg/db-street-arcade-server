@@ -20,9 +20,6 @@ import { instanceKey, normalizeInstance, isDefaultInstance } from '../../lib/cha
 
 const log = createLogger('totem.routes')
 
-// Generous enough for legit retries/reconnects, tight enough to stop a spam loop.
-const queueJoinRateLimit = createRateLimiter({ windowMs: 10_000, max: env.queueJoinRateMax })
-
 const totemIdParam = {
   type:       'object',
   properties: { id: { type: 'string', minLength: 36, maxLength: 36 } },
@@ -77,6 +74,12 @@ async function totemRoutes(fastify) {
   const service   = new TotemService(fastify.mongo, fastify.redisPublisher)
   const queue     = new TotemQueueService(fastify, service)
   const instances = fastify.instances
+  // Generous enough for legit retries/reconnects, tight enough to stop a spam
+  // loop. Shared across backend processes through Redis (src/lib/rateLimit.js).
+  const queueJoinRateLimit = createRateLimiter({
+    name: 'queue-join', windowMs: 10_000, max: env.queueJoinRateMax,
+    getRedis: () => fastify.redisPublisher,
+  })
   fastify.decorate('totemQueue', queue)
   fastify.decorate('totemService', service)
 

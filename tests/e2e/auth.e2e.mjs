@@ -67,7 +67,7 @@ await scenario('sem login: API de operação 401, painel redireciona para /login
     const r = await j('GET', p)
     assert.ok(r.status >= 300 && !r.text.includes('totem-list'), `${p} não pode entregar o painel (${r.status})`)
   }
-  assert.deepEqual((await j('GET', '/api/auth/me')).body, { operator: false, authEnabled: true })
+  assert.deepEqual((await j('GET', '/api/auth/me')).body, { operator: false, authEnabled: true, user: null })
 })
 
 // ── 2. Login ─────────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ await scenario('login: senha errada 401; certa grava cookie HttpOnly que libera 
   const ok = await j('POST', '/api/auth/login', { password: PASSWORD })
   assert.equal(ok.status, 200)
   const setCookie = ok.headers.get('set-cookie') ?? ''
-  assert.match(setCookie, /^sa_op=\d+\.[\w-]+;/)
+  assert.match(setCookie, /^sa_op=\d+\.[\w-]+\.[\w-]+;/)
   assert.match(setCookie, /HttpOnly/)
   cookie = setCookie.split(';')[0]
   assert.equal((await j('GET', '/api/totems', null, { cookie })).status, 200)
@@ -185,8 +185,52 @@ await scenario('logout apaga o cookie', async () => {
   assert.match(out.headers.get('set-cookie') ?? '', /Max-Age=0/)
 })
 
+// ── 9. Operator accounts + activity log ─────────────────────────────────────
+const createdUsers = []
+await scenario('usuários: operador entra com a própria senha, não administra, e o que faz vai para a atividade', async () => {
+  const username = `e2e.op${Math.random().toString(36).slice(2, 6)}`
+  const mk = await j('POST', '/api/users', { username, name: 'Operadora Teste', password: 'senha-do-op-1', role: 'operator' }, BEARER)
+  assert.equal(mk.status, 201, mk.text)
+  createdUsers.push(mk.body.id)
+  assert.equal(mk.body.passwordHash, undefined, 'hash nunca sai na API')
+  assert.equal((await j('POST', '/api/users', { username, name: 'x', password: 'senha-do-op-1', role: 'operator' }, BEARER)).status, 409)
+  assert.equal((await j('POST', '/api/users', { username: 'curta', name: 'x', password: '123', role: 'operator' }, BEARER)).status, 400)
+
+  assert.equal((await j('POST', '/api/auth/login', { username, password: 'errada-123' })).status, 401)
+  const login = await j('POST', '/api/auth/login', { username: username.toUpperCase(), password: 'senha-do-op-1' })
+  assert.equal(login.status, 200, login.text)
+  const opCookie = login.headers.get('set-cookie').split(';')[0]
+  const me = await j('GET', '/api/auth/me', null, { cookie: opCookie })
+  assert.deepEqual([me.body.user.username, me.body.user.role], [username, 'operator'])
+
+  assert.equal((await j('GET', '/api/totems', null, { cookie: opCookie })).status, 200, 'opera totens')
+  assert.equal((await j('GET', '/api/users', null, { cookie: opCookie })).status, 403, 'não administra usuários')
+  assert.equal((await j('GET', '/api/audit', null, { cookie: opCookie })).status, 403)
+  assert.equal((await j('PUT', '/api/settings/nicknames', { animals: ['A'], adjectives: ['B'] }, { cookie: opCookie })).status, 403)
+
+  const t = await j('POST', '/api/totems', { name: 'e2e-audit', game: 'snake' }, { cookie: opCookie })
+  created.push(t.body._id)
+  await j('POST', `/api/totems/${t.body._id}/pause`, { paused: true }, { cookie: opCookie })
+  await sleep(200)
+  const log = await j('GET', `/api/audit?username=${username}`, null, BEARER)
+  const actions = log.body.map(e => e.action)
+  assert.ok(actions.includes('auth.login'), actions.join(','))
+  assert.ok(actions.includes('POST /api/totems'), 'criação de totem registrada')
+  assert.ok(actions.includes('totem.pause'), 'pausa registrada')
+  assert.ok(log.body.every(e => e.username === username && e.name === 'Operadora Teste'))
+  const failed = await j('GET', '/api/audit?action=auth.login_failed', null, BEARER)
+  assert.ok(failed.body.some(e => e.details?.username === username), 'tentativa errada registrada')
+
+  // New password → old cookie stops working; disabled account can't log in
+  await j('PUT', `/api/users/${mk.body.id}`, { password: 'senha-nova-456' }, BEARER)
+  assert.equal((await j('GET', '/api/totems', null, { cookie: opCookie })).status, 401, 'troca de senha derruba o login antigo')
+  await j('PUT', `/api/users/${mk.body.id}`, { disabled: true }, BEARER)
+  assert.equal((await j('POST', '/api/auth/login', { username, password: 'senha-nova-456' })).status, 401, 'desativado não entra')
+})
+
 // ── Cleanup ──────────────────────────────────────────────────────────────────
 for (const id of created) await j('DELETE', `/api/totems/${id}`, null, BEARER)
+for (const id of createdUsers) await j('DELETE', `/api/users/${id}`, null, BEARER)
 server.kill()
 console.log(failures === 0 ? '\nALL SCENARIOS PASSED' : `\n${failures} SCENARIO(S) FAILED`)
 process.exit(failures === 0 ? 0 : 1)

@@ -1,0 +1,9 @@
+{
+  "title": "Brick Rush",
+  "fields": [
+    { "key": "rounds", "label": "Rounds por partida", "type": "number", "unit": "rounds", "min": 1, "max": 10, "step": 1, "default": 3 },
+    { "key": "roundMs", "label": "Duração do round", "type": "number", "unit": "s", "scale": 1000, "min": 20, "max": 600, "step": 5, "default": 90 },
+    { "key": "graceMs", "label": "Tempo extra depois do 1º a chegar", "type": "number", "unit": "s", "scale": 1000, "min": 1, "max": 60, "step": 1, "default": 10 },
+    { "key": "lobbyWaitMs", "label": "Espera no lobby antes de começar", "type": "number", "unit": "s", "scale": 1000, "min": 5, "max": 180, "step": 5, "default": 30, "help": "A partida começa antes se as vagas lotarem." }
+  ]
+}

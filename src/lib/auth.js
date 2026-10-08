@@ -1,10 +1,12 @@
 // src/lib/auth.js
 // Operator auth primitives — pure, no I/O, clock injectable for tests.
 //
-// The operator logs in with OPERATOR_PASSWORD and gets an HMAC-signed cookie
-// `sa_op=<expiresAtMs>.<sig>`. The signing key is derived from the password,
-// so every backend process accepts the same cookie (no shared session store)
-// and changing the password logs everyone out.
+// An operator logs in (their account, or the bootstrap `admin` with
+// OPERATOR_PASSWORD) and gets an HMAC-signed cookie
+// `sa_op=<expiresAtMs>.<subject>.<sig>`, where subject names the account
+// (`<userId>:<tokenVersion>`, base64url). The signing key is derived from
+// OPERATOR_PASSWORD, so every backend process accepts the same cookie (no
+// shared session store) and changing that password logs everyone out.
 
 import crypto from 'node:crypto'
 
@@ -27,20 +29,22 @@ export function createOperatorAuth({ password, ttlMs = 12 * 3600_000, now = Date
 
   const sign = (payload) => crypto.createHmac('sha256', key).update(payload).digest('base64url')
 
-  /** @returns {string} cookie value valid for ttlMs */
-  function issue() {
+  /** @returns {string} cookie value valid for ttlMs, carrying `subject` */
+  function issue(subject = 'admin') {
     const exp = String(now() + ttlMs)
-    return `${exp}.${sign(exp)}`
+    const sub = Buffer.from(String(subject)).toString('base64url')
+    return `${exp}.${sub}.${sign(`${exp}.${sub}`)}`
   }
 
-  /** @returns {boolean} */
+  /** @returns {string|null} the subject when the token is valid and not expired */
   function verify(token) {
-    if (!enabled || typeof token !== 'string') return false
-    const dot = token.indexOf('.')
-    if (dot <= 0) return false
-    const exp = token.slice(0, dot)
-    if (!/^\d+$/.test(exp) || Number(exp) < now()) return false
-    return safeEqual(token.slice(dot + 1), sign(exp))
+    if (!enabled || typeof token !== 'string') return null
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const [exp, sub, sig] = parts
+    if (!/^\d+$/.test(exp) || Number(exp) < now() || !sub) return null
+    if (!safeEqual(sig, sign(`${exp}.${sub}`))) return null
+    try { return Buffer.from(sub, 'base64url').toString() } catch { return null }
   }
 
   /** Password check for the login form and `Authorization: Bearer`. */

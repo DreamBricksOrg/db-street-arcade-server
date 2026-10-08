@@ -6,32 +6,34 @@ import { createOperatorAuth, parseCookies, safeEqual, newTotemKey } from '../../
 test('sem senha: auth desligado e nada verifica', () => {
   const auth = createOperatorAuth({ password: '' })
   assert.equal(auth.enabled, false)
-  assert.equal(auth.verify('123.abc'), false)
+  assert.equal(auth.verify('123.YQ.abc'), null)
   assert.equal(auth.checkPassword(''), false)
 })
 
-test('cookie emitido verifica até expirar', () => {
+test('cookie emitido carrega o usuário e vale até expirar', () => {
   let t = 1_000
   const auth = createOperatorAuth({ password: 's3nha', ttlMs: 500, now: () => t })
-  const token = auth.issue()
-  assert.equal(auth.verify(token), true)
+  const token = auth.issue('u-123:4')
+  assert.equal(auth.verify(token), 'u-123:4')
+  assert.equal(auth.verify(auth.issue()), 'admin', 'padrão: admin de emergência')
   t = 1_500
-  assert.equal(auth.verify(token), true, 'no limite ainda vale')
+  assert.equal(auth.verify(token), 'u-123:4', 'no limite ainda vale')
   t = 1_501
-  assert.equal(auth.verify(token), false, 'expirado')
+  assert.equal(auth.verify(token), null, 'expirado')
 })
 
-test('cookie adulterado ou de outra senha é rejeitado', () => {
+test('cookie adulterado, de outra senha ou com outro usuário é rejeitado', () => {
   const now = () => 0
   const a = createOperatorAuth({ password: 'um', now })
   const b = createOperatorAuth({ password: 'dois', now })
-  const token = a.issue()
-  assert.equal(b.verify(token), false, 'trocar a senha derruba as sessões')
-  const [exp, sig] = token.split('.')
-  assert.equal(a.verify(`${Number(exp) + 1}.${sig}`), false, 'expiração alterada')
-  assert.equal(a.verify(`${exp}.${sig.slice(0, -1)}x`), false, 'assinatura alterada')
-  assert.equal(a.verify('lixo'), false)
-  assert.equal(a.verify(undefined), false)
+  const token = a.issue('u-1:1')
+  assert.equal(b.verify(token), null, 'trocar OPERATOR_PASSWORD derruba as sessões')
+  const [exp, sub, sig] = token.split('.')
+  assert.equal(a.verify(`${Number(exp) + 1}.${sub}.${sig}`), null, 'expiração alterada')
+  assert.equal(a.verify(`${exp}.${Buffer.from('admin').toString('base64url')}.${sig}`), null, 'trocar o usuário invalida a assinatura')
+  assert.equal(a.verify(`${exp}.${sub}.${sig.slice(0, -1)}x`), null, 'assinatura alterada')
+  assert.equal(a.verify('lixo'), null)
+  assert.equal(a.verify(undefined), null)
 })
 
 test('checkPassword compara a senha exata', () => {

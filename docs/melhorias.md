@@ -9,12 +9,14 @@ Levantamento feito em 07/10/2026 sobre a branch `feat/n-para-n-instancias` (inst
 
 ## Situação (08/10/2026)
 
-Todos os 19 itens foram implementados na branch `feat/n-para-n-instancias`. Alta e baixa ficaram prontos em 07/10; média e a fonte Araboto, em 08/10.
+Dos 19 itens, 18 foram implementados na branch `feat/n-para-n-instancias`. Alta e baixa ficaram prontos em 07/10, e média em 08/10. A fonte Araboto (item 18) foi aplicada e depois retirada por falta de licença; veja o item 23 na segunda rodada, no fim deste documento.
 
 Testes:
-- 31 unitários e 3 do Brick Rush;
-- 4 suítes de ponta a ponta com 30 cenários (inclui dois processos e restart no meio da partida);
+- 38 unitários e 3 do Brick Rush;
+- 5 suítes de ponta a ponta com 39 cenários (inclui dois processos, restart no meio da partida e as pontes dos jogos);
 - 11 testes de interface com Playwright, no desktop e no celular.
+
+(Números de 08/10/2026, depois da segunda rodada, abaixo.)
 
 O CI do GitHub roda tudo isso em cada push na `main` e em cada PR, e ainda testa a imagem Docker.
 
@@ -48,7 +50,7 @@ O que mudou para quem opera:
 | 15 | Limpar arquivos que não são do projeto | Baixa | Repositório | ✅ feito |
 | 16 | Remover os aliases antigos de cor | Baixa | Front-end | ✅ feito |
 | 17 | Lugar na fila sobreviver a fechar a aba | Baixa | Experiência do jogador | ✅ feito |
-| 18 | Fonte oficial Araboto | Baixa | Marca | ✅ feito |
+| 18 | Fonte oficial Araboto | Baixa | Marca | ⏸ sem licença: usando Poppins |
 | 19 | Histórico e métricas por totem | Baixa | Produto | ✅ feito |
 
 ---
@@ -159,9 +161,41 @@ O que mudou para quem opera:
 **O que fazer.** Pedir os arquivos `.woff2` à marca e trocar em `tokens/fonts.css` e no `public/css`.
 
 
-**Feito.** Os TTFs ficam em `docs/design_system/assets/fonts/araboto/`. A web usa um recorte latino em woff2 (cerca de 42 KB por peso) em `public/assets/fonts/araboto/`, declarado em `public/css/tokens.css`. Poppins fica como fallback.
+**Situação (08/10/2026).** Foi aplicada e depois **retirada**: os arquivos são de um kit da MyFonts com "All Rights Reserved" do designer, sem licença para uso, e o repositório é público. O sistema voltou para a Poppins e o `.gitignore` bloqueia arquivos de fonte. Levantamento, onde comprar e como religar: `docs/design_system/assets/fonts/araboto/LICENSE.md`.
 
 ### 19. Histórico e métricas por totem
 **Problema.** O painel mostra só o agora. Não dá para responder quantas partidas houve no evento, qual o tempo médio de fila ou qual site trouxe mais jogadores.
 
 **O que fazer.** Uma página de detalhe do totem com partidas por hora, espera média, desistências da fila (`no_show`) e, no web, partidas por site. Os tempos e motivos de encerramento já estão nas sessões, falta agregar. O site de origem ainda não é gravado: é preciso salvar o `Referer` da instância ao abrir o iframe.
+
+---
+
+## Segunda rodada (08/10/2026)
+
+Pontos levantados depois dos 19 itens. Todos na branch `feat/n-para-n-instancias`.
+
+| # | Melhoria | Prioridade | Situação |
+|---|----------|-----------|----------|
+| 20 | Dependências com falhas de segurança (`npm audit`: 11, sendo 7 altas) | **Alta** | ✅ feito: 0 alertas |
+| 21 | CI nunca rodou no GitHub | **Alta** | aguardando abrir o PR |
+| 22 | Configurar produção (senha, `TRUST_PROXY`, chaves dos totens antigos) | **Alta** | ✅ ferramentas prontas; falta aplicar no servidor |
+| 23 | Licença da Araboto | **Alta** | ✅ verificado: sem licença; voltamos para a Poppins |
+| 24 | Limites por IP só na memória de cada processo | Média | ✅ feito: Redis |
+| 25 | Araboto e testes na ponte do totem físico | Média | ✅ feito, e corrigida uma falha de segurança |
+| 26 | Documentação desatualizada | Média | ✅ feito |
+| 27 | Uma senha só para todos os operadores (sem usuários nem auditoria) | Baixa | pendente |
+| 28 | Merge na `main` e limpeza do ambiente local de testes | Baixa | aguardando seus testes |
+
+### O que mudou
+
+- **20, dependências.** Subimos `fastify` para 5.12.5, `@fastify/static` para 10 e `@fastify/swagger-ui` para 6, e as indiretas (`ws`, `fast-uri`, `find-my-way`…) foram corrigidas com `npm audit fix`. Testando as falhas de desvio de rota, apareceram duas brechas na guarda de páginas do próprio projeto: `/index%2Ehtml` abria o HTML do painel e `/%64ocumentation` abria o Swagger em produção sem login (os dados da API seguiam protegidos). A guarda agora compara o caminho já decodificado e normalizado, com testes.
+- **22, produção.**
+  - `.env.production.example` é o modelo do `.env` de produção.
+  - `npm run ops:check-env` aponta erros e avisos do `.env`; o servidor repete os avisos ao subir em produção.
+  - `npm run ops:totem-keys` lista os totens sem chave e, com `--apply`, gera as chaves.
+  - O painel marca com **Sem chave** os totens físicos sem chave.
+  - Ninguém mexeu no banco nem no `.env` de produção: aplicar é com a equipe.
+- **23, Araboto.** Os arquivos dizem "© Abd El-Rahman Farahat, All Rights Reserved" e vêm de um kit de webfont da MyFonts; o "grátis" do Fontmirror não vale. O repositório no GitHub é **público**, então os arquivos ficaram expostos (commit `c9f2f69`). Foram retirados e o sistema voltou para a Poppins. Limpar o histórico exige push forçado e fica a critério da equipe.
+- **24, limites.** Entrada na fila e tentativas de login contam no Redis (`rl:{nome}:{ip}:{janela}`), somando todos os processos. Sem Redis, cada processo conta sozinho.
+- **25, pontes.** A ponte local (`games/*/server.js`) servia qualquer arquivo: `GET /../.env` devolvia o `.env` da máquina, com a chave do totem. Isso foi confirmado no código antigo. Agora `games/shared/static.js` só serve o que está em `public/`, mais a marca do repositório. As portas aceitam `BRIDGE_HTTP_PORT`/`BRIDGE_UDP_PORT`, as imagens Docker das pontes usam Node 22 com contexto na raiz do repositório, e `tests/e2e/bridges.e2e.mjs` testa as duas pontes.
+- **26, documentação.** Foram atualizados `CLAUDE.md`, `README.md` (que só falava de `npm run dev`), `DESIGN.md` (de volta à Poppins) e o arquivo de apoio do impeccable (`.impeccable/design.json`), que ainda tinha a cor laranja aposentada e componentes antigos.

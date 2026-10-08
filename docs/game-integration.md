@@ -187,7 +187,12 @@ Browser não recebe UDP — use um servidor local mínimo como ponte
 - **GET `/queue-state` → backend**: proxy da fila do totem (HUD, rotação).
 - **GET `/config`**: expõe as configurações de gameplay do `.env` pro browser
   (ex.: velocidade no snake; rounds e timers no brick-rush).
-- **HTTP :9000**: serve os arquivos estáticos do jogo.
+- **HTTP :9000**: serve os arquivos estáticos do jogo, **só os que estão em `public/`**
+  (`games/shared/static.js`; um `path.join(public, req.url)` direto deixava
+  `GET /../.env` vazar a chave do totem). `/assets/brand/*` cai no `public/`
+  do backend, então a marca carrega também na máquina física.
+- Portas: `BRIDGE_HTTP_PORT` / `BRIDGE_UDP_PORT` (padrão 9000/9001 no snake,
+  9100/9101 no brick-rush). Envie `X-Totem-Key` (`TOTEM_KEY`) ao backend.
 
 Jogos existentes que seguem este padrão: `games/snake/` (ponte mínima) e
 `games/brick-rush/` (com sistema de partidas/rounds) — veja `games/README.md`.

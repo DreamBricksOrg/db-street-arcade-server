@@ -54,7 +54,7 @@ export function createPlayer(pid, color, spawn) {
 }
 
 /** Resets position/motion for a new round (keeps score). */
-export function resetForRound(player, spawn, now) {
+export function resetForRound(player, spawn, _now) {
   player.x = spawn.x
   player.y = spawn.y
   player.spawn = { ...spawn }
@@ -233,7 +233,7 @@ function onSlipGround(p, map) {
   return tileAt(map.grid, cxL, cy) === T.SLIP || tileAt(map.grid, cxR, cy) === T.SLIP
 }
 
-function solidAt(p, map, x, y, movingDown, gimmick) {
+function solidAt(p, map, x, y, movingDown, _gimmick) {
   const t = tileAt(map.grid, Math.floor(x / TILE), Math.floor(y / TILE))
   if (isSolidTile(t)) return 'solid'
   if (t === T.ONEWAY && movingDown && !p.input.down) {

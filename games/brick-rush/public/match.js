@@ -11,7 +11,7 @@ import { TILE } from './maps.js'
 import { generateMap, findSafeSpawn } from './wfc.js'
 import { pickThemes } from './maps.js'
 import {
-  createPlayer, resetForRound, step, lavaHeight, windAt, kill,
+  createPlayer, resetForRound, step, lavaHeight, windAt,
 } from './physics.js'
 import { PALETTE, spawnDeathParticles, updateParticles, clearParticles } from './entities.js'
 import { rankedPlayers } from './render.js'
@@ -78,7 +78,7 @@ export function createMatch() {
       }
     },
 
-    onPlayerLeave(pid, now) {
+    onPlayerLeave(pid, _now) {
       this.spectators.delete(pid)
       this.pendingLeaves.delete(pid)
       const p = this.players.get(pid)
@@ -282,7 +282,7 @@ export function createMatch() {
       this._resolveRotation(now).finally(() => { this.rotationResolving = false })
     },
 
-    async _resolveRotation(now) {
+    async _resolveRotation(_now) {
       const ranked = rankedPlayers(this).filter(p => !p.left)
       // Champion is remembered for the lobby HUD, but leaves like everyone
       // else — playing again means reconnecting through the queue.

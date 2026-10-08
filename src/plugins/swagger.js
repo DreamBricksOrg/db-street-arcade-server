@@ -5,7 +5,7 @@ import fp from 'fastify-plugin'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
 
-async function swaggerPlugin(fastify, options) {
+async function swaggerPlugin(fastify) {
   // Register the core swagger generator
   await fastify.register(swagger, {
     openapi: {
@@ -39,7 +39,7 @@ async function swaggerPlugin(fastify, options) {
     },
     staticCSP: true,
     transformStaticCSP: (header) => header,
-    transformSpecification: (swaggerObject, request, reply) => { return swaggerObject },
+    transformSpecification: (swaggerObject) => swaggerObject,
     transformSpecificationClone: true
   })
 }

@@ -2,7 +2,7 @@
 // Operator login + totem key, against the real server with OPERATOR_PASSWORD.
 // Run: npm run test:e2e   (requires local MongoDB + Redis, same as dev)
 
-import { spawn } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 import assert from 'node:assert/strict'
 import { MongoClient } from 'mongodb'
 
@@ -135,6 +135,17 @@ await scenario('totem antigo sem chave: morte continua aberta, reset geral não'
   assert.equal((await j('POST', `/api/totems/${t.body._id}/end-session`, { playerId: 'e2e_leg1' })).status, 200)
   assert.equal((await j('POST', `/api/totems/${t.body._id}/end-session`, {})).status, 401, 'reset exige operador')
   assert.equal((await j('POST', `/api/totems/${t.body._id}/end-session`, {}, { cookie })).status, 200)
+
+  // npm run ops:totem-keys: lists it without changing anything; --apply fixes it
+  const dry = execFileSync(process.execPath, ['scripts/totem-keys.mjs'], { env: process.env }).toString()
+  assert.ok(dry.includes(t.body._id), 'listado como sem chave')
+  assert.match(dry, /Nada foi alterado/)
+  assert.equal((await j('GET', `/api/totems/${t.body._id}`, null, { cookie })).body.gameKey ?? null, null)
+  const applied = execFileSync(process.execPath, ['scripts/totem-keys.mjs', '--apply'], { env: process.env }).toString()
+  const key = applied.match(new RegExp(`TOTEM_ID=${t.body._id}\\s+TOTEM_KEY=([\\w-]+)`))?.[1]
+  assert.ok(key, 'imprime TOTEM_ID/TOTEM_KEY para o .env da máquina')
+  assert.equal((await j('GET', `/api/totems/${t.body._id}`, null, { cookie })).body.gameKey, key)
+  assert.equal((await j('POST', `/api/totems/${t.body._id}/end-session`, { playerId: 'x' })).status, 401, 'agora exige a chave')
 })
 
 // ── 6. Public embed state has no personal data ───────────────────────────────

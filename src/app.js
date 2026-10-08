@@ -22,6 +22,7 @@ import { InstanceHub }   from './modules/instance/instance.hub.js'
 import { GameOutput }    from './modules/game/game.output.js'
 import { createInstanceRegistry } from './lib/instances.js'
 import { createRedisInstanceRegistry } from './lib/instances.redis.js'
+import { checkProductionEnv } from './lib/envCheck.js'
 
 const log = createLogger('app')
 
@@ -50,6 +51,11 @@ export async function buildApp() {
     const ready = [mongo, redis].every(s => s === 'ok' || (s === 'disabled' && env.isDev))
     return reply.status(ready ? 200 : 503).send({ status: ready ? 'ready' : 'unavailable', mongo, redis, ts: Date.now() })
   })
+
+  // Production self-check (same rules as `npm run ops:check-env`).
+  if (env.isProd) {
+    for (const w of checkProductionEnv(process.env).warnings) log.warn(`[config] ${w}`)
+  }
 
   // Behind nginx without TRUST_PROXY every visitor shares nginx's IP, so the
   // per-IP limits (queue/join, open iframes) block real people. Say so once.

@@ -54,3 +54,13 @@ test('newTotemKey gera chaves distintas, url-safe', () => {
   assert.notEqual(a, b)
   assert.match(a, /^[A-Za-z0-9_-]{24}$/)
 })
+
+test('canonicalPath resolve o que o roteador resolve (sem desvio por codificação)', async () => {
+  const { canonicalPath } = await import('../../src/lib/auth.js')
+  for (const p of ['/index.html', '//index.html', '/./index.html', '/%2Findex.html', '/index%2Ehtml', '/x/../index.html', '/%2e/index.html', '/\\index.html']) {
+    assert.equal(canonicalPath(p), '/index.html', p)
+  }
+  assert.equal(canonicalPath('/%64ocumentation/json?x=1'), '/documentation/json')
+  assert.equal(canonicalPath('/%E0%A4%A'), null, 'codificação inválida')
+  assert.equal(canonicalPath('/a%00b'), null, 'byte nulo')
+})

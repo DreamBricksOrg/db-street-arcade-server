@@ -162,8 +162,10 @@ img { display: block; max-width: 100%; }
   margin-top: auto; padding-top: var(--space-4);
   border-top: 1px solid var(--border-subtle);
 }
-.totem__primary, .totem__tools { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.totem__tools { gap: 2px; }
+.totem__foot { flex-wrap: wrap; }
+.totem__primary, .totem__tools { display: flex; align-items: center; gap: var(--space-2); }
+.totem__tools { gap: 0; margin-left: auto; }
+.totem__tools .db-icon-btn { width: 32px; height: 32px; }
 .db-icon-btn--danger:hover { color: var(--db-danger-ink); background: var(--db-danger-100); }
 
 /* Empty / no results */

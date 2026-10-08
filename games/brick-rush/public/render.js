@@ -10,10 +10,10 @@ const CW = W * TILE   // 1280
 const CH = H * TILE   // 704
 
 // Frame type + colors (HUD and phase screens) — DreamBricks Design System:
-// Poppins for words, IBM Plex Mono for numbers/ids, brand blues instead of
+// Araboto (brand) for words, IBM Plex Mono for numbers/ids, brand blues instead of
 // arcade yellow. The playfield itself (tiles, minifigs, golden brick) keeps
 // its own gameplay palette.
-const FONT_UI   = '"Poppins", system-ui, sans-serif'
+const FONT_UI   = '"Araboto", "Poppins", system-ui, sans-serif'
 const FONT_DATA = '"IBM Plex Mono", ui-monospace, monospace'
 const FRAME = {
   title: '#52cdef',                 // --db-blue-300

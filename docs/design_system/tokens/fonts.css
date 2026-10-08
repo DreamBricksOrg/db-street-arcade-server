@@ -1,4 +1,12 @@
-/* Webfont loading — Poppins substituted for the brandbook's Araboto (see
-   typography.css for rationale). Loaded from Google Fonts CDN so the whole
-   weight range brandbook + UI needs is available. */
+/* Webfont loading — Araboto, the brandbook's typeface (files in
+   assets/fonts/araboto/). Each weight ships as its own family in the source
+   files (all flagged 400), so every @font-face maps one file to its real
+   weight. Poppins stays loaded as the fallback for any missing glyph. */
+@font-face { font-family: 'Araboto'; src: url('../assets/fonts/araboto/Araboto Thin 400.ttf') format('truetype');   font-weight: 100; font-display: swap; }
+@font-face { font-family: 'Araboto'; src: url('../assets/fonts/araboto/Araboto Light 400.ttf') format('truetype');  font-weight: 300; font-display: swap; }
+@font-face { font-family: 'Araboto'; src: url('../assets/fonts/araboto/Araboto Normal 400.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Araboto'; src: url('../assets/fonts/araboto/Araboto Medium 400.ttf') format('truetype'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Araboto'; src: url('../assets/fonts/araboto/Araboto Bold 400.ttf') format('truetype');   font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Araboto'; src: url('../assets/fonts/araboto/Araboto Black 400.ttf') format('truetype');  font-weight: 900; font-display: swap; }
+
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');

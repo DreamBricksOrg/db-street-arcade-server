@@ -1,7 +1,19 @@
 /* public/css/tokens.css
-   DreamBricks Design System tokens — copied verbatim from docs/design_system/tokens/
-   (colors, typography, spacing). Fonts load via <link> in each page, not @import.
-   Street Arcade aliases live at the end of this file. */
+   DreamBricks Design System tokens — copied from docs/design_system/tokens/
+   (colors, typography, spacing). Araboto is self-hosted below (web subset:
+   Latin + punctuation, woff2, from docs/design_system/assets/fonts/araboto);
+   Poppins and IBM Plex Mono load via <link> in each page. Street Arcade
+   additions live at the end of this file. */
+
+/* Each source weight is its own family flagged 400, so every face maps one
+   file to its real weight. Ranges make the DS's 600/800 use Bold/Black
+   instead of a synthesized weight. */
+@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-thin.woff2') format('woff2');    font-weight: 100 200; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-light.woff2') format('woff2');   font-weight: 300;     font-style: normal; font-display: swap; }
+@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-regular.woff2') format('woff2'); font-weight: 400;     font-style: normal; font-display: swap; }
+@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-medium.woff2') format('woff2');  font-weight: 500;     font-style: normal; font-display: swap; }
+@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-bold.woff2') format('woff2');    font-weight: 600 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-black.woff2') format('woff2');   font-weight: 800 900; font-style: normal; font-display: swap; }
 
 /* DreamBricks — Color tokens
    Base palette extracted from Brandbook v1.1 (page 4):
@@ -80,8 +92,8 @@
    (.woff2/.woff/.ttf) to swap into tokens/fonts.css when available. */
 
 :root {
-  --font-brand: 'Poppins', 'Century Gothic', ui-sans-serif, sans-serif;
-  --font-body: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --font-brand: 'Araboto', 'Poppins', 'Century Gothic', ui-sans-serif, sans-serif;
+  --font-body: 'Araboto', 'Poppins', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
 
   /* Weights — brandbook only shows Bold + Light; Regular/Medium/SemiBold

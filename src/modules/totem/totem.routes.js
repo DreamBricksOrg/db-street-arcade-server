@@ -349,7 +349,7 @@ async function totemRoutes(fastify) {
     if (!fastify.isGameCaller(request, totem)) return reply.status(401).send({ error: 'Totem key required' })
     const result = await queue.operatorView(request.params.id, instanceOf(request))
     if (!result.ok) return reply.status(result.code ?? 500).send({ error: result.error })
-    const { ok, ...view } = result
+    const { ok: _ok, ...view } = result
     return view
   })
 

@@ -79,7 +79,6 @@ function simulate(map, player, inputScript, maxMs = 3000) {
   let grabbedY = null
   let maxRiseAfterGrab = 0
   let jumped = false
-  const trace = { }
   let now = 0
   for (let t = 0; t < 2000; t += DT * 1000) {
     now = t

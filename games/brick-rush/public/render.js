@@ -305,7 +305,7 @@ function drawCountdown(ctx, match, now) {
   centerText(ctx, `Round 1 — ${match.nextThemeName ?? ''}`, CH / 2 + 80, 26)
 }
 
-function drawRoundEnd(ctx, match, now) {
+function drawRoundEnd(ctx, match, _now) {
   drawTiles(ctx, match.map)
   ctx.fillStyle = FRAME.scrim
   ctx.fillRect(0, 0, CW, CH)
@@ -322,7 +322,7 @@ function drawRoundEnd(ctx, match, now) {
   }
 }
 
-function drawMatchEnd(ctx, match, now) {
+function drawMatchEnd(ctx, match, _now) {
   centerText(ctx, 'Fim de jogo', 140, 56, FRAME.title)
   const ranked = rankedPlayers(match)
   const medals = ['1º', '2º', '3º']
@@ -338,7 +338,7 @@ function drawMatchEnd(ctx, match, now) {
   })
 }
 
-function drawRotation(ctx, match, now) {
+function drawRotation(ctx, _match, _now) {
   centerText(ctx, 'Girando a fila…', CH / 2 - 20, 40, FRAME.title)
   centerText(ctx, 'Eliminados voltam pela fila. O vencedor fica.', CH / 2 + 30, 20, FRAME.muted)
 }

@@ -18,7 +18,7 @@
 
 import fp from 'fastify-plugin'
 import { env } from '../config/env.js'
-import { createOperatorAuth, parseCookies, safeEqual, COOKIE_NAME } from '../lib/auth.js'
+import { createOperatorAuth, parseCookies, safeEqual, canonicalPath, COOKIE_NAME } from '../lib/auth.js'
 import { createRateLimiter } from '../lib/rateLimit.js'
 import { createLogger } from '../lib/logger.js'
 
@@ -51,17 +51,22 @@ async function authPlugin(fastify) {
   fastify.decorate('isGameCaller', isGameCaller)
 
   fastify.addHook('onRequest', async (request, reply) => {
-    const path = request.url.split('?')[0]
-
     if (request.routeOptions.config?.operator && !isOperator(request)) {
       return reply.status(401).send({ error: 'Operator login required' })
     }
+
+    // Page guards compare the resolved path, never the raw URL (encoded
+    // variants like /index%2Ehtml or /%64ocumentation must not bypass them).
+    const path = canonicalPath(request.url)
+    if (path === null) return reply.status(400).send({ error: 'Bad path' })
 
     if ((path === '/' || path === '/index.html') && !isOperator(request)) {
       return reply.redirect('/login', 302)
     }
 
-    if (path.startsWith('/documentation') && env.isProd && !isOperator(request)) {
+    const docs = path === '/documentation' || path.startsWith('/documentation/') ||
+      (request.routeOptions.url ?? '').startsWith('/documentation')
+    if (docs && env.isProd && !isOperator(request)) {
       return reply.redirect('/login?next=/documentation', 302)
     }
   })

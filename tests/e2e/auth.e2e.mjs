@@ -63,6 +63,10 @@ await scenario('sem login: API de operação 401, painel redireciona para /login
   assert.equal(home.status, 302)
   assert.equal(home.headers.get('location'), '/login')
   assert.equal((await j('GET', '/login')).status, 200)
+  for (const p of ['/index.html', '//index.html', '/index%2Ehtml', '/%2Findex.html', '/x/../index.html']) {
+    const r = await j('GET', p)
+    assert.ok(r.status >= 300 && !r.text.includes('totem-list'), `${p} não pode entregar o painel (${r.status})`)
+  }
   assert.deepEqual((await j('GET', '/api/auth/me')).body, { operator: false, authEnabled: true })
 })
 

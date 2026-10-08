@@ -65,6 +65,21 @@ export function parseCookies(header) {
   return out
 }
 
+/**
+ * The path a router / static server ends up resolving: percent-decoded,
+ * backslashes and repeated slashes folded, dot segments resolved. Page guards
+ * compare THIS, so /index%2Ehtml or /%64ocumentation can't slip past them.
+ * @returns {string|null} null when the path can't be decoded (reject it)
+ */
+export function canonicalPath(url) {
+  const raw = String(url ?? '/').split('?')[0]
+  let decoded
+  try { decoded = decodeURIComponent(raw) } catch { return null }
+  if (decoded.includes('\0')) return null
+  const folded = decoded.replace(/\\/g, '/').replace(/\/{2,}/g, '/')
+  try { return new URL(folded, 'http://x').pathname } catch { return null }
+}
+
 /** Per-totem key the game/bridge sends in `X-Totem-Key`. */
 export function newTotemKey() {
   return crypto.randomBytes(18).toString('base64url')

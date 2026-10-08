@@ -246,6 +246,28 @@ await scenario('instância default (totem físico) não enxerga as filas das ins
   assert.equal(sd.body.instanceId, 'default')
 })
 
+// ── 9. Input validation ──────────────────────────────────────────────────────
+await scenario('inputs: ação inventada não chega ao jogo, rajada é limitada, ping recebe pong', async () => {
+  const tid = await makeTotem({ maxPlayers: 1 }); createdTotems.push(tid)
+  const s = await openStream(tid, 'wsval', visitor()); streams.push(s)
+  const p = await join(tid, 'wsval', 'e2e_wsv1')
+  const ws = await wsConnect(p.body.sessionId, 'e2e_wsv1')
+  const replies = []
+  ws.onmessage = (e) => replies.push(String(e.data))
+  await sleep(200)
+  ws.send(JSON.stringify({ action: 'btn_Z', state: 'pressed' }))
+  ws.send(JSON.stringify({ action: 'btn_A', state: 'held' }))
+  ws.send(JSON.stringify({ type: 'ping' }))
+  for (let i = 0; i < 200; i++) ws.send(JSON.stringify({ action: 'btn_B', state: i % 2 ? 'released' : 'pressed' }))
+  await sleep(800)
+  ws.close()
+
+  assert.ok(!s.packets.some(p => p.a === 'btn_Z' || p.a === 'btn_A'), 'nada inválido no SSE')
+  const delivered = s.packets.filter(p => p.a === 'btn_B').length
+  assert.ok(delivered >= 30 && delivered <= 70, `rajada limitada (chegaram ${delivered} de 200)`)
+  assert.ok(replies.some(r => r.includes('"pong"')), 'pong')
+})
+
 // ── Cleanup ──────────────────────────────────────────────────────────────────
 for (const s of streams) s.close()
 for (const tid of createdTotems) await j('DELETE', `/api/totems/${tid}`)

@@ -8,11 +8,15 @@
 // end via death/kick/timeout in TotemQueueService.
 
 import { Channels, buildMessage, parseMessage } from '../../lib/channels.js'
+import { classifyMessage, createTokenBucket } from '../../lib/inputs.js'
 import { createLogger } from '../../lib/logger.js'
 
 const log = createLogger('game.handler')
 
 const HEARTBEAT_INTERVAL_MS = 15_000
+// More rejected messages than this within REJECT_WINDOW_MS closes the socket.
+const REJECT_LIMIT     = 200
+const REJECT_WINDOW_MS = 10_000
 
 export class GameHandler {
   constructor(fastify) {
@@ -47,7 +51,11 @@ export class GameHandler {
     }
     const session = claim.session
 
-    this.connections.set(socket, { sessionId, playerId, alive: true })
+    this.connections.set(socket, {
+      sessionId, playerId, alive: true,
+      take: createTokenBucket(),           // 30 inputs/s sustained, bursts of 40
+      rejects: 0, rejectsSince: Date.now(),
+    })
     log.info({ sessionId, playerId, total: this.connections.size }, 'Player connected')
 
     socket.on('message', (raw) => this.onMessage(socket, raw))
@@ -77,21 +85,15 @@ export class GameHandler {
     if (!meta) return
     const { sessionId, playerId } = meta
 
-    let parsed
-    try {
-      parsed = JSON.parse(raw.toString())
-    } catch {
-      log.warn({ sessionId, playerId }, 'Invalid message format — not JSON')
+    const msg = classifyMessage(raw)
+    if (msg.kind === 'ping') {
+      try { socket.send('{"type":"pong"}') } catch { /* closing */ }
       return
     }
+    if (msg.kind === 'invalid') return this._reject(socket, meta, msg.reason)
+    if (!meta.take()) return this._reject(socket, meta, 'rate limit')
 
-    const { action, state } = parsed
-    if (!action || !state) {
-      log.warn({ sessionId, playerId, parsed }, 'Message missing action or state')
-      return
-    }
-
-    await this._publish(Channels.gameInput(sessionId), 'input', sessionId, playerId, { action, state })
+    await this._publish(Channels.gameInput(sessionId), 'input', sessionId, playerId, { action: msg.action, state: msg.state })
   }
 
   async onClose(socket) {
@@ -124,6 +126,18 @@ export class GameHandler {
   }
 
   // ── Private ─────────────────────────────────────────────────────────────
+
+  /** Drops a message; a client that keeps sending junk or flooding is closed. */
+  _reject(socket, meta, reason) {
+    const now = Date.now()
+    if (now - meta.rejectsSince > REJECT_WINDOW_MS) { meta.rejects = 0; meta.rejectsSince = now }
+    meta.rejects++
+    if (meta.rejects === 1) log.warn({ sessionId: meta.sessionId, playerId: meta.playerId, reason }, 'Input dropped')
+    if (meta.rejects > REJECT_LIMIT) {
+      log.warn({ sessionId: meta.sessionId, playerId: meta.playerId, reason }, 'Too many rejected inputs — closing socket')
+      try { socket.close(1008, 'Too many invalid messages') } catch { /* closing */ }
+    }
+  }
 
   async _publish(channel, type, sessionId, playerId, data) {
     if (!this.publisher) return

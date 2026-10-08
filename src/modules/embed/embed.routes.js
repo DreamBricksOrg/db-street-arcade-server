@@ -159,12 +159,14 @@ export default async function embedRoutes(fastify) {
     reply.raw.write('data: {"type":"connected"}\n\n')
     reply.raw.write(`data: ${JSON.stringify({ type: 'init', totemId, instanceId })}\n\n`)
     hub.add(totemId, instanceId, reply.raw)
+    fastify.opsNotify?.(totemId)
     log.info({ totemId, instanceId, ...instances.totals() }, 'Instance stream opened')
 
     request.raw.on('close', () => {
       hub.remove(totemId, instanceId, reply.raw)
-      Promise.resolve(instances.detach(totemId, instanceId, conn)).catch(err =>
-        log.warn({ err: err.message, totemId, instanceId }, 'Instance detach failed'))
+      Promise.resolve(instances.detach(totemId, instanceId, conn))
+        .then(() => fastify.opsNotify?.(totemId))
+        .catch(err => log.warn({ err: err.message, totemId, instanceId }, 'Instance detach failed'))
       log.info({ totemId, instanceId }, 'Instance stream closed')
     })
   })

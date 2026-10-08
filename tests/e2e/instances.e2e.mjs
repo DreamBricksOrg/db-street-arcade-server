@@ -268,6 +268,44 @@ await scenario('inputs: ação inventada não chega ao jogo, rajada é limitada,
   assert.ok(replies.some(r => r.includes('"pong"')), 'pong')
 })
 
+// ── 10. Operator stream ──────────────────────────────────────────────────────
+await scenario('stream do operador: retrato inicial e push quando alguém entra ou um totem é criado', async () => {
+  const tid = await makeTotem({ maxPlayers: 2 }); createdTotems.push(tid)
+  const ctrl = new AbortController()
+  const res = await fetch(`${BASE}/api/operator/events`, { signal: ctrl.signal })
+  assert.equal(res.status, 200)
+  const events = []
+  ;(async () => {
+    const dec = new TextDecoder(); let buf = ''
+    try {
+      for await (const chunk of res.body) {
+        buf += dec.decode(chunk, { stream: true }); let i
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const line = buf.slice(0, i).split('\n').find(l => l.startsWith('data: ')); buf = buf.slice(i + 2)
+          if (line) events.push(JSON.parse(line.slice(6)))
+        }
+      }
+    } catch { /* aborted */ }
+  })()
+  await sleep(300)
+  assert.equal(events[0]?.type, 'state')
+  assert.ok(events[0].totems[tid], 'retrato inclui o totem')
+
+  const s = await openStream(tid, 'opsA', visitor()); streams.push(s)
+  await join(tid, 'opsA', 'e2e_ops1')
+  await sleep(700)
+  const upd = events.filter(e => e.type === 'totem' && e.totemId === tid).at(-1)
+  assert.ok(upd, 'push do totem')
+  const row = upd.rows.find(r => r.id === 'opsA')
+  assert.equal(row?.sessions, 1, 'sessão nova aparece sem polling')
+  assert.equal(row?.online, true)
+
+  const other = await makeTotem(); createdTotems.push(other)
+  await sleep(500)
+  assert.ok(events.some(e => e.type === 'totems_changed'), 'criação de totem avisa o painel')
+  ctrl.abort()
+})
+
 // ── Cleanup ──────────────────────────────────────────────────────────────────
 for (const s of streams) s.close()
 for (const tid of createdTotems) await j('DELETE', `/api/totems/${tid}`)

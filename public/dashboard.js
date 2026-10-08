@@ -67,8 +67,7 @@ const toastStack = $('toasts')
 let totems         = []
 let filter         = 'all'
 let editingTotemId = null
-let cardPollTimers = {}          // totemId → intervalId
-const liveRows     = new Map()   // totemId → last /instances rows (for stats)
+const liveRows     = new Map()   // totemId → last /instances rows (cards + stats)
 let queueTotem     = null
 let queueTimer     = null
 let queueInstance  = 'default'
@@ -156,8 +155,6 @@ async function loadGames() {
 }
 
 export async function loadTotems() {
-  Object.values(cardPollTimers).forEach(clearInterval)
-  cardPollTimers = {}
   liveRows.clear()
 
   let list
@@ -174,7 +171,7 @@ export async function loadTotems() {
   for (const t of totems) {
     const card = buildTotemCard(t)
     totemList.appendChild(card)
-    startCardPoll(t, card)
+    pollCardState(t, card)   // one-shot; the operator stream keeps it live
   }
 
   updateCounts()
@@ -379,10 +376,51 @@ async function pollCardState(totem, card) {
   renderStats()
 }
 
-function startCardPoll(totem, card) {
-  pollCardState(totem, card)
-  cardPollTimers[totem._id] = setInterval(() => pollCardState(totem, card), 10_000)
+// ── Operator stream (one SSE for the whole dashboard) ─────────────────────────
+// /api/operator/events pushes a snapshot on connect and then only the totem
+// that changed. No per-card polling; a 60s safety refresh runs only while the
+// stream is down.
+
+let stream = null
+
+function applyRows(totemId, rows) {
+  const totem = totems.find(t => t._id === totemId)
+  const card = totemList.querySelector(`[data-id="${totemId}"]`)
+  if (!totem || !card) return
+  if (rows) liveRows.set(totemId, rows); else liveRows.delete(totemId)
+  renderCard(totem, card, rows)
+  renderStats()
+  if (queueTotem?._id === totemId) refreshQueueSoon()
 }
+
+function connectStream() {
+  stream?.close()
+  stream = new EventSource('/api/operator/events')
+  stream.onopen = () => setLive(true)
+  stream.onmessage = (e) => {
+    let msg
+    try { msg = JSON.parse(e.data) } catch { return }
+    if (msg.type === 'state') for (const [id, rows] of Object.entries(msg.totems)) applyRows(id, rows)
+    else if (msg.type === 'totem') applyRows(msg.totemId, msg.rows)
+    else if (msg.type === 'totems_changed') loadTotems()
+  }
+  stream.onerror = async () => {
+    setLive(false)
+    if (stream.readyState !== EventSource.CLOSED) return   // browser is retrying
+    // Closed for good (e.g. 401 after the session expired): check, then retry.
+    const me = await fetch('/api/auth/me').then(r => r.json()).catch(() => null)
+    if (me && !me.operator) { location.href = '/login'; return }
+    setTimeout(connectStream, 5000)
+  }
+}
+
+setInterval(() => {
+  if (stream?.readyState === EventSource.OPEN) return
+  for (const t of totems) {
+    const card = totemList.querySelector(`[data-id="${t._id}"]`)
+    if (card) pollCardState(t, card)
+  }
+}, 60_000)
 
 function renderStats() {
   const physicalN = totems.filter(t => kindOf(t).physical).length
@@ -409,9 +447,6 @@ function setLive(ok) {
   $('live').dataset.state = ok ? 'on' : 'off'
   $('live-text').textContent = ok ? 'ao vivo' : 'sem conexão'
 }
-setInterval(async () => {
-  try { setLive((await fetch('/health')).ok) } catch { setLive(false) }
-}, 15_000)
 
 // ── Queue dialog ──────────────────────────────────────────────────────────────
 
@@ -565,11 +600,21 @@ async function openQueueDialog(totem) {
   await refreshInstanceOptions(totem)
   renderQueue(totem)
 
+  // Changes arrive through the operator stream (refreshQueueSoon); this slow
+  // tick only keeps the waiting players' heartbeat countdown honest.
   clearInterval(queueTimer)
-  queueTimer = setInterval(async () => {
-    await refreshInstanceOptions(totem)
-    renderQueue(totem)
-  }, 5_000)
+  queueTimer = setInterval(refreshQueueSoon, 15_000)
+}
+
+let queueRefresh = null
+function refreshQueueSoon() {
+  if (!queueTotem || queueRefresh) return
+  queueRefresh = setTimeout(async () => {
+    queueRefresh = null
+    if (!queueTotem) return
+    await refreshInstanceOptions(queueTotem)
+    renderQueue(queueTotem)
+  }, 150)
 }
 
 queueDialog.addEventListener('close', () => {
@@ -1087,3 +1132,4 @@ embedCopy.addEventListener('click', () =>
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadGames()
 loadTotems()
+connectStream()

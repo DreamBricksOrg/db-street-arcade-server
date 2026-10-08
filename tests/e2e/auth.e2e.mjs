@@ -58,6 +58,7 @@ await scenario('sem login: API de operação 401, painel redireciona para /login
   assert.equal((await j('GET', '/api/totems')).status, 401)
   assert.equal((await j('POST', '/api/totems', { name: 'x', game: 'snake' })).status, 401)
   assert.equal((await j('GET', '/api/sessions')).status, 401)
+  assert.equal((await j('GET', '/api/operator/events')).status, 401, 'stream do painel exige login')
   const home = await j('GET', '/')
   assert.equal(home.status, 302)
   assert.equal(home.headers.get('location'), '/login')

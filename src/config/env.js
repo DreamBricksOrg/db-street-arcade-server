@@ -48,6 +48,10 @@ export const env = {
   queueSweepMs:     parseInt(process.env.QUEUE_SWEEP_MS   ?? '10000', 10),
   queueJoinRateMax: parseInt(process.env.QUEUE_JOIN_RATE_MAX ?? '8', 10),
 
+  // Finished sessions older than this are deleted by a MongoDB TTL index
+  // (history/stats look back at most 30 days). 0 = keep forever.
+  sessionRetentionDays: parseInt(process.env.SESSION_RETENTION_DAYS ?? '90', 10),
+
   // Operator login (dashboard + operator API). Empty = auth off (development only).
   operatorPassword: process.env.OPERATOR_PASSWORD ?? '',
 

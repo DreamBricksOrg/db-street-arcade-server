@@ -24,6 +24,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # Behind nginx (nginx.conf sends X-Forwarded-For): set TRUST_PROXY=true in
+    # .env so per-IP limits see the visitor, not the proxy.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     restart: unless-stopped
 
   # Published on 27021/6380 (not 27020/6379) — your machine already has

@@ -6,6 +6,8 @@ import fastifyMongodb from '@fastify/mongodb'
 import { MongoClient } from 'mongodb'
 import fp from 'fastify-plugin'
 import { env } from '../config/env.js'
+
+const RETENTION_INDEX = 'sessions_finished_ttl'
 import { createLogger } from '../lib/logger.js'
 
 const log = createLogger('mongodb')
@@ -53,7 +55,29 @@ async function ensureIndexes(db) {
   // Per-totem history (GET /api/totems/:id/stats)
   await sessions.createIndex({ totemId: 1, createdAt: -1 }, { name: 'sessions_totem_created' })
 
+  await ensureRetention(db, sessions, env.sessionRetentionDays)
+
   log.debug('Indexes verified')
+}
+
+/**
+ * Finished sessions expire `days` after endedAt (MongoDB TTL monitor, ~1/min).
+ * Live sessions have endedAt=null and are never touched. Changing the env
+ * value updates the index in place (collMod); 0 removes it.
+ */
+async function ensureRetention(db, sessions, days) {
+  const existing = (await sessions.indexes()).find(i => i.name === RETENTION_INDEX)
+  if (!days || days <= 0) {
+    if (existing) await sessions.dropIndex(RETENTION_INDEX)
+    return
+  }
+  const seconds = Math.round(days * 86_400)
+  if (!existing) {
+    await sessions.createIndex({ endedAt: 1 }, { name: RETENTION_INDEX, expireAfterSeconds: seconds })
+  } else if (existing.expireAfterSeconds !== seconds) {
+    await db.command({ collMod: sessions.collectionName, index: { name: RETENTION_INDEX, expireAfterSeconds: seconds } })
+  }
+  log.debug({ days }, 'Finished-session retention set')
 }
 
 /**

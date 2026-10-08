@@ -7,7 +7,7 @@
 //     path.join(public, req.url) let `GET /../.env` read the bridge's .env,
 //     TOTEM_KEY included).
 //   - /assets/fonts/* and /assets/brand/* fall back to the backend repo's
-//     public/assets, so the brand typeface (Araboto) and marks load on the
+//     public/assets, so self-hosted brand fonts and the marks load on the
 //     cabinet exactly as they do in the embedded iframe.
 
 import fs from 'node:fs'

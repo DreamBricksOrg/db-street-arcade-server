@@ -76,14 +76,10 @@ for (const game of ['snake', 'brick-rush']) {
     await sleep(150)
   }
 
-  await scenario(`${game}: serve o jogo, a fonte Araboto e a marca`, async () => {
+  await scenario(`${game}: serve o jogo e a marca da DreamBricks`, async () => {
     const page = await rawGet(httpPort, '/')
     assert.equal(page.status, 200)
     assert.match(page.type, /text\/html/)
-    const font = await rawGet(httpPort, '/assets/fonts/araboto/araboto-bold.woff2')
-    assert.equal(font.status, 200)
-    assert.equal(font.type, 'font/woff2')
-    assert.equal(font.body.subarray(0, 4).toString(), 'wOF2', 'é um woff2 de verdade')
     const mark = await rawGet(httpPort, '/assets/brand/dreambricks-mark-blue.svg')
     assert.equal(mark.status, 200)
     assert.equal(mark.type, 'image/svg+xml')

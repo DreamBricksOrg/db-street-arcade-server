@@ -13,3 +13,11 @@ desktop.ini
 # Playwright
 test-results/
 playwright-report/
+
+# Commercial fonts: never commit them (the GitHub repo is public).
+# Licensed files go here on the server only — see
+# docs/design_system/assets/fonts/araboto/LICENSE.md
+public/assets/fonts/
+docs/design_system/assets/fonts/**/*.ttf
+docs/design_system/assets/fonts/**/*.otf
+docs/design_system/assets/fonts/**/*.woff2

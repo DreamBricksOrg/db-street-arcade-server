@@ -9,3 +9,7 @@ opencode.json
 .agent/
 *_out.txt
 desktop.ini
+
+# Playwright
+test-results/
+playwright-report/

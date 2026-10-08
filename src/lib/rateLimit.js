@@ -1,42 +1,54 @@
 // src/lib/rateLimit.js
-// Minimal in-memory fixed-window rate limiter for a single Fastify route.
-// No external dependency — sized for a single arcade venue's traffic, not a
-// distributed deployment (state is per-process, not shared via Redis).
+// Fixed-window rate limiter for a Fastify route, keyed by client IP.
+//
+// With Redis the counter is shared by every backend process
+// (`rl:{name}:{ip}:{window}` INCR + PEXPIRE), so N replicas still allow
+// `max` hits per window in total — not N × max. Without Redis (dev), or if
+// Redis errors, it falls back to an in-process counter instead of failing
+// open or blocking everyone.
 
 /**
- * Creates a Fastify preHandler that rejects requests once an IP exceeds
- * `max` hits within `windowMs`.
- * @param {{ windowMs: number, max: number }} opts
- * @returns {(request, reply, done: Function) => void}
+ * @param {{ windowMs: number, max: number, name?: string,
+ *           getRedis?: () => import('ioredis').Redis | null | undefined,
+ *           now?: () => number }} opts
+ * @returns {(request, reply) => Promise<void>} Fastify preHandler
  */
-export function createRateLimiter({ windowMs, max }) {
-  const hits = new Map() // ip → { count, resetAt }
+export function createRateLimiter({ windowMs, max, name = 'default', getRedis = () => null, now = Date.now }) {
+  const hits = new Map() // ip → { count, resetAt }  (fallback)
   let sweepCounter = 0
 
-  return function rateLimitPreHandler(request, reply, done) {
-    const key = request.ip
-    const now = Date.now()
-
-    let entry = hits.get(key)
-    if (!entry || now > entry.resetAt) {
-      entry = { count: 0, resetAt: now + windowMs }
-      hits.set(key, entry)
+  function countLocally(ip, t) {
+    let entry = hits.get(ip)
+    if (!entry || t > entry.resetAt) {
+      entry = { count: 0, resetAt: t + windowMs }
+      hits.set(ip, entry)
     }
-
     entry.count++
-
-    // Opportunistic cleanup so the map doesn't grow unbounded.
     if (++sweepCounter % 200 === 0) {
-      for (const [ip, e] of hits) {
-        if (now > e.resetAt) hits.delete(ip)
-      }
+      for (const [k, e] of hits) if (t > e.resetAt) hits.delete(k)
     }
+    return entry.count
+  }
 
-    if (entry.count > max) {
-      reply.status(429).send({ error: 'Too many requests — try again shortly' })
-      return
+  async function countShared(redis, ip, t) {
+    const key = `rl:${name}:${ip}:${Math.floor(t / windowMs)}`
+    const n = await redis.incr(key)
+    if (n === 1) await redis.pexpire(key, windowMs)
+    return n
+  }
+
+  return async function rateLimitPreHandler(request, reply) {
+    const ip = request.ip
+    const t = now()
+    const redis = getRedis()
+    let count
+    try {
+      count = redis ? await countShared(redis, ip, t) : countLocally(ip, t)
+    } catch {
+      count = countLocally(ip, t)
     }
-
-    done()
+    if (count > max) {
+      return reply.status(429).send({ error: 'Too many requests — try again shortly' })
+    }
   }
 }

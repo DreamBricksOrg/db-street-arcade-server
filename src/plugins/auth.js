@@ -24,13 +24,18 @@ import { createLogger } from '../lib/logger.js'
 
 const log = createLogger('auth')
 
-const loginRateLimit = createRateLimiter({ windowMs: 60_000, max: 10 })
 
 async function authPlugin(fastify) {
   const auth = createOperatorAuth({ password: env.operatorPassword })
   if (!auth.enabled) log.warn('OPERATOR_PASSWORD not set — dashboard and operator API are OPEN (development only)')
 
   const secureCookie = env.publicUrl.startsWith('https://')
+  // 10 attempts/min per IP, counted in Redis across processes when available
+  // (registered after this plugin; looked up at request time).
+  const loginRateLimit = createRateLimiter({
+    name: 'login', windowMs: 60_000, max: 10,
+    getRedis: () => fastify.redisPublisher,
+  })
 
   function isOperator(request) {
     if (!auth.enabled) return true

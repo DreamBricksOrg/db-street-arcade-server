@@ -5,8 +5,8 @@
    (game.js draw()) keeps its own gameplay palette untouched.
    Built on the DreamBricks Design System base tokens (colors/type/spacing) —
    see docs/design_system. */
-/* Brand typeface. Served by the backend under /embed; on the local bridge the
-   URL 404s and Poppins takes over. */
+/* Brand typeface. Served by the backend under /embed and by the local bridge
+   (games/shared/static.js); Poppins only covers missing glyphs. */
 @font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
 @font-face { font-family: 'Araboto'; src: url('/assets/fonts/araboto/araboto-bold.woff2') format('woff2'); font-weight: 600 700; font-display: swap; }

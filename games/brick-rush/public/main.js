@@ -11,7 +11,7 @@ const ctx = canvas.getContext('2d')
 const match = createMatch()
 
 // Canvas text only uses a web font once it is loaded: ask for the brand face
-// up front (no-op where /assets is not served — Poppins takes over).
+// up front (served by the backend and by the local bridge).
 document.fonts?.load('700 24px Araboto').catch(() => {})
 
 // Game config from the server's .env (rounds, timers)

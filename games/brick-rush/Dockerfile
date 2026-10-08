@@ -1,12 +1,18 @@
 # Brick Rush bridge server — plain Node, zero npm dependencies.
+# Build context is the REPO ROOT (see docker-compose.yml): the bridge imports
+# games/shared/static.js and serves the brand fonts/marks from public/assets.
 
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
-COPY server.js ./
-COPY public ./public
+COPY games/shared ./games/shared
+COPY games/brick-rush/server.js ./games/brick-rush/
+COPY games/brick-rush/public ./games/brick-rush/public
+COPY public/assets/fonts ./public/assets/fonts
+COPY public/assets/brand ./public/assets/brand
 
+WORKDIR /app/games/brick-rush
 ENV NODE_ENV=production
 EXPOSE 9100
 EXPOSE 9101/udp

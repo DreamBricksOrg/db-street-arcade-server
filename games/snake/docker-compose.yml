@@ -13,7 +13,9 @@
 
 services:
   snake:
-    build: .
+    build:
+      context: ../..            # repo root: needs games/shared + public/assets
+      dockerfile: games/snake/Dockerfile
     image: street-arcade-snake
     ports:
       - "9000:9000"

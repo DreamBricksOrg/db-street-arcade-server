@@ -4,6 +4,7 @@ import dgram from 'dgram';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { serveStatic } from '../shared/static.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,8 +25,9 @@ try {
   console.warn('[BOOT] No .env file found — relying on shell environment variables');
 }
 
-const HTTP_PORT  = 9000;
-const UDP_PORT   = 9001;
+// Ports are overridable for tests / a second cabinet on the same machine.
+const HTTP_PORT  = Number(process.env.BRIDGE_HTTP_PORT) || 9000;
+const UDP_PORT   = Number(process.env.BRIDGE_UDP_PORT) || 9001;
 const BACKEND_URL = process.env.BACKEND_URL || '';
 // Totem key from the dashboard (Editar → Chave do jogo). Sent as X-Totem-Key on
 // every backend call; required for totems created after keys were introduced.
@@ -151,20 +153,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Static file serving
-  let filePath = path.join(__dirname, 'public', req.url === '/' ? 'index.html' : req.url);
-  const ext = path.extname(filePath);
-  const contentType = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[ext] || 'text/plain';
-
-  fs.readFile(filePath, (err, content) => {
-    if (err) {
-      res.writeHead(err.code === 'ENOENT' ? 404 : 500);
-      res.end(err.code === 'ENOENT' ? 'Not found' : `Server Error: ${err.code}`);
-    } else {
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content, 'utf-8');
-    }
-  });
+  // Static files: only inside public/ (+ the repo's brand fonts/marks).
+  serveStatic(req, res, path.join(__dirname, 'public'));
 });
 
 server.listen(HTTP_PORT, () => {

@@ -7,14 +7,25 @@ Levantamento feito em 07/10/2026 sobre a branch `feat/n-para-n-instancias` (inst
 - **Média**: dívida que custa caro com o tempo (operação, qualidade, desempenho). Planejar para as próximas semanas.
 - **Baixa**: acabamento e conveniência. Fazer quando houver folga.
 
-## Situação (07/10/2026)
+## Situação (08/10/2026)
 
-Os itens de prioridade **alta** e **baixa** foram implementados na branch `feat/n-para-n-instancias` (commits locais `1cdb288` a `a991e60`), com testes: 28 unitários e 4 suítes de ponta a ponta (27 cenários, incluindo dois processos e restart no meio da partida). Os itens de prioridade **média** continuam em aberto, exceto o 11, que saiu junto com o login. O item 18 depende dos arquivos da fonte Araboto.
+Todos os 19 itens foram implementados na branch `feat/n-para-n-instancias`. Alta e baixa ficaram prontos em 07/10; média e a fonte Araboto, em 08/10.
+
+Testes:
+- 31 unitários e 3 do Brick Rush;
+- 4 suítes de ponta a ponta com 30 cenários (inclui dois processos e restart no meio da partida);
+- 11 testes de interface com Playwright, no desktop e no celular.
+
+O CI do GitHub roda tudo isso em cada push na `main` e em cada PR, e ainda testa a imagem Docker.
 
 O que mudou para quem opera:
 - **Senha do painel:** `OPERATOR_PASSWORD` no `.env`, obrigatória em produção.
 - **Chave do totem:** cada totem físico tem uma chave (painel → Editar → Chave do jogo), que vai em `TOTEM_KEY` no `.env` da ponte do jogo (`games/*/server.js`). Totens antigos seguem funcionando sem chave até alguém gerar uma.
 - **Histórico:** botão de gráfico em cada card do painel.
+- **Painel ao vivo:** o painel atualiza por um stream único, sem recarregar e sem polling por card.
+- **Retenção:** sessões encerradas são apagadas depois de `SESSION_RETENTION_DAYS` (90 por padrão).
+- **Atrás do nginx:** `TRUST_PROXY=true`. Em produção, o servidor avisa no log quando falta.
+- **Prontidão:** `GET /health/ready` confere Mongo e Redis, e o `HEALTHCHECK` do Docker usa essa rota.
 
 ## Resumo
 
@@ -25,19 +36,19 @@ O que mudou para quem opera:
 | 3 | Incluir `games/` na imagem Docker | **Alta** | Deploy | ✅ feito |
 | 4 | Atualizar Node 20 (fora de suporte) | **Alta** | Infra | ✅ feito |
 | 5 | Registro de instâncias fora da memória do processo | **Alta** | Escala / resiliência | ✅ feito |
-| 6 | Validar e limitar os inputs do WebSocket | Média | Segurança / estabilidade | pendente |
-| 7 | CI no GitHub (lint + testes) | Média | Qualidade | pendente |
-| 8 | Configuração do ESLint (o `npm run lint` não roda) | Média | Qualidade | pendente |
-| 9 | Health check que olha Mongo e Redis | Média | Operação | pendente |
-| 10 | `TRUST_PROXY` ligado em produção | Média | Operação | pendente |
+| 6 | Validar e limitar os inputs do WebSocket | Média | Segurança / estabilidade | ✅ feito |
+| 7 | CI no GitHub (lint + testes) | Média | Qualidade | ✅ feito |
+| 8 | Configuração do ESLint (o `npm run lint` não roda) | Média | Qualidade | ✅ feito |
+| 9 | Health check que olha Mongo e Redis | Média | Operação | ✅ feito |
+| 10 | `TRUST_PROXY` ligado em produção | Média | Operação | ✅ feito |
 | 11 | Esconder o Swagger em produção | Média | Segurança | ✅ feito (junto com o item 1) |
-| 12 | Limpeza das sessões encerradas no Mongo | Média | Dados | pendente |
-| 13 | Painel: trocar N pollings por um stream único | Média | Desempenho | pendente |
-| 14 | Testes de interface (fluxo do jogador e painel) | Média | Qualidade | pendente |
+| 12 | Limpeza das sessões encerradas no Mongo | Média | Dados | ✅ feito |
+| 13 | Painel: trocar N pollings por um stream único | Média | Desempenho | ✅ feito |
+| 14 | Testes de interface (fluxo do jogador e painel) | Média | Qualidade | ✅ feito |
 | 15 | Limpar arquivos que não são do projeto | Baixa | Repositório | ✅ feito |
 | 16 | Remover os aliases antigos de cor | Baixa | Front-end | ✅ feito |
 | 17 | Lugar na fila sobreviver a fechar a aba | Baixa | Experiência do jogador | ✅ feito |
-| 18 | Fonte oficial Araboto | Baixa | Marca | ⏸ aguardando arquivos da fonte |
+| 18 | Fonte oficial Araboto | Baixa | Marca | ✅ feito |
 | 19 | Histórico e métricas por totem | Baixa | Produto | ✅ feito |
 
 ---
@@ -147,7 +158,8 @@ O que mudou para quem opera:
 
 **O que fazer.** Pedir os arquivos `.woff2` à marca e trocar em `tokens/fonts.css` e no `public/css`.
 
-**Situação.** A fonte não está no repositório nem na máquina de desenvolvimento. Com os arquivos em mãos: colocar em `public/assets/fonts/`, declarar `@font-face` para Araboto Bold (700) e Light (300) em `public/css/tokens.css` e pôr `'Araboto'` na frente de `--font-brand` e `--font-body`. Poppins fica como fallback.
+
+**Feito.** Os TTFs ficam em `docs/design_system/assets/fonts/araboto/`. A web usa um recorte latino em woff2 (cerca de 42 KB por peso) em `public/assets/fonts/araboto/`, declarado em `public/css/tokens.css`. Poppins fica como fallback.
 
 ### 19. Histórico e métricas por totem
 **Problema.** O painel mostra só o agora. Não dá para responder quantas partidas houve no evento, qual o tempo médio de fila ou qual site trouxe mais jogadores.

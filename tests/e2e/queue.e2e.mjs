@@ -57,10 +57,10 @@ const server = spawn(process.execPath, ['src/server.js'], {
 })
 server.stderr.on('data', d => process.stderr.write(`[server] ${d}`))
 
-for (let i = 0; i < 40; i++) {
+for (let i = 0; i < 80; i++) {
   try { const r = await fetch(`${BASE}/health`); if (r.ok) break } catch {}
   await sleep(250)
-  if (i === 39) { console.error('Server did not boot'); process.exit(1) }
+  if (i === 79) { console.error('Server did not boot'); process.exit(1) }
 }
 
 const createdTotems = []

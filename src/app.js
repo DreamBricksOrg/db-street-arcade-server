@@ -2,7 +2,7 @@
 // Fastify application factory.
 // Boot order: Static → Redis → MongoDB → WebSocket → UDP → Session (F7)
 
-import Fastify from 'fastify'
+import Fastify, { LogController } from 'fastify'
 import { env } from './config/env.js'
 import { logger, createLogger } from './lib/logger.js'
 import redisPlugin, { isRedisReachable } from './plugins/redis.js'
@@ -29,7 +29,7 @@ const log = createLogger('app')
 export async function buildApp() {
   const app = Fastify({
     loggerInstance: logger,
-    disableRequestLogging: env.isProd,
+    logController: new LogController({ disableRequestLogging: env.isProd }),
     // request.ip honours X-Forwarded-For only behind a known proxy (nginx)
     trustProxy: env.trustProxy,
   })

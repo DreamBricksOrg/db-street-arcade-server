@@ -183,7 +183,7 @@ Pontos levantados depois dos 19 itens. Todos na branch `feat/n-para-n-instancias
 | 24 | Limites por IP só na memória de cada processo | Média | ✅ feito: Redis |
 | 25 | Araboto e testes na ponte do totem físico | Média | ✅ feito, e corrigida uma falha de segurança |
 | 26 | Documentação desatualizada | Média | ✅ feito |
-| 27 | Uma senha só para todos os operadores (sem usuários nem auditoria) | Baixa | pendente |
+| 27 | Uma senha só para todos os operadores (sem usuários nem auditoria) | Baixa | ✅ resolvido pelo item 34 (usuários + atividade) |
 | 28 | Merge na `main` e limpeza do ambiente local de testes | Baixa | aguardando seus testes |
 
 ### O que mudou

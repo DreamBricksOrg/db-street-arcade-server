@@ -67,7 +67,7 @@ visually rather than invented wholesale.
   white. No secondary hue appears anywhere in the source (not even in the
   mascot, which is monochrome blue). Neutrals and semantic colors used in this
   system are intentional additions layered in to make a real UI possible.
-- **Type**: one typeface family (Araboto/Poppins) used in exactly two weights
+- **Type**: one typeface family (Poppins) used in exactly two weights
   in the brandbook — Bold for the wordmark and headlines, Light for body/support
   text. The wordmark itself is always bold, rounded, geometric.
 - **Logo shape language**: three overlapping puffy cloud lobes (a wordplay on
@@ -132,10 +132,8 @@ visually rather than invented wholesale.
 
 ## Caveats / intentional additions
 
-- **Font substitution**: brandbook specifies "Araboto" (Bold + Light only). Araboto
-  is a commercial font not on Google Fonts — substituted with **Poppins**, the
-  closest widely-available geometric-rounded match. Ask the brand owner for the
-  real Araboto `.woff2`/`.ttf` files and swap them into `tokens/fonts.css`.
+- **Typeface**: **Poppins** (Google Fonts, OFL) is the official brand font,
+  Bold + Light as in the brandbook, plus the UI weights in between.
 - **Neutrals & semantic colors** (grays, success/warning/danger) are not in the
   brandbook — derived in oklch from the brand blue to stay harmonious.
 - **Components**: the brandbook defines no component library, so a standard set

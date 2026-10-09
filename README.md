@@ -66,7 +66,7 @@ npm run test:ui     # Playwright (desktop + celular): precisa de Mongo + Redis
 
 ## Fontes
 
-O brandbook pede a **Araboto**, que é comercial e ainda **não foi licenciada**. O sistema usa a Poppins. Não commite arquivos de fonte: este repositório é público. O que foi levantado e como trocar depois da compra estão em [`docs/design_system/assets/fonts/araboto/LICENSE.md`](docs/design_system/assets/fonts/araboto/LICENSE.md).
+A fonte oficial é a **Poppins** (com IBM Plex Mono para números e códigos), carregada do Google Fonts. Não commite arquivos de fonte: este repositório é público.
 
 ## Documentação
 

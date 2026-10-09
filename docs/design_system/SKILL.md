@@ -11,7 +11,7 @@ If the user invokes this skill without any other guidance, ask them what they wa
 ## Quick facts
 - Brand: DreamBricks — a project dashboard product ("a website that shows a dashboard with information about the projects that are happening or happened").
 - Colors: deep ink blue `#034a5d`, primary blue `#42b0d5`, bright blue `#52cdef`, pale tint `#c7f1ff`, white. See `tokens/colors.css`.
-- Type: Poppins (substitute for the brandbook's proprietary "Araboto" — ask for real font files if precision matters). See `tokens/typography.css`.
+- Type: Poppins (the brand typeface; Bold + Light). See `tokens/typography.css`.
 - Logo: cloud wordmark, in `assets/logos/` (horizontal/vertical × on-blue/on-light/black). Mascot: J0Bson the robot + a black cat, in `assets/illustrations/`.
 - Components: `components/` (core, forms, navigation, layout, feedback). Dashboard UI kit: `ui_kits/dashboard/`.
 - Full guidance (content tone, visual foundations, iconography): `readme.md`.

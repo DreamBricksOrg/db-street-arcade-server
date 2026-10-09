@@ -72,12 +72,8 @@
 }
 
 /* DreamBricks — Typography tokens
-   Brandbook specifies "Araboto" (Bold + Light) as the brand typeface — a
-   proprietary geometric-rounded sans not available outside the source
-   foundry. Substituted here with Poppins (Google Fonts), the closest
-   widely-available match in proportions and geometric roundness.
-   ⚠️ FLAG: ask the brand owner for the real Araboto webfont files
-   (.woff2/.woff/.ttf) to swap into tokens/fonts.css when available. */
+   Poppins (Google Fonts, OFL) is the brand typeface: Bold for the wordmark
+   and headlines, Light for body/support text. IBM Plex Mono for data. */
 
 :root {
   --font-brand: 'Poppins', 'Century Gothic', ui-sans-serif, sans-serif;

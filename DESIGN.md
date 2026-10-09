@@ -191,7 +191,7 @@ All three are DreamBricks' own semantic tokens (`--db-success-500` / `--db-dange
 **Body Font:** 'Poppins', sans-serif
 **Label/Mono Font:** 'IBM Plex Mono', monospace (same family as Display, used at smaller sizes for meta labels)
 
-Both are the DreamBricks Design System's own font tokens (`--font-body` / `--font-mono`). Poppins (OFL, Google Fonts) stands in for the brandbook's **Araboto**, a commercial typeface the project has no licence for yet — see `docs/design_system/assets/fonts/araboto/LICENSE.md` for the findings and how to switch once it is bought. Never commit font files: the GitHub repo is public and `.gitignore` blocks them. IBM Plex Mono is DreamBricks' own data/label font.
+Both are the DreamBricks Design System's own font tokens (`--font-body` / `--font-mono`). Poppins (OFL, Google Fonts) is the official brand typeface. Never commit font files: the GitHub repo is public and `.gitignore` blocks them. IBM Plex Mono is DreamBricks' own data/label font.
 
 **Character:** A single contrast pair rather than two families: Poppins carries every sentence a human reads, IBM Plex Mono marks anything that is system state — IDs, timers, panel titles, uppercase labels. The pairing itself is the "control room" read; switching fonts mid-UI is how the system tells you "this is a live value, not prose."
 

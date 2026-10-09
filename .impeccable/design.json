@@ -28,7 +28,7 @@
       "subtitle": { "displayName": "Subtitle", "purpose": "Section headers, error-screen titles." },
       "headline": { "displayName": "Headline", "purpose": "Modal/section secondary heads." },
       "title": { "displayName": "Title", "purpose": "Card titles, totem names, button labels (Poppins)." },
-      "body": { "displayName": "Body", "purpose": "Inputs, descriptions, hints (Poppins). Poppins stands in for the brand's Araboto until it is licensed." },
+      "body": { "displayName": "Body", "purpose": "Inputs, descriptions, hints (Poppins)." },
       "caption": { "displayName": "Caption", "purpose": "QR captions, form hints, session meta." },
       "label": { "displayName": "Label", "purpose": "Field and tab labels." },
       "mono-label": { "displayName": "Mono Label", "purpose": "Panel titles, queue section heads, status codes (IBM Plex Mono)." },
@@ -131,7 +131,7 @@
   ],
   "narrative": {
     "northStar": "The Control Room, on DreamBricks Blue",
-    "overview": "Street Arcade is built on the DreamBricks Design System — light, blue-tinted slate surfaces, thin 1px borders and one confident accent (DreamBricks Blue) doing all the 'this is interactive' signalling — merged with the two things the brand has no answer for: monospace for anything that is live system data, and the Xbox ABXY palette on the phone gamepad.\n\nThe operator dashboard is the DS UI kit shell: ink sidebar with the wordmark and J0Bson, a white top bar, stat cards, underline tabs, quiet cards with a whisper of shadow, native dialogs and card toasts, kept live by one operator stream. Player screens share one centered composition with the mark or the waving mascot. Reliable first, playful second: personality shows up in motion and state (queue position bump, pulsing live dot, tactile face buttons), never in decoration.\n\nTypography is Poppins (standing in for the brandbook's Araboto, which is not licensed yet) for everything a human reads and IBM Plex Mono for every system fact.",
+    "overview": "Street Arcade is built on the DreamBricks Design System — light, blue-tinted slate surfaces, thin 1px borders and one confident accent (DreamBricks Blue) doing all the 'this is interactive' signalling — merged with the two things the brand has no answer for: monospace for anything that is live system data, and the Xbox ABXY palette on the phone gamepad.\n\nThe operator dashboard is the DS UI kit shell: ink sidebar with the wordmark and J0Bson, a white top bar, stat cards, underline tabs, quiet cards with a whisper of shadow, native dialogs and card toasts, kept live by one operator stream. Player screens share one centered composition with the mark or the waving mascot. Reliable first, playful second: personality shows up in motion and state (queue position bump, pulsing live dot, tactile face buttons), never in decoration.\n\nTypography is Poppins, the brand typeface, for everything a human reads and IBM Plex Mono for every system fact.",
     "keyCharacteristics": [
       "Light, blue-tinted slate base; never dark-mode-by-default; the ink sidebar is the one dark surface",
       "One accent: DreamBricks Blue for focus/active; Blue 700 for filled buttons and chart bars",
@@ -159,7 +159,7 @@
       "Don't add a resting shadow to anything that isn't a card, and never a zero-offset coloured glow.",
       "Don't use emoji or Unicode glyphs as icons.",
       "Don't reach for SweetAlert or window.confirm; use the confirm dialog and the DS toast.",
-      "Don't commit font files: the repo is public and Araboto is not licensed."
+      "Don't commit font files: the repo is public; Poppins and IBM Plex Mono load from Google Fonts."
     ]
   }
 }

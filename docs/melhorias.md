@@ -9,7 +9,7 @@ Levantamento feito em 07/10/2026 sobre a branch `feat/n-para-n-instancias` (inst
 
 ## Situação (08/10/2026)
 
-Dos 19 itens, 18 foram implementados na branch `feat/n-para-n-instancias`. Alta e baixa ficaram prontos em 07/10, e média em 08/10. A fonte Araboto (item 18) foi aplicada e depois retirada por falta de licença; veja o item 23 na segunda rodada, no fim deste documento.
+Os 19 itens foram resolvidos na branch `feat/n-para-n-instancias`. Alta e baixa ficaram prontos em 07/10, e média em 08/10. Na fonte (item 18), a decisão foi manter a Poppins como fonte oficial.
 
 Testes:
 - 38 unitários e 3 do Brick Rush;
@@ -50,7 +50,7 @@ O que mudou para quem opera:
 | 15 | Limpar arquivos que não são do projeto | Baixa | Repositório | ✅ feito |
 | 16 | Remover os aliases antigos de cor | Baixa | Front-end | ✅ feito |
 | 17 | Lugar na fila sobreviver a fechar a aba | Baixa | Experiência do jogador | ✅ feito |
-| 18 | Fonte oficial Araboto | Baixa | Marca | ⏸ sem licença: usando Poppins |
+| 18 | Fonte oficial da marca | Baixa | Marca | ✅ decidido: Poppins é a fonte oficial |
 | 19 | Histórico e métricas por totem | Baixa | Produto | ✅ feito |
 
 ---
@@ -155,13 +155,8 @@ O que mudou para quem opera:
 
 **O que fazer.** Guardar no `localStorage` com validade curta (por exemplo 10 minutos) e reaproveitar ao voltar para o mesmo totem e a mesma instância.
 
-### 18. Fonte oficial Araboto
-**Problema.** O brandbook pede Araboto, e o design system usa Poppins como substituta, porque a fonte é comercial.
-
-**O que fazer.** Pedir os arquivos `.woff2` à marca e trocar em `tokens/fonts.css` e no `public/css`.
-
-
-**Situação (08/10/2026).** Foi aplicada e depois **retirada**: os arquivos são de um kit da MyFonts com "All Rights Reserved" do designer, sem licença para uso, e o repositório é público. O sistema voltou para a Poppins e o `.gitignore` bloqueia arquivos de fonte. Levantamento, onde comprar e como religar: `docs/design_system/assets/fonts/araboto/LICENSE.md`.
+### 18. Fonte oficial da marca
+**Decisão (09/10/2026).** A Poppins (Google Fonts, licença OFL) é a fonte oficial do sistema, com IBM Plex Mono para números e códigos. Não há arquivos de fonte no repositório.
 
 ### 19. Histórico e métricas por totem
 **Problema.** O painel mostra só o agora. Não dá para responder quantas partidas houve no evento, qual o tempo médio de fila ou qual site trouxe mais jogadores.
@@ -179,9 +174,9 @@ Pontos levantados depois dos 19 itens. Todos na branch `feat/n-para-n-instancias
 | 20 | Dependências com falhas de segurança (`npm audit`: 11, sendo 7 altas) | **Alta** | ✅ feito: 0 alertas |
 | 21 | CI nunca rodou no GitHub | **Alta** | aguardando abrir o PR |
 | 22 | Configurar produção (senha, `TRUST_PROXY`, chaves dos totens antigos) | **Alta** | ✅ ferramentas prontas; falta aplicar no servidor |
-| 23 | Licença da Araboto | **Alta** | ✅ verificado: sem licença; voltamos para a Poppins |
+| 23 | Licença da fonte do brandbook | **Alta** | ✅ resolvido: Poppins é a fonte oficial |
 | 24 | Limites por IP só na memória de cada processo | Média | ✅ feito: Redis |
-| 25 | Araboto e testes na ponte do totem físico | Média | ✅ feito, e corrigida uma falha de segurança |
+| 25 | Testes na ponte do totem físico | Média | ✅ feito, e corrigida uma falha de segurança |
 | 26 | Documentação desatualizada | Média | ✅ feito |
 | 27 | Uma senha só para todos os operadores (sem usuários nem auditoria) | Baixa | ✅ resolvido pelo item 34 (usuários + atividade) |
 | 28 | Merge na `main` e limpeza do ambiente local de testes | Baixa | aguardando seus testes |
@@ -195,7 +190,7 @@ Pontos levantados depois dos 19 itens. Todos na branch `feat/n-para-n-instancias
   - `npm run ops:totem-keys` lista os totens sem chave e, com `--apply`, gera as chaves.
   - O painel marca com **Sem chave** os totens físicos sem chave.
   - Ninguém mexeu no banco nem no `.env` de produção: aplicar é com a equipe.
-- **23, Araboto.** Os arquivos dizem "© Abd El-Rahman Farahat, All Rights Reserved" e vêm de um kit de webfont da MyFonts; o "grátis" do Fontmirror não vale. O repositório no GitHub é **público**, então os arquivos ficaram expostos. Foram retirados dos arquivos **e do histórico** da branch (reescrita com push forçado), e o sistema voltou para a Poppins. O GitHub ainda serve o commit antigo pelo SHA até o suporte apagar (detalhes no `LICENSE.md` da fonte).
+- **23, fonte.** A fonte comercial do brandbook saiu do projeto, inclusive do histórico da branch. A Poppins ficou como fonte oficial.
 - **24, limites.** Entrada na fila e tentativas de login contam no Redis (`rl:{nome}:{ip}:{janela}`), somando todos os processos. Sem Redis, cada processo conta sozinho.
 - **25, pontes.** A ponte local (`games/*/server.js`) servia qualquer arquivo: `GET /../.env` devolvia o `.env` da máquina, com a chave do totem. Isso foi confirmado no código antigo. Agora `games/shared/static.js` só serve o que está em `public/`, mais a marca do repositório. As portas aceitam `BRIDGE_HTTP_PORT`/`BRIDGE_UDP_PORT`, as imagens Docker das pontes usam Node 22 com contexto na raiz do repositório, e `tests/e2e/bridges.e2e.mjs` testa as duas pontes.
 - **26, documentação.** Foram atualizados `CLAUDE.md`, `README.md` (que só falava de `npm run dev`), `DESIGN.md` (de volta à Poppins) e o arquivo de apoio do impeccable (`.impeccable/design.json`), que ainda tinha a cor laranja aposentada e componentes antigos.

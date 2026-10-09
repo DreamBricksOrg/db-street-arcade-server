@@ -14,9 +14,8 @@ desktop.ini
 test-results/
 playwright-report/
 
-# Commercial fonts: never commit them (the GitHub repo is public).
-# Licensed files go here on the server only — see
-# docs/design_system/assets/fonts/araboto/LICENSE.md
+# Font files: never commit them (the GitHub repo is public).
+# Poppins and IBM Plex Mono load from Google Fonts.
 public/assets/fonts/
 docs/design_system/assets/fonts/**/*.ttf
 docs/design_system/assets/fonts/**/*.otf

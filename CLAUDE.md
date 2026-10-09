@@ -27,7 +27,7 @@ Backend Node.js + Fastify para um sistema de arcade real-time chamado **Street A
 - **Docs**: `@fastify/swagger` + `@fastify/swagger-ui`
 - **Dev**: `node --watch` (sem nodemon)
 - **Qualidade**: ESLint 9 flat config (`npm run lint`, CI com `--max-warnings=0`), `node:test`, Playwright 1.63 (UI), GitHub Actions (`.github/workflows/ci.yml`)
-- **Fontes**: Poppins (OFL) + IBM Plex Mono via Google Fonts. A Araboto do brandbook **não está licenciada**; os arquivos foram retirados do repositório (que é público). Veja `docs/design_system/assets/fonts/araboto/LICENSE.md`. **Nunca commitar arquivos de fonte** (o `.gitignore` bloqueia).
+- **Fontes**: Poppins (OFL, fonte oficial da marca) + IBM Plex Mono via Google Fonts. **Nunca commitar arquivos de fonte** (o repositório é público; o `.gitignore` bloqueia).
 
 ---
 

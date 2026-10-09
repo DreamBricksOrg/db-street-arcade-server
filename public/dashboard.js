@@ -1,5 +1,7 @@
 // public/dashboard.js
 // Operator dashboard — totem CRUD, live occupancy, queue control, embed codes.
+// The other sections (Evento, Apelidos, Usuários, Atividade) live in
+// dashboard-views.js and reuse the helpers exported here.
 //
 //   - CRUD against /api/totems
 //   - Each card polls /api/totems/:id/instances (physical totem + open iframes)
@@ -11,7 +13,7 @@
 const API = '/api/totems'
 
 const $ = (id) => document.getElementById(id)
-const icon = (name, cls = 'ico') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`
+export const icon = (name, cls = 'ico') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const totemList   = $('totem-list')
@@ -31,6 +33,9 @@ const formDuration   = $('tf-duration')
 const formMaxQueue   = $('tf-max-queue')
 const formGame       = $('tf-game')
 const formGameConfig = $('tf-game-config')
+const configBox      = $('tf-config')
+const configFields   = $('tf-config-fields')
+const configAdv      = $('tf-config-adv')
 const btnSaveTotem   = $('btn-save-totem')
 const keyField       = $('tf-key-field')
 const keyValue       = $('tf-key')
@@ -72,11 +77,12 @@ let queueTotem     = null
 let queueTimer     = null
 let queueInstance  = 'default'
 let embedTotem     = null
+let configSchema   = null    // form description of the selected game's settings
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 /** fetch that sends the operator back to /login when the session expired. */
-async function api(url, options) {
+export async function api(url, options) {
   const res = await fetch(url, options)
   if (res.status === 401) {
     location.href = '/login'
@@ -85,7 +91,7 @@ async function api(url, options) {
   return res
 }
 
-async function apiFetch(url, options = {}) {
+export async function apiFetch(url, options = {}) {
   // Content-Type only with a body: Fastify rejects an empty JSON body (400),
   // which broke DELETE /api/totems/:id, queue/clear and game-key.
   const res = await api(url, {
@@ -105,7 +111,7 @@ function instQs(instanceId, sep = '?') {
 
 // ── Toast / Confirm (DreamBricks feedback components) ─────────────────────────
 
-function toast(title, { tone = 'success', message = '', ms = 3200 } = {}) {
+export function toast(title, { tone = 'success', message = '', ms = 3200 } = {}) {
   const el = document.createElement('div')
   el.className = `db-toast db-toast--${tone}`
   el.setAttribute('role', tone === 'danger' ? 'alert' : 'status')
@@ -125,7 +131,7 @@ function toast(title, { tone = 'success', message = '', ms = 3200 } = {}) {
 }
 
 /** Resolves true when the operator confirms. Cancel is focused by default. */
-function confirmAction({ title, message, confirmLabel }) {
+export function confirmAction({ title, message, confirmLabel }) {
   confirmTitle.textContent = title
   confirmDesc.textContent  = message
   confirmOk.textContent    = confirmLabel
@@ -229,7 +235,7 @@ function buildTotemCard(totem) {
   const name     = escHtml(totem.name)
 
   const card = document.createElement('article')
-  card.className  = 'db-card db-card--hover totem'
+  card.className  = `db-card db-card--hover totem${totem.paused ? ' is-paused' : ''}`
   card.dataset.id = totem._id
   card.setAttribute('aria-label', totem.name)
 
@@ -242,6 +248,7 @@ function buildTotemCard(totem) {
           ${physical ? `<span class="db-tag" title="Endereço UDP da máquina">${escHtml(totem.ip)}:${totem.udpPort}</span>` : ''}
           ${physical && !totem.gameKey ? `<span class="db-badge db-badge--warning" data-tip="Qualquer um com o ID do totem pode encerrar partidas. Edite e gere a chave.">${icon('key')}Sem chave</span>` : ''}
           ${web ? `<span class="db-badge db-badge--brand">${icon('globe')}Web · ${escHtml(totem.game)}</span>` : ''}
+          ${totem.paused ? `<span class="db-badge db-badge--warning" data-tip="Ninguém novo entra. Quem está jogando termina a partida.">${icon('pause')}Pausado</span>` : ''}
         </div>
       </div>
       <span data-status><span class="db-badge db-badge--dot">Verificando…</span></span>
@@ -277,7 +284,7 @@ function buildTotemCard(totem) {
       <div class="totem__tools">
         <button class="db-icon-btn" type="button" data-action="stats" data-tip="Histórico" aria-label="Histórico de ${name}"><svg><use href="#i-chart"/></svg></button>
         <button class="db-icon-btn" type="button" data-action="edit" data-tip="Editar" aria-label="Editar ${name}"><svg><use href="#i-edit"/></svg></button>
-        <button class="db-icon-btn" type="button" data-action="clear" data-tip="Limpar fila" aria-label="Limpar fila de ${name}"><svg><use href="#i-eraser"/></svg></button>
+        <button class="db-icon-btn" type="button" data-action="pause" data-tip="${totem.paused ? 'Retomar' : 'Pausar'}" aria-label="${totem.paused ? 'Retomar' : 'Pausar'} ${name}" aria-pressed="${Boolean(totem.paused)}"><svg><use href="#i-${totem.paused ? 'play' : 'pause'}"/></svg></button>
         <button class="db-icon-btn db-icon-btn--danger" type="button" data-action="delete" data-tip="Excluir" aria-label="Excluir ${name}"><svg><use href="#i-trash"/></svg></button>
       </div>
     </div>`
@@ -288,7 +295,7 @@ function buildTotemCard(totem) {
     'stats':     () => openStatsDialog(totem),
     'qr':        () => openQrDialog(totem),
     'edit':      () => startEdit(totem),
-    'clear':     () => clearTotemQueue(totem),
+    'pause':     () => togglePause(totem),
     'delete':    () => deleteTotem(totem),
     'copy-id':   () => copy(totem._id, 'ID copiado'),
     'copy-link': () => copy(entryUrl, 'Link de entrada copiado', 'Cole no navegador do celular para testar.'),
@@ -479,6 +486,12 @@ function describeDevice(meta) {
   return parts.join('')
 }
 
+/** Player line: the nickname when there is one, the technical id beside it. */
+function whoLine(nickname, pid) {
+  if (!nickname) return `<p class="q-pid" title="${escHtml(pid)}">${escHtml(shortPid(pid))}</p>`
+  return `<p class="q-who"><span class="q-nick">${escHtml(nickname)}</span><span class="q-pid" title="${escHtml(pid)}">${escHtml(shortPid(pid))}</span></p>`
+}
+
 function shortPid(pid) {
   const s = String(pid)
   return s.length > 14 ? `${s.slice(0, 14)}…` : s
@@ -496,10 +509,12 @@ async function renderQueue(totem) {
     return
   }
 
-  const { queue = [], sessions = [], maxQueueSize = null } = data
+  const { queue = [], sessions = [], maxQueueSize = null, paused = false } = data
   const cap = maxQueueSize ? ` de ${maxQueueSize}` : ''
+  $('queue-clear').disabled = queue.length === 0
 
   const summary = `
+    ${paused ? `<div class="db-callout db-callout--warning" style="margin-bottom:12px">${icon('pause')}<span>Totem pausado: ninguém novo entra e a fila espera. Retome pelo cartão do totem.</span></div>` : ''}
     <div class="queue-sum">
       <span class="db-badge db-badge--success db-badge--dot">${sessions.length} jogando</span>
       <span class="db-badge ${queue.length ? 'db-badge--warning' : ''} db-badge--dot">${queue.length}${cap} na fila</span>
@@ -517,7 +532,7 @@ async function renderQueue(totem) {
       <div class="q-row q-row--playing">
         <span class="q-pos" title="${s.status === 'active' ? 'Jogando' : 'Reservada'}">${icon('gamepad')}</span>
         <div class="q-main">
-          <p class="q-pid" title="${escHtml(pid)}">${escHtml(shortPid(pid))}</p>
+          ${whoLine(s.nickname, pid)}
           <p class="q-meta">
             <span>${s.status === 'active' ? 'jogando' : 'reservada, aguardando o celular'}</span>
             <span class="db-mono" title="${escHtml(String(s.sessionId))}">sessão ${escHtml(String(s.sessionId).slice(0, 8))}</span>
@@ -541,7 +556,7 @@ async function renderQueue(totem) {
         <div class="q-row">
           <span class="q-pos">${i + 1}</span>
           <div class="q-main">
-            <p class="q-pid" title="${escHtml(pid)}">${escHtml(shortPid(pid))}</p>
+            ${whoLine(item?.nickname, pid)}
             <p class="q-meta">
               ${eta ? `<span>${icon('clock')}~${Math.max(1, Math.ceil(eta / 60000))} min</span>` : ''}
               ${ghost ? `<span data-warn>${icon('alert')}${ttl < 0 ? 'inativo' : `sai em ${ttl}s`}</span>` : ''}
@@ -620,6 +635,13 @@ function refreshQueueSoon() {
   }, 150)
 }
 
+$('queue-clear').addEventListener('click', async () => {
+  const totem = queueTotem
+  if (!totem) return
+  queueDialog.close()
+  await clearTotemQueue(totem, queueInstance)
+})
+
 queueDialog.addEventListener('close', () => {
   clearInterval(queueTimer)
   queueTimer = null
@@ -696,7 +718,28 @@ async function deleteTotem(totem) {
   }
 }
 
-async function clearTotemQueue(totem) {
+async function togglePause(totem) {
+  const pause = !totem.paused
+  if (pause) {
+    const ok = await confirmAction({
+      title: `Pausar "${totem.name}"?`,
+      message: 'Ninguém novo entra e a fila fica parada. Quem está jogando termina a partida normalmente. Use para manutenção ou intervalo.',
+      confirmLabel: 'Pausar totem',
+    })
+    if (!ok) return
+  }
+  try {
+    await apiFetch(`${API}/${totem._id}/pause`, { method: 'POST', body: JSON.stringify({ paused: pause }) })
+    await loadTotems()
+    toast(pause ? 'Totem pausado' : 'Totem retomado', {
+      message: pause ? 'A entrada está fechada até você retomar.' : 'As vagas livres já chamaram a fila.',
+    })
+  } catch (err) {
+    toast(pause ? 'Não deu para pausar' : 'Não deu para retomar', { tone: 'danger', message: err.message })
+  }
+}
+
+async function clearTotemQueue(totem, instanceId = 'default') {
   const ok = await confirmAction({
     title: `Limpar a fila de "${totem.name}"?`,
     message: 'Quem está esperando perde o lugar. Quem já está jogando continua.',
@@ -704,7 +747,7 @@ async function clearTotemQueue(totem) {
   })
   if (!ok) return
   try {
-    await apiFetch(`${API}/${totem._id}/queue/clear`, { method: 'POST' })
+    await apiFetch(`${API}/${totem._id}/queue/clear${instQs(instanceId)}`, { method: 'POST' })
     await loadTotems()
     toast('Fila limpa', { message: totem.name })
   } catch (err) {
@@ -725,7 +768,6 @@ function startEdit(totem) {
   formName.value       = totem.name
   formUrl.value        = totem.ip ? `${totem.ip}:${totem.udpPort}` : ''
   formGame.value       = totem.game ?? ''
-  formGameConfig.value = totem.gameConfig ? JSON.stringify(totem.gameConfig, null, 2) : ''
   formMaxPlayers.value = String(totem.maxPlayers ?? 2)
   formDuration.value   = String(totem.sessionDurationMs ?? 1800000)
   formMaxQueue.value   = totem.maxQueueSize != null ? String(totem.maxQueueSize) : ''
@@ -735,12 +777,17 @@ function startEdit(totem) {
   keyValue.textContent = totem.gameKey ?? 'Sem chave: as chamadas do jogo estão abertas. Gere uma para proteger.'
   keyValue.dataset.empty = String(!totem.gameKey)
   openTotemDialog()
+  loadConfigForm(totem.game, totem.gameConfig)
 }
 
 function resetForm() {
   editingTotemId = null
   keyField.hidden = true
   totemForm.reset()
+  configSchema = null
+  configBox.hidden = true
+  configFields.replaceChildren()
+  configAdv.open = false
   formMaxPlayers.value = '2'
   formDuration.value   = '1800000'
   totemFormTitle.textContent = 'Novo totem'
@@ -782,13 +829,10 @@ totemForm.addEventListener('submit', async (e) => {
   }
 
   let gameConfig = null
-  if (formGameConfig.value.trim()) {
-    try {
-      gameConfig = JSON.parse(formGameConfig.value)
-      if (typeof gameConfig !== 'object' || Array.isArray(gameConfig) || gameConfig === null) throw new Error()
-    } catch {
-      return showFormError('A configuração do jogo precisa ser um objeto JSON, ex.: { "gameSpeed": 6 }', formGameConfig)
-    }
+  if (game) {
+    const result = readConfigForm()
+    if (result.error) return showFormError(result.error, result.field)
+    gameConfig = result.config
   }
 
   const payload = { name, ip, udpPort, game, gameConfig, maxPlayers, sessionDurationMs, maxQueueSize }
@@ -811,6 +855,122 @@ totemForm.addEventListener('submit', async (e) => {
   }
 })
 
+// ── Game settings form ────────────────────────────────────────────────────────
+// games/<game>/config.schema.json describes the settings; the operator fills a
+// form instead of writing JSON. Durations are shown in seconds and stored in ms
+// (field.scale). Keys the form doesn't know stay in "JSON avançado".
+
+async function loadConfigForm(game, current = null) {
+  configSchema = null
+  configFields.replaceChildren()
+  formGameConfig.value = ''
+  configBox.hidden = !game
+  if (!game) return
+
+  const schema = await apiFetch(`/api/games/${encodeURIComponent(game)}/config-schema`).catch(() => null)
+  if (formGame.value !== game) return   // the operator switched games meanwhile
+  configSchema = schema
+  const known = new Set((schema?.fields ?? []).map(f => f.key))
+  const extra = Object.fromEntries(Object.entries(current ?? {}).filter(([k]) => !known.has(k)))
+  formGameConfig.value = Object.keys(extra).length ? JSON.stringify(extra, null, 2) : ''
+  configAdv.open = !schema || Object.keys(extra).length > 0
+
+  for (const f of schema?.fields ?? []) configFields.appendChild(configField(f, current?.[f.key]))
+}
+
+function configField(f, value) {
+  const id = `cfg-${f.key}`
+  const wrap = document.createElement('div')
+  wrap.className = 'db-field'
+  const label = document.createElement('label')
+  label.className = 'db-label'
+  label.htmlFor = id
+  label.textContent = f.label
+  wrap.appendChild(label)
+
+  let input
+  if (f.type === 'boolean') {
+    input = document.createElement('select')
+    input.className = 'db-select'
+    const def = f.default ? 'ligado' : 'desligado'
+    for (const [v, text] of [['', `Padrão do jogo (${def})`], ['true', 'Ligado'], ['false', 'Desligado']]) {
+      const o = document.createElement('option')
+      o.value = v
+      o.textContent = text
+      input.appendChild(o)
+    }
+    input.value = typeof value === 'boolean' ? String(value) : ''
+  } else {
+    const scale = f.scale ?? 1
+    input = document.createElement('input')
+    input.className = 'db-input'
+    input.type = 'number'
+    input.inputMode = 'decimal'
+    if (f.min !== undefined) input.min = f.min
+    if (f.max !== undefined) input.max = f.max
+    input.step = f.step ?? 'any'
+    if (f.default !== undefined) input.placeholder = String(f.default)
+    if (typeof value === 'number') input.value = String(value / scale)
+  }
+  input.id = id
+  input.dataset.key = f.key
+
+  if (f.unit && f.type !== 'boolean') {
+    const row = document.createElement('div')
+    row.className = 'cfg__unit'
+    const unit = document.createElement('span')
+    unit.textContent = f.unit
+    row.append(input, unit)
+    wrap.appendChild(row)
+  } else {
+    wrap.appendChild(input)
+  }
+
+  const range = f.type === 'boolean' ? '' : [f.min !== undefined ? `mín. ${f.min}` : '', f.max !== undefined ? `máx. ${f.max}` : ''].filter(Boolean).join(' · ')
+  const hintText = [f.help, range].filter(Boolean).join(' ')
+  if (hintText) {
+    const hint = document.createElement('span')
+    hint.className = 'db-hint'
+    hint.textContent = hintText
+    wrap.appendChild(hint)
+  }
+  return wrap
+}
+
+/** Form → gameConfig object (null when everything is on the game default). */
+function readConfigForm() {
+  let config = {}
+  if (formGameConfig.value.trim()) {
+    try {
+      config = JSON.parse(formGameConfig.value)
+      if (typeof config !== 'object' || Array.isArray(config) || config === null) throw new Error()
+    } catch {
+      configAdv.open = true
+      return { error: 'O JSON avançado precisa ser um objeto, ex.: { "opcao": 1 }', field: formGameConfig }
+    }
+  }
+  for (const f of configSchema?.fields ?? []) {
+    const input = configFields.querySelector(`[data-key="${CSS.escape(f.key)}"]`)
+    if (!input) continue
+    delete config[f.key]
+    const raw = input.value.trim()
+    if (raw === '') continue
+    if (f.type === 'boolean') { config[f.key] = raw === 'true'; continue }
+    const n = Number(raw.replace(',', '.'))
+    const unit = f.unit ? ` ${f.unit}` : ''
+    if (!Number.isFinite(n)) return { error: `${f.label}: digite um número.`, field: input }
+    if (f.min !== undefined && n < f.min) return { error: `${f.label}: o mínimo é ${f.min}${unit}.`, field: input }
+    if (f.max !== undefined && n > f.max) return { error: `${f.label}: o máximo é ${f.max}${unit}.`, field: input }
+    config[f.key] = Math.round(n * (f.scale ?? 1) * 1000) / 1000
+  }
+  return { config: Object.keys(config).length ? config : null }
+}
+
+formGame.addEventListener('change', () => {
+  const t = totems.find(x => x._id === editingTotemId)
+  loadConfigForm(formGame.value || null, t && t.game === formGame.value ? t.gameConfig : null)
+})
+
 // ── History (per-totem stats) ─────────────────────────────────────────────────
 // One series (plays per hour/day) → one hue, no legend; the title names it.
 // Bars: --db-blue-700 (≥3:1 on white), rounded top, 2px gap, per-bar tooltip,
@@ -820,16 +980,16 @@ const statsDialog = $('statsDialog')
 const statsBody   = $('stats-body')
 let statsTotem    = null
 
-const REASON_LABEL = {
+export const REASON_LABEL = {
   died: 'Morreu no jogo', timeout: 'Tempo acabou', kicked: 'Expulso pelo operador',
   manual: 'Encerrada pelo operador', no_show: 'Chamado e não apareceu', instance_closed: 'Site fechado',
 }
-const siteLabel = (s) => s === 'totem' ? 'Totem físico'
+export const siteLabel = (s) => s === 'totem' ? 'Totem físico'
   : s === 'preview' ? 'Prévia do painel'
   : s === 'unknown' ? 'Origem desconhecida'
   : s.replace(/^https?:\/\//, '')
 
-function fmtDuration(ms) {
+export function fmtDuration(ms) {
   if (ms == null) return '—'
   const s = Math.round(ms / 1000)
   if (s < 60) return `${s} s`
@@ -846,11 +1006,11 @@ function bucketLabel(t, bucketMs, { long = false } = {}) {
   return d.toLocaleDateString('pt-BR', long ? { weekday: 'short', day: '2-digit', month: '2-digit' } : { day: '2-digit', month: '2-digit' })
 }
 
-function barsSvg(stats) {
+function barsSvg(stats, width) {
   const { buckets, bucketMs } = stats
   const max = Math.max(1, ...buckets.map(b => b.plays))
   // Drawn at the container's real width: no stretched labels or corners.
-  const W = Math.max(280, Math.round(statsBody.clientWidth || 640)), H = 180, top = 18, bottom = 22, gap = 2
+  const W = Math.max(280, Math.round(width || 640)), H = 180, top = 18, bottom = 22, gap = 2
   const step = W / buckets.length
   const bw = Math.max(2, step - gap)
   const y = (v) => top + (H - top - bottom) * (1 - v / max)
@@ -886,7 +1046,22 @@ function barsSvg(stats) {
     </div>`
 }
 
-function renderHistory(s) {
+/** Best scores list (nickname, points, where). */
+export function rankingList(rows, { showTotem = false } = {}) {
+  if (!rows?.length) return '<p class="q-empty">Ninguém pontuou neste período. O jogo envia os pontos quando o jogador morre.</p>'
+  return `<ol class="board">${rows.map(r => `
+    <li class="board__row${r.position <= 3 ? ` board__row--top${r.position}` : ''}">
+      <span class="board__pos">${r.position}</span>
+      <span class="board__name">${escHtml(r.nickname ?? 'Jogador')}${showTotem && r.totemName ? `<span class="board__where">${escHtml(r.totemName)}</span>` : ''}</span>
+      <span class="board__score">${Number(r.score).toLocaleString('pt-BR')}</span>
+    </li>`).join('')}</ol>`
+}
+
+/**
+ * Renders a stats payload (per-totem or the whole event) into `body`.
+ * `extra` is HTML appended after the standard sections.
+ */
+export function renderHistory(s, body = statsBody, extra = '') {
   const plays = s.totals.plays
   const per = s.bucketMs < 86_400_000 ? 'hora' : 'dia'
   const tiles = `
@@ -902,7 +1077,7 @@ function renderHistory(s) {
     </div>`
 
   if (!s.totals.sessions) {
-    statsBody.innerHTML = `${tiles}<p class="q-empty" style="margin-top:16px">Nenhuma partida neste período.</p>`
+    body.innerHTML = `${tiles}<p class="q-empty" style="margin-top:16px">Nenhuma partida neste período.</p>${extra}`
     return
   }
 
@@ -922,11 +1097,11 @@ function renderHistory(s) {
   const table = s.buckets.filter(b => b.plays).map(b =>
     `<tr><td>${bucketLabel(b.t, s.bucketMs, { long: true })}</td><td>${b.plays}</td></tr>`).join('')
 
-  statsBody.innerHTML = `
+  body.innerHTML = `
     ${tiles}
     <section class="stats-sec">
       <h3 class="stats-sec__title">Partidas por ${per}</h3>
-      ${barsSvg(s)}
+      ${barsSvg(s, body.clientWidth)}
       <details class="stats-table">
         <summary>Ver em tabela</summary>
         <table><thead><tr><th>${per === 'hora' ? 'Hora' : 'Dia'}</th><th>Partidas</th></tr></thead><tbody>${table || '<tr><td colspan="2">Sem partidas</td></tr>'}</tbody></table>
@@ -935,10 +1110,11 @@ function renderHistory(s) {
     <div class="stats-cols">
       <section class="stats-sec"><h3 class="stats-sec__title">De onde vieram</h3><ul class="rank">${sites || '<li class="rank__row">—</li>'}</ul></section>
       <section class="stats-sec"><h3 class="stats-sec__title">Como terminaram</h3><ul class="rank">${reasons}</ul></section>
-    </div>`
+    </div>
+    ${extra}`
 
   // Per-bar tooltip (hover + keyboard via the table above for exact values)
-  const chart = statsBody.querySelector('.chart')
+  const chart = body.querySelector('.chart')
   const tip = chart.querySelector('.chart__tip')
   chart.addEventListener('pointermove', (e) => {
     const col = e.target.closest('.chart__col')
@@ -960,9 +1136,14 @@ async function loadStats() {
   if (!statsTotem) return
   const range = statsDialog.querySelector('input[name="stats-range"]:checked')?.value ?? '24h'
   statsBody.setAttribute('aria-busy', 'true')
+  $('stats-csv').href = `${API}/${statsTotem._id}/sessions.csv?range=${range}`
   try {
-    const s = await apiFetch(`${API}/${statsTotem._id}/stats?range=${range}&tz=${new Date().getTimezoneOffset()}`)
-    renderHistory(s)
+    const [s, ranking] = await Promise.all([
+      apiFetch(`${API}/${statsTotem._id}/stats?range=${range}&tz=${new Date().getTimezoneOffset()}`),
+      apiFetch(`${API}/${statsTotem._id}/ranking?range=${range}&limit=10`).catch(() => []),
+    ])
+    renderHistory(s, statsBody, `
+      <section class="stats-sec"><h3 class="stats-sec__title">Melhores pontuações</h3>${rankingList(ranking)}</section>`)
   } catch (err) {
     statsBody.innerHTML = `<div class="db-callout db-callout--danger">${icon('alert')}<span>Não deu para carregar o histórico: ${escHtml(err.message)}</span></div>`
   } finally {
@@ -1020,12 +1201,9 @@ $('btn-logout').addEventListener('click', async () => {
   location.href = '/login'
 })
 
-// Hide the logout button when auth is off (development without OPERATOR_PASSWORD).
-fetch('/api/auth/me').then(r => r.json()).then(me => { $('btn-logout').hidden = !me.authEnabled }).catch(() => {})
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function escHtml(str) {
+export function escHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

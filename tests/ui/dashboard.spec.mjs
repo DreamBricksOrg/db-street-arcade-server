@@ -15,7 +15,7 @@ test('login: painel fechado, senha errada avisa, senha certa entra, sair volta a
   const senha = page.getByRole('textbox', { name: 'Senha' })
   await senha.fill('errada')
   await page.getByRole('button', { name: 'Entrar' }).click()
-  await expect(page.getByRole('alert')).toContainText('Senha incorreta')
+  await expect(page.getByRole('alert')).toContainText('Usuário ou senha incorretos')
 
   await senha.fill(OPERATOR_PASSWORD)
   await page.getByRole('button', { name: 'Entrar' }).click()
@@ -59,10 +59,14 @@ test('cadastrar, editar (chave do jogo) e excluir um totem pelo painel', async (
   expect(await key.textContent()).not.toBe(oldKey)
   await edit.getByRole('button', { name: 'Cancelar' }).click()
 
-  // Clear queue goes through the confirm dialog
-  await card.getByRole('button', { name: `Limpar fila de ${name}` }).click()
-  await page.getByRole('dialog', { name: `Limpar a fila de "${name}"?` }).getByRole('button', { name: 'Limpar fila' }).click()
-  await expect(page.locator('.db-toast').last()).toContainText('Fila limpa')
+  // Pause: confirm, the card shows "Pausado"; resume needs no confirmation
+  await card.getByRole('button', { name: `Pausar ${name}` }).click()
+  await page.getByRole('dialog', { name: `Pausar "${name}"?` }).getByRole('button', { name: 'Pausar totem' }).click()
+  await expect(page.locator('.db-toast').last()).toContainText('Totem pausado')
+  await expect(card.getByText('Pausado')).toBeVisible()
+  await card.getByRole('button', { name: `Retomar ${name}` }).click()
+  await expect(page.locator('.db-toast').last()).toContainText('Totem retomado')
+  await expect(card.getByText('Pausado')).toHaveCount(0)
 
   // Delete goes through the confirm dialog
   await card.getByRole('button', { name: `Excluir ${name}` }).click()
@@ -101,6 +105,78 @@ test('histórico abre com os indicadores e troca de período', async ({ page, re
   await dialog.getByRole('radio', { name: '7 dias' }).check()
   await expect(dialog.getByRole('radio', { name: '7 dias' })).toBeChecked()
   await expect(dialog.getByText('Espera média na fila')).toBeVisible()
+})
+
+test('ajustes do jogo: formulário em vez de JSON, segundos na tela e o valor salvo no totem', async ({ page, request }) => {
+  const totem = await createTotem(request, { name: uniq('UI Config'), game: 'snake' })
+  created.push(totem._id)
+  await login(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: `Editar ${totem.name}` }).click()
+  const edit = page.getByRole('dialog', { name: 'Editar totem' })
+  const speed = edit.getByLabel('Velocidade da cobra')
+  await expect(speed).toHaveAttribute('placeholder', '5')
+  await speed.fill('50')
+  await edit.getByRole('button', { name: 'Salvar totem' }).click()
+  await expect(edit.getByRole('alert')).toContainText('o máximo é 20')
+  await speed.fill('8')
+  await edit.getByLabel('Mostrar painel de debug').selectOption('true')
+  await edit.getByRole('button', { name: 'Salvar totem' }).click()
+  await expect(page.locator('.db-toast').last()).toContainText('Totem atualizado')
+  const saved = await (await request.get(`/api/totems/${totem._id}`, { headers: AUTH })).json()
+  expect(saved.gameConfig).toEqual({ gameSpeed: 8, debugPanel: true })
+})
+
+test('seções: evento, apelidos, usuários (entra com a conta nova) e atividade', async ({ page, browser }) => {
+  await login(page)
+  await page.goto('/#evento')
+  await expect(page.getByRole('heading', { name: 'Evento', level: 1 })).toBeVisible()
+  await expect(page.getByText('Partidas por totem')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Exportar planilha' })).toHaveAttribute('href', '/api/sessions.csv?range=24h')
+
+  await page.getByRole('link', { name: 'Apelidos' }).click()
+  await expect(page.locator('#nick-examples li')).toHaveCount(6)
+  await page.getByLabel(/^Bichos/).fill('Capivara\nTatu')
+  await page.getByLabel(/^Adjetivos/).fill('Veloz')
+  await page.getByRole('button', { name: 'Salvar listas' }).click()
+  await expect(page.locator('.db-toast').last()).toContainText('Listas salvas')
+  await expect(page.locator('#nick-examples li').first()).toHaveText(/^(Capivara|Tatu) Veloz/)
+  await page.getByRole('button', { name: 'Voltar ao padrão' }).click()
+  await page.getByRole('dialog', { name: 'Voltar às listas padrão?' }).getByRole('button', { name: 'Voltar ao padrão' }).click()
+  await expect(page.getByText('Usando as listas padrão.')).toBeVisible()
+
+  const username = uniq('ui.op').toLowerCase()
+  await page.getByRole('link', { name: 'Usuários' }).click()
+  await page.getByRole('button', { name: 'Adicionar usuário' }).click()
+  const form = page.getByRole('dialog', { name: 'Novo usuário' })
+  await form.getByLabel('Nome').fill('Operadora UI')
+  await form.getByLabel('Usuário').fill(username)
+  await form.getByLabel(/^Senha/).fill('senha-longa-ui')
+  await form.getByRole('button', { name: 'Salvar usuário' }).click()
+  await expect(page.locator('.db-toast').last()).toContainText('Usuário criado')
+  await expect(page.getByRole('cell', { name: username })).toBeVisible()
+
+  // The new operator logs in by name and does not see the admin sections
+  const ctx = await browser.newContext()
+  const op = await ctx.newPage()
+  await op.goto('/login')
+  await op.getByLabel('Usuário').fill(username)
+  await op.getByRole('textbox', { name: 'Senha' }).fill('senha-longa-ui')
+  await op.getByRole('button', { name: 'Entrar' }).click()
+  await expect(op.getByRole('heading', { name: 'Totens', level: 1 })).toBeVisible()
+  await expect(op.locator('#me-name')).toHaveText('Operadora UI')
+  await expect(op.getByRole('link', { name: 'Usuários' })).toBeHidden()
+  await ctx.close()
+
+  await page.getByRole('link', { name: 'Atividade' }).click()
+  await expect(page.locator('#audit-list')).toContainText(`Criou o usuário ${username}`)
+  await expect(page.locator('#audit-list')).toContainText('Operadora UI')
+
+  // Clean up the account
+  await page.getByRole('link', { name: 'Usuários' }).click()
+  await page.getByRole('button', { name: 'Excluir Operadora UI' }).click()
+  await page.getByRole('dialog', { name: 'Excluir "Operadora UI"?' }).getByRole('button', { name: 'Excluir usuário' }).click()
+  await expect(page.locator('.db-toast').last()).toContainText('Usuário excluído')
 })
 
 test('API de operação exige login', async ({ request }) => {

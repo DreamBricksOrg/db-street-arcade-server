@@ -9,7 +9,7 @@
     "start": "node src/server.js",
     "lint": "eslint .",
     "test:unit": "node --test \"tests/unit/*.test.mjs\"",
-    "test:e2e": "node tests/e2e/queue.e2e.mjs && node tests/e2e/instances.e2e.mjs && node tests/e2e/auth.e2e.mjs && node tests/e2e/cluster.e2e.mjs && node tests/e2e/bridges.e2e.mjs",
+    "test:e2e": "node tests/e2e/queue.e2e.mjs && node tests/e2e/instances.e2e.mjs && node tests/e2e/auth.e2e.mjs && node tests/e2e/cluster.e2e.mjs && node tests/e2e/bridges.e2e.mjs && node tests/e2e/features.e2e.mjs",
     "test:ui": "playwright test",
     "ops:check-env": "node scripts/check-env.mjs",
     "ops:totem-keys": "node scripts/totem-keys.mjs"

@@ -52,8 +52,22 @@
       font-size: var(--text-xs); line-height: 1.5; color: var(--text-secondary);
     }
 
+    /* Your anonymous name, shown on the queue and the called screen */
+    .queue-me { margin-top: var(--space-2); font-size: var(--text-sm); color: var(--text-secondary); }
+    .queue-me strong { color: var(--surface-brand-strong); font-weight: var(--weight-bold); }
+    .queue-paused { max-width: 32ch; }
+
+    /* Turn alert opt-in */
+    .notify { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: min(300px, 100%); }
+    .notify__state { min-height: 1.3em; font-size: var(--text-xs); color: var(--db-success-ink); }
+
+    /* "É a sua vez!" — shown for a moment before the controller opens */
+    #called-screen .sa-title { font-size: var(--text-2xl); color: var(--surface-brand-strong); }
+    #called-screen .sa-mark { animation: called 0.9s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate; }
+    @keyframes called { to { transform: scale(1.12); } }
+
     @media (prefers-reduced-motion: reduce) {
-      .queue-place__num.is-bump { animation: none; }
+      .queue-place__num.is-bump, #called-screen .sa-mark { animation: none; }
     }
   </style>
 </head>
@@ -73,7 +87,7 @@
   <main id="error-screen" class="sa-screen" style="display: none;" aria-live="assertive">
     <img class="sa-mascot" src="/assets/brand/jobson-wave.webp" alt="" width="320" height="322" />
     <div>
-      <h1 class="sa-title">Não deu para entrar</h1>
+      <h1 class="sa-title" id="error-title">Não deu para entrar</h1>
       <p class="sa-sub" id="error-msg">Não foi possível conectar a este totem.</p>
     </div>
     <div class="sa-actions">
@@ -87,6 +101,11 @@
     <div>
       <h1 class="sa-title">Você está na fila</h1>
       <p class="sa-sub" id="queue-sub">Quando chegar a sua vez, o controle abre sozinho.</p>
+      <p class="queue-me" id="queue-me" hidden>Hoje você é <strong id="queue-nick"></strong></p>
+    </div>
+
+    <div class="db-callout db-callout--warning queue-paused" id="queue-paused" role="status" hidden>
+      <span>O totem está em pausa por alguns minutos. Você continua na fila.</span>
     </div>
 
     <div class="queue-place" aria-live="polite">
@@ -95,8 +114,22 @@
       <span class="queue-place__eta" id="queue-eta"></span>
     </div>
 
+    <div class="notify">
+      <button class="db-btn db-btn--secondary db-btn--block" id="notify-btn" type="button">Me avise quando for a minha vez</button>
+      <p class="notify__state" id="notify-state" role="status"></p>
+    </div>
+
     <div class="sa-loader" role="progressbar" aria-label="Aguardando a sua vez"></div>
     <p class="queue-note">Se sair desta tela, volte pelo mesmo QR em até 2 minutos para não perder o lugar.</p>
+  </main>
+
+  <!-- Called: a short moment before the controller opens -->
+  <main id="called-screen" class="sa-screen" style="display: none;" aria-live="assertive">
+    <div class="sa-mark"><img src="/assets/brand/dreambricks-mark-blue.svg" alt="" /></div>
+    <div>
+      <h1 class="sa-title">É a sua vez!</h1>
+      <p class="sa-sub">Abrindo o seu controle…</p>
+    </div>
   </main>
 
   <script type="module" src="/totem-entry.js"></script>

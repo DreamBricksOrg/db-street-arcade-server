@@ -47,9 +47,12 @@ src/
 │   ├── auth.js                # Cookie HMAC do operador, comparação constante, chave do totem
 │   ├── instances.js           # Registro das instâncias web em memória (dev sem Redis)
 │   ├── instances.redis.js     # Registro das instâncias no Redis (multi-processo, sobrevive a restart)
-│   ├── stats.js               # Agregação pura do histórico por totem
+│   ├── stats.js               # Agregação pura do histórico (por totem ou do evento) + rankingSince
+│   ├── nicknames.js           # Apelidos "Capivara Veloz": listas padrão + sorteio sem repetir na tela
+│   ├── passwords.js           # scrypt das senhas dos usuários do painel
+│   ├── csv.js                 # Planilha das sessões (; + BOM, fórmulas neutralizadas)
 │   ├── inputs.js              # Ações válidas do gamepad + token bucket por socket
-│   └── games.js               # Jogos incorporáveis (pastas em games/ com public/index.html)
+│   └── games.js               # Jogos incorporáveis + config.schema.json (formulário e validação do gameConfig)
 ├── plugins/
 │   ├── auth.js                # Login do operador + guarda das rotas (config.operator) — registrado PRIMEIRO
 │   ├── redis.js               # fastify.redisPublisher + fastify.redisSubscriber
@@ -65,6 +68,10 @@ src/
     │   └── game.output.js     # ÚNICO ponto que entrega pacote ao jogo: UDP (default) ou SSE (iframe)
     ├── operator/
     │   └── operator.routes.js # SSE único do painel (/api/operator/events) + fastify.opsNotify()
+    ├── users/
+    │   └── users.routes.js    # Contas do painel (/api/users) + registro de atividade (/api/audit); fastify.users, fastify.audit
+    ├── settings/
+    │   └── settings.routes.js # Listas de apelidos (/api/settings/nicknames); fastify.settings
     ├── instance/
     │   └── instance.hub.js    # Streams SSE DESTE processo + entrega via Redis inst:out:* (o "socket UDP" do iframe)
     ├── embed/
@@ -85,9 +92,10 @@ tests/
 ├── unit/*.test.mjs            # npm run test:unit — instâncias, auth (inclui canonicalPath), stats, inputs, rateLimit, envCheck
 ├── e2e/queue.e2e.mjs          # npm run test:e2e — 9 cenários: fila (totem físico) + health/ready e retenção
 ├── e2e/instances.e2e.mjs      # 10 cenários n→n (iframes), validação de inputs, stream do operador
-├── e2e/auth.e2e.mjs           # 8 cenários: login (e caminhos codificados), chave do totem, ops:totem-keys, queue-state público, histórico
+├── e2e/auth.e2e.mjs           # 9 cenários: login (e caminhos codificados), chave do totem, ops:totem-keys, queue-state público, histórico
 ├── e2e/cluster.e2e.mjs        # 4 cenários: 2 processos, restart no meio da partida, limite de login do cluster
 ├── e2e/bridges.e2e.mjs        # 8 cenários: pontes locais (snake, brick-rush) contra backend falso
+├── e2e/features.e2e.mjs       # 6 cenários: apelidos, ranking, pausa, planilha/evento, formulário do jogo
 └── ui/*.spec.mjs              # npm run test:ui — Playwright: painel, celular (Pixel 7), embed
 
 .github/workflows/ci.yml       # lint + unit → e2e + UI (mongo/redis) + checagens da imagem Docker
@@ -97,8 +105,10 @@ public/
 ├── css/dashboard.css                  # Shell do painel (porte do ui_kits/dashboard do DS)
 ├── assets/brand/                      # Marca DreamBricks + mascote J0Bson
 ├── embed-assets/overlay.{js,css}      # Cartão de QR injetado sobre o jogo incorporado
-├── login.html                     # Login do operador (split-screen do UI kit)
+├── login.html                     # Login do operador: usuário + senha (split-screen do UI kit)
 ├── index.html / dashboard.js      # Painel do operador: sidebar + stats + cards, histórico, dialogs nativos
+├── dashboard-views.js             # Seções #evento, #apelidos, #usuarios, #atividade (navegação por hash)
+├── turn-alert.js + sw.js          # "É a sua vez!": som, vibração, título e notificação (service worker)
 ├── player-store.js                # playerId com validade (localStorage 10 min) p/ fila e controle
 ├── play.html / session.js         # Gamepad do jogador
 ├── gamepad.js                     # Handler de touch multi-touch
@@ -175,16 +185,24 @@ Em `development`, Redis/MongoDB indisponíveis geram warning (não fatal). Em `p
 
 ### Autenticação
 
-**Operador** = cookie `sa_op` (HMAC derivado de `OPERATOR_PASSWORD`, 12h) ou `Authorization: Bearer <OPERATOR_PASSWORD>`. Rotas com `config: { operator: true }` devolvem `401` sem isso; `/` redireciona para `/login`.
+**Operador** = cookie `sa_op=<exp>.<sujeito>.<hmac>` (HMAC derivado de `OPERATOR_PASSWORD`, 12h) ou `Authorization: Bearer <OPERATOR_PASSWORD>`. Sujeito `admin` (senha do servidor) ou `<userId>:<tokenVersion>` (conta da collection `users`; trocar senha/desativar incrementa `tokenVersion` e derruba os cookies). `request.operator = { id, username, name, role }`. Rotas com `config: { operator: true }` devolvem `401` sem isso; `config.role: 'admin'` devolve `403` para operador comum; `/` redireciona para `/login`.
+**Atividade**: todo POST/PUT/DELETE bem-sucedido de operador em `/api/*` vai para a collection `audit` (hook `onResponse`; nome da ação em `config.audit`, corpo sem segredos), além de login/logout/login errado.
 **Jogo/ponte física** = header `X-Totem-Key: <totem.gameKey>` em `end-session` e `GET /api/totems/:id/queue`. Totem legado sem `gameKey`: morte por jogador aberta, reset exige operador.
 **Públicas**: tudo do jogador (`queue/join|status|events`, `GET /api/sessions/:id`, QRs, `/ws/game`, `/play/*`, `/embed/*`).
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/login` | Tela de login |
-| POST | `/api/auth/login` | `{ password }` → cookie (10 tentativas/min por IP) |
+| POST | `/api/auth/login` | `{ username?, password }` → cookie (10 tentativas/min por IP). Usuário vazio ou `admin` = `OPERATOR_PASSWORD` |
 | POST | `/api/auth/logout` | Apaga o cookie |
-| GET | `/api/auth/me` | `{ operator, authEnabled }` |
+| GET | `/api/auth/me` | `{ operator, authEnabled, user }` |
+| GET/POST | `/api/users` | 👑 Lista / cria conta `{ username, name, role: admin\|operator, password ≥10 }` |
+| PUT/DELETE | `/api/users/:id` | 👑 Edita (`name, role, disabled, password`) / exclui. Ninguém se desativa, rebaixa ou exclui |
+| GET | `/api/audit` | 👑 Atividade `?limit&before=<ISO>&username&action=<prefixo>` |
+| GET | `/api/settings/nicknames` | 🔒 Listas de apelidos + 6 exemplos sorteados |
+| PUT | `/api/settings/nicknames` | 👑 `{ animals, adjectives }` ou `{ reset: true }` |
+
+👑 = só administrador (`403` para operador comum)
 
 ### Sessions `/api/sessions`
 
@@ -219,7 +237,13 @@ Sessões são criadas SOMENTE pelo fluxo de fila (`queue/join`) — não há rot
 | GET | `/api/totems/:id/queue/events` | SSE — ping quando a fila muda |
 | DELETE | `/api/totems/:id/queue/:playerId` | 🔒 Remove jogador da fila |
 | POST | `/api/totems/:id/queue/clear` | 🔒 Limpa SÓ a lista de espera |
-| POST | `/api/totems/:id/end-session` | 🔑 Com `{playerId}` (aceita pid truncado 8 chars): encerra a sessão daquele jogador (morte no jogo). Sem body: encerra TODAS da instância (reset) |
+| POST | `/api/totems/:id/end-session` | 🔑 Com `{playerId, score?}` (aceita pid truncado 8 chars): encerra a sessão daquele jogador (morte no jogo) e guarda os pontos. Sem body: encerra TODAS da instância (reset) |
+| POST | `/api/totems/:id/pause` | 🔒 `{ paused }` — pausado: join → `423`, a fila não anda, quem joga termina; retomar chama a fila de todas as instâncias |
+| GET | `/api/totems/:id/ranking` | 🔑 Melhores pontuações `?range=24h\|7d\|30d\|all&limit` |
+| GET | `/api/ranking` | 🔒 Ranking de todos os totens (com `totemName`) |
+| GET | `/api/stats` | 🔒 Histórico do evento inteiro + `byTotem` |
+| GET | `/api/totems/:id/sessions.csv` · `/api/sessions.csv` | 🔒 Planilha das sessões `?range=` |
+| GET | `/api/games/:game/config-schema` | 🔒 Formulário dos ajustes do jogo (`games/<jogo>/config.schema.json`) |
 | GET | `/api/totems/:id/instances` | 🔒 `default` + iframes abertos, com nº de sessões e fila |
 | GET | `/api/games` | 🔒 Jogos incorporáveis (pastas de `games/`) |
 | GET | `/api/operator/events` | 🔒 SSE do painel: `state` (retrato), `totem` (só o que mudou), `totems_changed` |
@@ -235,8 +259,9 @@ Todas as rotas de fila (`queue/*`, `end-session`, `qr`) aceitam `?instance=<id>`
 | GET | `/embed/:totemId` | 302 para `/embed/:totemId/<uuid novo>/` (uma instância por carregamento; preserva query) |
 | GET | `/embed/:totemId/:inst/` | `index.html` do jogo com o overlay de QR injetado |
 | GET | `/embed/:totemId/:inst/events` | SSE com `connected`, `init`, `player_join`, inputs, `player_leave` (429 se limite) |
-| POST | `/embed/:totemId/:inst/end-session` | `{ pid }` — jogador morreu nesta instância |
-| GET | `/embed/:totemId/:inst/queue-state` | HUD público: `{ sessions:[{pid,status}], queue:[{position}], maxPlayers }` (sem IP/UA) |
+| POST | `/embed/:totemId/:inst/end-session` | `{ pid, score? }` — jogador morreu nesta instância |
+| GET | `/embed/:totemId/:inst/queue-state` | HUD público: `{ sessions:[{pid,name,status}], queue:[{position}], maxPlayers, paused }` (sem IP/UA) |
+| GET | `/embed/:totemId/:inst/ranking` | Placar público do totem: `[{ position, name, score }]` |
 | GET | `/embed/:totemId/:inst/config` | `{ debugPanel: false, ...totem.gameConfig }` |
 | GET | `/embed/:totemId/:inst/*` | Estáticos de `games/<totem.game>/public` |
 
@@ -274,6 +299,8 @@ Query do iframe: `showqr=false`, `qrpos=br|bl|tr|tl`, `qrmin=true`.
   totemId: UUID,
   instanceId: String,           // 'default' (totem físico) ou id do iframe; docs antigos sem campo = default
   playerId: String,             // dono único da sessão
+  nickname: String | null,      // apelido sorteado ("Capivara Veloz") — celular, jogo (nm), ranking
+  score: Number | null,         // pontos enviados pelo jogo no end-session (ranking)
   status: 'reserved' | 'active' | 'finished',
   totems: [{ id, ip, udpPort }],// endereço UDP (lido pelo dispatcher)
   metadata: { ua, ip, ... } | null,
@@ -288,7 +315,7 @@ Query do iframe: `showqr=false`, `qrpos=br|bl|tr|tl`, `qrmin=true`.
   endReason: 'died'|'kicked'|'timeout'|'no_show'|'manual'|'instance_closed'|null
 }
 ```
-Índices: `{ status: 1 }`, `{ expiresAt: 1 }`, `{ totemId: 1, status: 1 }`, `{ totemId: 1, instanceId: 1, status: 1 }`, `{ totemId: 1, createdAt: -1 }` (histórico), `{ endedAt: 1 }` TTL `sessions_finished_ttl` (`SESSION_RETENTION_DAYS`).
+Índices: `{ status: 1 }`, `{ expiresAt: 1 }`, `{ totemId: 1, status: 1 }`, `{ totemId: 1, instanceId: 1, status: 1 }`, `{ totemId: 1, createdAt: -1 }` (histórico), `{ endedAt: 1 }` TTL `sessions_finished_ttl` (`SESSION_RETENTION_DAYS`), `sessions_totem_score` / `sessions_score` (parciais, só com `score` numérico — ranking).
 
 ### Collection `totems`
 ```js
@@ -303,9 +330,19 @@ Query do iframe: `showqr=false`, `qrpos=br|bl|tr|tl`, `qrmin=true`.
   sessionDurationMs: Number,    // default: 1800000 (30min)
   maxQueueSize: Number | null,  // cap da fila (null = ilimitada)
   gameKey: String | null,       // X-Totem-Key do jogo/ponte (null em totens antigos)
+  paused: Boolean,              // entrada fechada (manutenção/intervalo)
+  pausedAt: Date | null, pausedBy: String | null,
   createdAt: Date,
   updatedAt: Date
 }
+```
+
+### Collections `users`, `audit`, `settings`
+```js
+users:    { _id, username (único, minúsculo), name, role: 'admin'|'operator', passwordHash (scrypt),
+            tokenVersion, disabled, createdAt, updatedAt, lastLoginAt }
+audit:    { at, userId, username, name, action, method, url, target, status, details, ip }  // TTL 180 dias
+settings: { _id: 'nicknames', animals: [], adjectives: [], updatedAt, updatedBy }          // sem doc = listas padrão
 ```
 
 ---
@@ -320,6 +357,7 @@ Query do iframe: `showqr=false`, `qrpos=br|bl|tr|tl`, `qrmin=true`.
 | `queue:heartbeat:{playerId}` | STRING | "1" com TTL 120s — mantém presença na fila |
 | `player:metadata:{playerId}` | STRING | JSON com dispositivo/IP (TTL 120s) |
 | `queue:joined:{playerId}` | STRING | Quando entrou na fila (ms) → `session.queuedAt` (TTL 6h) |
+| `player:nick:{playerId}` | STRING | Apelido sorteado na entrada (TTL 6h) — o mesmo na fila, na sessão e no jogo |
 | `inst:{totemId}` | HASH | instanceId → `{ ip, createdAt, lastSeenAt, onlineUntil }` (registro das instâncias web) |
 | `inst:ip:{ip}` | SET | `totemId\|instanceId` — limite por IP |
 | `inst:totems` | SET | totens com instâncias (índice do sweep) |
@@ -356,7 +394,7 @@ Formato JSON < 512 bytes. **Inputs** (dispatcher → jogo):
 
 **Lifecycle** (backend → jogo):
 ```js
-{ type: 'player_join',  sid, pid, tid }  // jogador conectou (WS claim)
+{ type: 'player_join',  sid, pid, tid, nm }  // jogador conectou (WS claim); nm = apelido
 { type: 'player_leave', sid, pid, tid }  // sessão encerrou — remover avatar
 ```
 `pid` sempre truncado a 8 chars — o jogo indexa jogadores por esse valor, e o
@@ -392,7 +430,7 @@ Todo o ciclo é serializado por mutex por-totem (`src/lib/mutex.js`).
 6. Jogador pressiona botão → gamepad.js → WS → game.handler.onMessage
 7. game.handler publica no Redis: game:input:{sessionId}
 8. udp.dispatcher recebe, resolve IPs do totem, envia UDP
-9. Jogador morre → jogo chama POST /api/totems/:id/end-session {playerId} (header X-Totem-Key)
+9. Jogador morre → jogo chama POST /api/totems/:id/end-session {playerId, score} (header X-Totem-Key)
    → SÓ a sessão dele encerra (UDP player_leave) → fila anda → próximo entra
 10. Celular do morto: tela "Sua sessão acabou" + botão "Jogar novamente"
     (volta pra entrada do totem, fim da fila)
@@ -419,10 +457,10 @@ Todo o ciclo é serializado por mutex por-totem (`src/lib/mutex.js`).
 
 | Arquivo | URL | Usuário |
 |---------|-----|---------|
-| `login.html` | `/login` | Operador — senha |
-| `index.html` | `/` | Operador — totens, fila, histórico, incorporar (atualiza pelo stream) |
+| `login.html` | `/login` | Operador — usuário + senha |
+| `index.html` | `/` | Operador — totens (pausar, fila, histórico, planilha, incorporar; atualiza pelo stream), `#evento`, `#apelidos`, `#usuarios`, `#atividade` |
 | `play.html` | `/play/:sessionId` | Jogador — gamepad touch |
-| `totem-entry.html` | `/play/totem?id=` | Jogador — fila do totem |
+| `totem-entry.html` | `/play/totem?id=` | Jogador — fila do totem: apelido, aviso de pausa, "Me avise quando for a minha vez" |
 
 ### Gamepad (`gamepad.js`)
 - Multi-touch simultâneo (D-Pad + botões de ação)

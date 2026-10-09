@@ -66,8 +66,10 @@ async function boot(sid) {
   }
 
   // 3. Update page metadata
-  document.title           = `Street Arcade — ${sid.slice(0, 8)}`
-  $sidLabel.textContent    = sid.slice(0, 8) + '…'
+  // Anonymous nickname ("Capivara Veloz") matches the name shown on the game screen
+  document.title           = `Street Arcade — ${session.nickname || sid.slice(0, 8)}`
+  $sidLabel.textContent    = session.nickname || sid.slice(0, 8) + '…'
+  if (session.nickname) $sidLabel.classList.add('is-nick')
 
   // 4. Transition to play screen
   $loading.style.display = 'none'

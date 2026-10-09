@@ -15,15 +15,18 @@ docker compose up -d mongo redis  # opcional: Mongo + Redis do projeto
 npm run dev                       # http://localhost:3000
 ```
 
-- **Login:** sem `OPERATOR_PASSWORD` no `.env`, o painel abre sem login (só em desenvolvimento). Com ele, `/` leva a `/login`.
+- **Login:** sem `OPERATOR_PASSWORD` no `.env`, o painel abre sem login (só em desenvolvimento). Com ele, `/` leva a `/login`: usuário em branco (ou `admin`) + `OPERATOR_PASSWORD` entra como administrador, que cria as contas da equipe em **Usuários**.
 - **Saúde:** `GET /health` (o processo responde) e `GET /health/ready` (Mongo e Redis também).
 
 ## Telas
 
 | URL | Quem usa |
 |---|---|
-| `/` | Operador: totens, filas, histórico, gerar o `<iframe>` (Incorporar) |
-| `/login` | Operador: senha (`OPERATOR_PASSWORD`) |
+| `/` | Operador: totens (pausar, fila, histórico, planilha, Incorporar) |
+| `/#evento` | Operador: todos os totens juntos, ranking do evento, planilha |
+| `/#apelidos` | Operador: bichos e adjetivos dos apelidos dos jogadores (admin edita) |
+| `/#usuarios`, `/#atividade` | Admin: contas da equipe e registro de quem fez o quê |
+| `/login` | Operador: usuário + senha (`admin` = `OPERATOR_PASSWORD`) |
 | `/play/totem?id=<totemId>` | Celular: entrada pelo QR do totem, fila |
 | `/play/<sessionId>` | Celular: o controle |
 | `/embed/<totemId>` | O jogo incorporado num site (cada carregamento = partida própria) |

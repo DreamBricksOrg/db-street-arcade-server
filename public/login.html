@@ -61,9 +61,14 @@
       <h2>Entrar no painel</h2>
       <p class="sub">Acesso do operador.</p>
       <div class="db-field">
+        <label class="db-label" for="username">Usuário</label>
+        <input class="db-input" id="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="admin" autofocus />
+        <p class="db-hint">Deixe em branco para entrar com a senha do servidor.</p>
+      </div>
+      <div class="db-field">
         <label class="db-label" for="password">Senha</label>
         <div class="pw">
-          <input class="db-input" id="password" type="password" autocomplete="current-password" required autofocus />
+          <input class="db-input" id="password" type="password" autocomplete="current-password" required />
           <button class="db-icon-btn" type="button" id="toggle" aria-label="Mostrar senha" aria-pressed="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
@@ -80,6 +85,7 @@
   <script>
     const form = document.getElementById('login')
     const pw = document.getElementById('password')
+    const user = document.getElementById('username')
     const err = document.getElementById('error')
     const submit = document.getElementById('submit')
     const toggle = document.getElementById('toggle')
@@ -100,13 +106,13 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault()
       err.hidden = true
-      if (!pw.value) return fail('Digite a senha do operador.')
+      if (!pw.value) return fail('Digite a senha.')
       submit.disabled = true
       try {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pw.value }),
+          body: JSON.stringify({ username: user.value.trim(), password: pw.value }),
         })
         if (res.ok) {
           const next = new URLSearchParams(location.search).get('next')
@@ -115,7 +121,7 @@
         }
         fail(res.status === 429
           ? 'Muitas tentativas. Espere um minuto e tente de novo.'
-          : 'Senha incorreta. Confira com quem administra o evento.')
+          : 'Usuário ou senha incorretos. Confira com quem administra o evento.')
       } catch {
         fail('Sem conexão com o servidor. Tente de novo.')
       } finally {

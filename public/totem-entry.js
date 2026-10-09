@@ -9,6 +9,7 @@
 //   4. If 'queue', display queue UI and poll GET /api/totems/:id/queue/status
 
 import { getPlayer, setPlayer } from '/player-store.js'
+import { createTurnAlert } from '/turn-alert.js'
 
 const params     = new URLSearchParams(window.location.search)
 const totemId    = params.get('id')
@@ -24,18 +25,58 @@ const $queueScreen = document.getElementById('queue-screen')
 const $queuePos    = document.getElementById('queue-pos')
 const $queueEta    = document.getElementById('queue-eta')
 const $errorMsg    = document.getElementById('error-msg')
+const $errorTitle  = document.getElementById('error-title')
 const $retryBtn    = document.getElementById('retry-btn')
+const $queueMe     = document.getElementById('queue-me')
+const $queueNick   = document.getElementById('queue-nick')
+const $queuePaused = document.getElementById('queue-paused')
+const $notifyBtn   = document.getElementById('notify-btn')
+const $notifyState = document.getElementById('notify-state')
+const $called      = document.getElementById('called-screen')
+
+const alert = createTurnAlert()
+let waited = false   // true once the player has been in line (alert on call)
+
+$notifyBtn.addEventListener('click', async () => {
+  $notifyBtn.disabled = true
+  const { notifications } = await alert.arm()
+  $notifyBtn.hidden = true
+  $notifyState.textContent = notifications
+    ? 'Pronto: o celular vai vibrar, tocar e mostrar uma notificação.'
+    : 'Pronto: o celular vai vibrar e tocar. Deixe esta tela aberta.'
+})
 
 $retryBtn.addEventListener('click', () => {
   window.location.reload()
 })
 
-function showError(msg) {
+function showError(msg, title = 'Não deu para entrar') {
   $loadScreen.style.display  = 'none'
   $queueScreen.style.display = 'none'
   $errorScreen.style.display = 'flex'
   $errorMsg.textContent      = msg
+  $errorTitle.textContent    = title
   stopQueueEvents()
+}
+
+/** Slot ready: alert a player who waited, then open the controller. */
+async function goPlay(sessionId, playerId) {
+  stopQueueEvents()
+  clearTimeout(pollTimer)
+  setPlayer(`sa_player_${sessionId}`, playerId)
+  if (waited) {
+    $queueScreen.style.display = 'none'
+    $called.style.display = 'flex'
+    await alert.fire()
+    await new Promise(r => setTimeout(r, 1500))
+  }
+  window.location.replace(`/play/${sessionId}`)
+}
+
+function showNickname(nickname) {
+  if (!nickname) return
+  $queueNick.textContent = nickname
+  $queueMe.hidden = false
 }
 
 function formatEta(ms) {
@@ -46,7 +87,10 @@ function formatEta(ms) {
   return `~${totalMin} min`
 }
 
-function showQueue(pos, estimatedWaitMs) {
+function showQueue(pos, estimatedWaitMs, { nickname = null, paused = false } = {}) {
+  waited = true
+  showNickname(nickname)
+  $queuePaused.hidden = !paused
   $loadScreen.style.display  = 'none'
   $errorScreen.style.display = 'none'
   $queueScreen.style.display = 'flex'
@@ -121,14 +165,12 @@ async function pollQueueStatus(playerId) {
     }
 
     if (data.status === 'play') {
-      stopQueueEvents()
-      setPlayer(`sa_player_${data.sessionId}`, playerId)
-      window.location.replace(`/play/${data.sessionId}`)
+      await goPlay(data.sessionId, playerId)
       return
     }
 
     if (data.status === 'queue') {
-      showQueue(data.position, data.estimatedWaitMs)
+      showQueue(data.position, data.estimatedWaitMs, data)
       startQueueEvents(playerId)
       clearTimeout(pollTimer)
       pollTimer = setTimeout(() => pollQueueStatus(playerId), 3000)
@@ -178,6 +220,10 @@ async function resolveAndRedirect() {
         showError(CLOSED_MSG)
         return
       }
+      if (res.status === 423) {
+        showError('O operador pausou este totem por alguns minutos. Tente de novo daqui a pouco.', 'Totem em pausa')
+        return
+      }
       if (res.status === 429) {
         showError('Muitas tentativas seguidas. Aguarde alguns segundos e tente de novo.')
         return
@@ -198,7 +244,7 @@ async function resolveAndRedirect() {
     }
 
     if (data.status === 'queue') {
-      showQueue(data.position, data.estimatedWaitMs)
+      showQueue(data.position, data.estimatedWaitMs, data)
       startQueueEvents(playerId)
       // Begins polling (fallback in case SSE is unavailable/drops)
       pollTimer = setTimeout(() => pollQueueStatus(playerId), 3000)

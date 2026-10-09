@@ -344,6 +344,7 @@ export class TotemQueueService {
       queue,
       maxPlayers:   totem.maxPlayers ?? env.sessionMaxPlayers,
       maxQueueSize: totem.maxQueueSize ?? null,
+      paused:       Boolean(totem.paused),
     }
   }
 

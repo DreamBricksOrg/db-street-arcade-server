@@ -44,6 +44,15 @@
       <symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
       <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2 2"/></symbol>
       <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17v-5M13 17V8M18 17v-9"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16l13-8Z"/></symbol>
+      <symbol id="i-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></symbol>
+      <symbol id="i-event" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+      <symbol id="i-paw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="10" r="2"/><circle cx="9.5" cy="5.5" r="2"/><circle cx="14.5" cy="5.5" r="2"/><circle cx="18.5" cy="10" r="2"/><path d="M12 12c-3 0-6 4.5-6 7a2.5 2.5 0 0 0 3.5 2.2c1.6-.7 3.4-.7 5 0A2.5 2.5 0 0 0 18 19c0-2.5-3-7-6-7Z"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></symbol>
+      <symbol id="i-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+      <symbol id="i-shuffle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
       <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
     </defs>
   </svg>
@@ -56,14 +65,18 @@
         <p class="sidebar__product">Street Arcade</p>
       </div>
       <nav class="nav" aria-label="Seções">
-        <a class="nav__item" href="/" aria-current="page"><svg class="ico"><use href="#i-totem"/></svg>Totens</a>
+        <a class="nav__item" href="#totens" data-view="totens" aria-current="page"><svg class="ico"><use href="#i-totem"/></svg>Totens</a>
+        <a class="nav__item" href="#evento" data-view="evento"><svg class="ico"><use href="#i-event"/></svg>Evento</a>
+        <a class="nav__item" href="#apelidos" data-view="apelidos"><svg class="ico"><use href="#i-paw"/></svg>Apelidos</a>
+        <a class="nav__item" href="#usuarios" data-view="usuarios" data-admin hidden><svg class="ico"><use href="#i-shield"/></svg>Usuários</a>
+        <a class="nav__item" href="#atividade" data-view="atividade" data-admin hidden><svg class="ico"><use href="#i-activity"/></svg>Atividade</a>
         <a class="nav__item" href="/documentation" target="_blank" rel="noopener"><svg class="ico"><use href="#i-book"/></svg>API<svg class="nav__ext" aria-hidden="true"><use href="#i-ext"/></svg></a>
       </nav>
       <div class="sidebar__foot">
         <img class="sidebar__mascot" src="/assets/brand/jobson-and-cat-small.webp" alt="" width="512" height="370" />
         <div class="live" id="live" role="status">
           <span class="live__dot"></span>
-          <span><strong>Operador</strong> · <span id="live-text">ao vivo</span></span>
+          <span class="live__who"><strong id="me-name">Operador</strong><span id="live-text">ao vivo</span></span>
           <button class="live__out" id="btn-logout" type="button" aria-label="Sair do painel" data-tip="Sair" hidden><svg class="ico"><use href="#i-logout"/></svg></button>
         </div>
       </div>
@@ -72,8 +85,8 @@
     <div class="main">
       <!-- ── Top bar ──────────────────────────────────────────────────────── -->
       <header class="topbar">
-        <h1>Totens</h1>
-        <div class="topbar__actions">
+        <h1 id="view-title">Totens</h1>
+        <div class="topbar__actions" data-for="totens">
           <label class="search">
             <span class="db-visually-hidden">Buscar totem</span>
             <svg class="ico"><use href="#i-search"/></svg>
@@ -86,6 +99,7 @@
       </header>
 
       <main class="content">
+       <div class="view" data-view="totens">
         <!-- Live numbers across every totem and every open iframe -->
         <section class="stats" aria-label="Resumo ao vivo">
           <div class="db-card stat">
@@ -138,6 +152,99 @@
             <button class="db-btn db-btn--secondary" type="button" id="btn-clear-filter">Limpar busca</button>
           </div>
         </section>
+       </div>
+
+        <!-- ── Evento: every totem together ─────────────────────────────── -->
+        <div class="view" data-view="evento" hidden>
+          <div class="view-head">
+            <div class="db-seg" role="radiogroup" aria-label="Período do evento">
+              <label><input type="radio" name="event-range" value="24h" checked /><span>24 horas</span></label>
+              <label><input type="radio" name="event-range" value="7d" /><span>7 dias</span></label>
+              <label><input type="radio" name="event-range" value="30d" /><span>30 dias</span></label>
+            </div>
+            <a class="db-btn db-btn--secondary" id="event-csv" href="/api/sessions.csv?range=24h" download><svg class="ico"><use href="#i-download"/></svg>Exportar planilha</a>
+          </div>
+          <div id="event-body" aria-live="polite"></div>
+        </div>
+
+        <!-- ── Apelidos: anonymous player names ─────────────────────────── -->
+        <div class="view" data-view="apelidos" hidden>
+          <section class="db-card panel" aria-labelledby="nick-title">
+            <div>
+              <h2 class="panel__title" id="nick-title">Nome de quem joga</h2>
+              <p class="panel__desc">Ninguém digita o próprio nome. Cada pessoa que entra na fila ganha um apelido sorteado, um bicho e um adjetivo, que aparece no celular, na tela do jogo e no ranking. Duas pessoas na mesma tela nunca ficam com o mesmo.</p>
+            </div>
+            <div class="nick-examples">
+              <ul class="nick-chips" id="nick-examples" aria-label="Exemplos sorteados agora"></ul>
+              <button class="db-btn db-btn--ghost db-btn--sm" type="button" id="nick-shuffle"><svg class="ico"><use href="#i-shuffle"/></svg>Sortear outros</button>
+            </div>
+            <form id="nick-form" class="form-grid" novalidate>
+              <div class="db-field">
+                <label class="db-label" for="nick-animals">Bichos <span class="opt" id="nick-animals-n"></span></label>
+                <textarea class="db-textarea nick-list" id="nick-animals" rows="14" spellcheck="false"></textarea>
+                <span class="db-hint">Um por linha. Até 200.</span>
+              </div>
+              <div class="db-field">
+                <label class="db-label" for="nick-adjectives">Adjetivos <span class="opt" id="nick-adjectives-n"></span></label>
+                <textarea class="db-textarea nick-list" id="nick-adjectives" rows="14" spellcheck="false"></textarea>
+                <span class="db-hint">Um por linha. Prefira os que servem para qualquer bicho (Veloz, Feliz, Gigante), sem final em -o ou -a.</span>
+              </div>
+            </form>
+            <div class="db-callout" id="nick-readonly" hidden><svg><use href="#i-shield"/></svg><span>Só administradores alteram as listas.</span></div>
+            <div class="db-callout db-callout--danger" id="nick-error" role="alert" hidden><svg><use href="#i-alert"/></svg><span></span></div>
+            <div class="panel__foot">
+              <p class="db-hint" id="nick-meta"></p>
+              <div class="panel__actions">
+                <button class="db-btn db-btn--secondary" type="button" id="nick-reset">Voltar ao padrão</button>
+                <button class="db-btn db-btn--primary" type="submit" form="nick-form" id="nick-save"><svg class="ico"><use href="#i-check"/></svg>Salvar listas</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ── Usuários (admin) ─────────────────────────────────────────── -->
+        <div class="view" data-view="usuarios" hidden>
+          <div class="view-head">
+            <p class="view-desc">Cada pessoa da equipe entra com o próprio usuário, e tudo o que ela faz fica no registro de atividade. A conta <strong>admin</strong> usa a senha do servidor e sempre existe.</p>
+            <button class="db-btn db-btn--primary" type="button" id="btn-new-user"><svg class="ico"><use href="#i-plus"/></svg><span>Adicionar usuário</span></button>
+          </div>
+          <div class="db-card table-card">
+            <table class="table" aria-label="Usuários do painel">
+              <thead><tr><th>Nome</th><th>Usuário</th><th>Papel</th><th>Último acesso</th><th><span class="db-visually-hidden">Ações</span></th></tr></thead>
+              <tbody id="users-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ── Atividade (admin) ────────────────────────────────────────── -->
+        <div class="view" data-view="atividade" hidden>
+          <div class="view-head">
+            <div class="filters">
+              <label class="db-field">
+                <span class="db-label">Quem</span>
+                <select class="db-select" id="audit-user"><option value="">Todos</option></select>
+              </label>
+              <label class="db-field">
+                <span class="db-label">O quê</span>
+                <select class="db-select" id="audit-action">
+                  <option value="">Tudo</option>
+                  <option value="auth.">Entradas e saídas</option>
+                  <option value="totem.">Pausas</option>
+                  <option value="POST /api/totems">Totens e filas</option>
+                  <option value="PUT /api/totems">Edições de totem</option>
+                  <option value="DELETE /api/totems">Exclusões de totem</option>
+                  <option value="POST /api/sessions">Partidas encerradas</option>
+                  <option value="user.">Usuários</option>
+                  <option value="settings.">Apelidos</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="db-card table-card">
+            <ul class="audit" id="audit-list" aria-live="polite"></ul>
+          </div>
+          <button class="db-btn db-btn--secondary more-btn" type="button" id="audit-more" hidden>Carregar mais</button>
+        </div>
       </main>
     </div>
   </div>
@@ -197,11 +304,16 @@
           <label class="db-label" for="tf-max-queue">Tamanho máximo da fila <span class="opt">(opcional)</span></label>
           <input class="db-input" id="tf-max-queue" type="number" min="1" max="200" placeholder="Sem limite" />
         </div>
-        <div class="db-field">
-          <label class="db-label" for="tf-game-config">Configuração do jogo <span class="opt">(JSON, opcional)</span></label>
-          <textarea class="db-textarea" id="tf-game-config" rows="3" spellcheck="false" placeholder='{ "gameSpeed": 6 }'></textarea>
-          <span class="db-hint">Enviado ao jogo incorporado em <code>/config</code>. Ex.: snake <code>gameSpeed</code>; brick-rush <code>rounds</code>, <code>roundMs</code>.</span>
-        </div>
+        <fieldset class="cfg" id="tf-config" hidden>
+          <legend class="db-label">Ajustes do jogo</legend>
+          <p class="db-hint">Campo vazio = valor padrão do jogo (mostrado em cinza).</p>
+          <div class="cfg__fields" id="tf-config-fields"></div>
+          <details class="cfg__adv" id="tf-config-adv">
+            <summary>JSON avançado</summary>
+            <textarea class="db-textarea" id="tf-game-config" rows="3" spellcheck="false" placeholder='{ "outraOpcao": 1 }'></textarea>
+            <span class="db-hint">Opções extras que o formulário não mostra. Os campos acima têm prioridade.</span>
+          </details>
+        </fieldset>
         <div class="db-field" id="tf-key-field" hidden>
           <span class="db-label" id="tf-key-label">Chave do jogo</span>
           <div class="key-row">
@@ -239,6 +351,9 @@
         </div>
         <div id="queue-body"></div>
       </div>
+      <div class="db-dialog__foot">
+        <button class="db-btn db-btn--secondary" type="button" id="queue-clear"><svg class="ico"><use href="#i-eraser"/></svg>Limpar fila</button>
+      </div>
     </form>
   </dialog>
 
@@ -259,6 +374,9 @@
           <label><input type="radio" name="stats-range" value="30d" /><span>30 dias</span></label>
         </div>
         <div id="stats-body" aria-live="polite"></div>
+      </div>
+      <div class="db-dialog__foot">
+        <a class="db-btn db-btn--secondary" id="stats-csv" download><svg class="ico"><use href="#i-download"/></svg>Exportar planilha</a>
       </div>
     </form>
   </dialog>
@@ -345,8 +463,54 @@
     </form>
   </dialog>
 
+  <!-- ── User form (admin) ──────────────────────────────────────────────────── -->
+  <dialog id="userDialog" class="db-dialog" aria-labelledby="user-form-title">
+    <form method="dialog" id="user-form" novalidate>
+      <div class="db-dialog__head">
+        <div>
+          <h2 class="db-dialog__title" id="user-form-title">Novo usuário</h2>
+          <p class="db-dialog__desc">Operadores cuidam de totens e filas. Administradores também gerenciam usuários e veem a atividade.</p>
+        </div>
+        <button class="db-icon-btn" type="button" data-close aria-label="Fechar"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <div class="db-dialog__body">
+        <div class="db-field">
+          <label class="db-label" for="uf-name">Nome</label>
+          <input class="db-input" id="uf-name" type="text" maxlength="60" placeholder="ex.: Ana Souza" />
+        </div>
+        <div class="form-grid">
+          <div class="db-field">
+            <label class="db-label" for="uf-username">Usuário</label>
+            <input class="db-input db-mono" id="uf-username" type="text" maxlength="32" autocapitalize="none" spellcheck="false" placeholder="ana.souza" />
+          </div>
+          <div class="db-field">
+            <label class="db-label" for="uf-role">Papel</label>
+            <select class="db-select" id="uf-role">
+              <option value="operator">Operador</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+        </div>
+        <div class="db-field">
+          <label class="db-label" for="uf-password">Senha <span class="opt" id="uf-password-opt"></span></label>
+          <input class="db-input" id="uf-password" type="password" autocomplete="new-password" minlength="10" />
+          <span class="db-hint">Pelo menos 10 caracteres. Trocar a senha desconecta a pessoa de todos os aparelhos.</span>
+        </div>
+        <label class="db-switch" id="uf-active-row" hidden><input type="checkbox" id="uf-active" checked /><span></span> Conta ativa</label>
+        <div class="db-callout db-callout--danger" id="user-error" role="alert" hidden>
+          <svg><use href="#i-alert"/></svg><span></span>
+        </div>
+      </div>
+      <div class="db-dialog__foot">
+        <button class="db-btn db-btn--secondary" type="button" data-close>Cancelar</button>
+        <button class="db-btn db-btn--primary" type="submit" id="btn-save-user"><svg class="ico"><use href="#i-check"/></svg>Salvar usuário</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="db-toast-stack" id="toasts" aria-live="polite"></div>
 
   <script type="module" src="/dashboard.js"></script>
+  <script type="module" src="/dashboard-views.js"></script>
 </body>
 </html>

@@ -85,12 +85,19 @@ Todos são JSON < 512 bytes, um datagrama por evento, na `udpPort` do totem.
 ### 3.2 `player_join` — jogador conectou o gamepad
 
 ```json
-{ "type": "player_join", "sid": "13dadce6", "pid": "qp_a1b2c", "tid": "<totemId completo>" }
+{ "type": "player_join", "sid": "13dadce6", "pid": "qp_a1b2c", "tid": "<totemId completo>", "nm": "Capivara Veloz" }
 ```
 
 Enviado quando o celular conecta o WebSocket (a sessão vira `active`).
 Use para spawnar o avatar — ou, como o games/snake, spawne no primeiro input
-mesmo e use o `player_join` só para aprender o `tid`.
+mesmo e use o `player_join` só para aprender o `tid` e o nome.
+
+`nm` é o **apelido** do jogador: ninguém digita o próprio nome; o backend
+sorteia um bicho + um adjetivo ("Capivara Veloz") quando a pessoa entra na
+fila, sem repetir dentro da mesma tela. O celular mostra o mesmo apelido.
+Mostre `nm` no placar em vez do `pid` (como texto, nunca como HTML). Pode
+faltar em sessões antigas: use o `pid` como reserva. As listas de bichos e
+adjetivos são editadas no painel (**Apelidos**).
 
 ### 3.3 `player_leave` — a sessão daquele jogador ACABOU
 
@@ -118,8 +125,21 @@ POST {BACKEND_URL}/api/totems/{TOTEM_ID}/end-session
 Content-Type: application/json
 X-Totem-Key: {TOTEM_KEY}
 
-{ "playerId": "qp_a1b2c" }     ← o pid (truncado) que veio nos pacotes UDP
+{ "playerId": "qp_a1b2c", "score": 120 }     ← pid (truncado) dos pacotes UDP + pontos (opcional)
 ```
+
+`score` (número ≥ 0, opcional) vai para o **ranking**: o painel mostra as
+melhores pontuações por totem e do evento, e o jogo pode ler o placar para
+exibir no lobby:
+
+```
+GET {BACKEND_URL}/api/totems/{TOTEM_ID}/ranking?range=24h&limit=10    (X-Totem-Key)
+→ [{ "position": 1, "nickname": "Capivara Veloz", "score": 120, "endedAt": "..." }, ...]
+```
+
+`range`: `24h`, `7d`, `30d` ou `all`. Nas pontes Node (`games/*/server.js`)
+isso já está pronto em `GET /ranking`; no embed, `GET ranking` (relativo,
+público, só `{ position, name, score }`).
 
 > 🔑 **Chave do totem** (`X-Totem-Key`): todo totem criado no painel ganha uma
 > chave (painel → **Editar** → *Chave do jogo*, com botão de copiar e de gerar
@@ -241,9 +261,16 @@ O backend implementa, por instância, exatamente o contrato da ponte local:
   na ponte local (servida em `/`) quanto no embed.
 - `config` no embed devolve `{ debugPanel: false, ...totem.gameConfig }` —
   trate campos ausentes com defaults no próprio jogo.
+- Para o operador ajustar o jogo por **formulário** (sem JSON), descreva as
+  opções em `games/<jogo>/config.schema.json`:
+  `{ "title", "fields": [{ "key", "label", "type": "number"|"boolean", "unit",
+  "min", "max", "step", "default", "help", "scale" }] }`. `scale: 1000` mostra
+  segundos no painel e grava milissegundos. O backend recusa valores fora de
+  `min`/`max` (400). Exemplos: `games/snake` e `games/brick-rush`.
+- `ranking` (relativo) devolve o placar do totem: `[{ position, name, score }]`.
 - `queue-state` no embed é público (qualquer visitante do site lê), então só traz
-  contagens: `{ sessions: [{ pid, status }], queue: [{ position }], maxPlayers,
-  maxQueueSize }` — `pid` com 8 chars, sem IP, navegador nem id completo. Use
+  contagens: `{ sessions: [{ pid, name, status }], queue: [{ position }], maxPlayers,
+  maxQueueSize, paused }` — `pid` com 8 chars, sem IP, navegador nem id completo. Use
   `queue.length` e `maxPlayers`, como o brick-rush já faz.
 - O QR fica por conta do backend (overlay injetado no `index.html`); o jogo não
   precisa desenhar QR nem conhecer o `instanceId` (vem no SSE `init` se quiser).
@@ -260,7 +287,9 @@ vira opcional) e use o botão **Incorporar** do painel para gerar o `<iframe>`.
 - [ ] Jogadores indexados pelo `pid` truncado de 8 chars
 - [ ] Inputs (`a`/`s`) aplicados; spawn no `player_join` ou no primeiro input
 - [ ] `player_leave` remove o avatar (obrigatório)
-- [ ] Morte → `POST /api/totems/:id/end-session { playerId: pid }`
+- [ ] Morte → `POST /api/totems/:id/end-session { playerId: pid, score }`
+- [ ] Placar mostra o apelido (`nm` do `player_join`), como texto
+- [ ] (opcional) `config.schema.json` para o painel ajustar o jogo por formulário
 - [ ] SEM reset de board quando alguém entra/sai — jogadores são independentes
 - [ ] SEM respawn local — quem morreu volta pela fila
 - [ ] `BACKEND_URL` + `TOTEM_ID` configuráveis (env)

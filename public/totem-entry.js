@@ -101,7 +101,9 @@ function showQueue(pos, estimatedWaitMs, { nickname = null, paused = false } = {
     $queuePos.classList.add('is-bump')
   }
   $queuePos.textContent      = pos
-  $queueEta.textContent      = estimatedWaitMs ? `espera ${formatEta(estimatedWaitMs)}` : ''
+  // Paused: the line does not move, so a time estimate would be a guess.
+  $queueEta.textContent      = paused ? 'parado durante a pausa'
+    : estimatedWaitMs ? `espera ${formatEta(estimatedWaitMs)}` : ''
 }
 
 // Survives closing the tab for a few minutes (player-store.js): coming back

@@ -62,9 +62,12 @@
     try {
       const res = await fetch('queue-state', { cache: 'no-store' })
       if (!res.ok) throw new Error(String(res.status))
-      const { sessions = [], queue = [], maxPlayers = 0 } = await res.json()
+      const { sessions = [], queue = [], maxPlayers = 0, paused = false } = await res.json()
       const free = Math.max(0, maxPlayers - sessions.length)
-      if (free > 0 && queue.length === 0) {
+      if (paused) {
+        $status.dataset.state = 'busy'
+        $text.textContent = 'Em pausa, volta já'
+      } else if (free > 0 && queue.length === 0) {
         $status.dataset.state = 'free'
         $text.textContent = free === 1 ? '1 vaga livre' : `${free} vagas livres`
       } else {

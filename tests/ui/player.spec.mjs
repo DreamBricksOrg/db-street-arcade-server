@@ -33,12 +33,15 @@ test('com o totem cheio entra na fila e é chamado quando a vaga libera', async 
   await p2.goto(`/play/totem?id=${totem._id}`)
   await expect(p2.getByRole('heading', { name: 'Você está na fila' })).toBeVisible()
   await expect(p2.locator('#queue-pos')).toHaveText('1')
+  await expect(p2.locator('#queue-me')).toContainText(/Hoje você é \S+ \S+/)
+  await expect(p2.getByRole('button', { name: 'Me avise quando for a minha vez' })).toBeVisible()
 
   // Operator ends player 1 → player 2 is called and the controller opens
   const sid = p1.url().split('/play/')[1]
   expect((await request.post(`/api/sessions/${sid}/end`, { headers: AUTH })).ok()).toBe(true)
   await expect(p1.getByRole('heading', { name: 'Fim de jogo' })).toBeVisible()
   await expect(p1.getByRole('link', { name: 'Jogar novamente' })).toBeVisible()
+  await expect(p2.getByRole('heading', { name: 'É a sua vez!' })).toBeVisible({ timeout: 10_000 })
   await expect(p2).toHaveURL(/\/play\/[0-9a-f-]{36}$/, { timeout: 10_000 })
   await expect(p2.locator('#conn')).toHaveText('Conectado')
 
@@ -50,4 +53,14 @@ test('QR inválido mostra o erro com o mascote e o botão de tentar de novo', as
   await page.goto('/play/totem?id=00000000-0000-0000-0000-000000000000')
   await expect(page.getByRole('heading', { name: 'Não deu para entrar' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Tentar novamente' })).toBeVisible()
+})
+
+test('totem pausado: quem escaneia vê o aviso de pausa', async ({ page, request }) => {
+  await request.post(`/api/totems/${totem._id}/pause`, { headers: AUTH, data: { paused: true } })
+  try {
+    await page.goto(`/play/totem?id=${totem._id}`)
+    await expect(page.getByRole('heading', { name: 'Totem em pausa' })).toBeVisible()
+  } finally {
+    await request.post(`/api/totems/${totem._id}/pause`, { headers: AUTH, data: { paused: false } })
+  }
 })

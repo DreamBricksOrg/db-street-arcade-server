@@ -227,6 +227,7 @@ export default async function embedRoutes(fastify) {
       queue:      result.queue.map((_q, i) => ({ position: i + 1 })),
       maxPlayers:   result.maxPlayers,
       maxQueueSize: result.maxQueueSize,
+      paused:       result.paused,
     }
   })
 

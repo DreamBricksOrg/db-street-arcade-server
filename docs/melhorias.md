@@ -208,14 +208,14 @@ O que faltava de funcionalidade, levantado no código em 08/10/2026. As decisõe
 
 | # | Funcionalidade | Prioridade | Situação |
 |---|----------------|-----------|----------|
-| 29 | Avisar o jogador quando chega a vez (vibração, som, título da aba, notificação) | **Alta** | em andamento |
+| 29 | Avisar o jogador quando chega a vez (vibração, som, título da aba, notificação) | **Alta** | ✅ feito: botão "Me avise quando for a minha vez" arma som, vibração e notificação (service worker `/sw.js`); ao ser chamado, tela "É a sua vez!" antes do controle |
 | 30 | Tempo restante no controle | — | descartado: o Snake não tem tempo limite, a partida acaba quando o jogador morre |
-| 31 | Nome do jogador → **apelido de animal gerado** ("Capivara Veloz"), sem o jogador digitar nada; listas editáveis no painel | **Alta** | em andamento |
-| 32 | Ranking (pontos guardados no backend, placar do dia/evento) | Média | em andamento |
-| 33 | Pausar um totem (fecha a entrada da fila para manutenção/intervalo) | **Alta** | em andamento |
-| 34 | Usuários individuais de operador, com papéis e registro de atividade | Média | em andamento |
-| 35 | Exportar o histórico em CSV | Média | em andamento |
-| 36 | Histórico do evento inteiro (todos os totens juntos) | Média | em andamento |
+| 31 | Nome do jogador → **apelido de animal gerado** ("Capivara Veloz"), sem o jogador digitar nada; listas editáveis no painel | **Alta** | ✅ feito: 30 bichos × 26 adjetivos neutros, sem repetir na mesma tela; aparece no celular, no jogo (`nm`), na fila do operador e no ranking; seção **Apelidos** (admin edita) |
+| 32 | Ranking (pontos guardados no backend, placar do dia/evento) | Média | ✅ feito: `score` no `end-session`; placar no histórico do totem, na seção Evento e no lobby do Snake e do Brick Rush |
+| 33 | Pausar um totem (fecha a entrada da fila para manutenção/intervalo) | **Alta** | ✅ feito: botão no cartão; entrada responde 423, fila espera, quem joga termina; retomar chama a fila |
+| 34 | Usuários individuais de operador, com papéis e registro de atividade | Média | ✅ feito: seções **Usuários** e **Atividade** (admin); login por usuário; `admin` + senha do servidor continua valendo |
+| 35 | Exportar o histórico em CSV | Média | ✅ feito: "Exportar planilha" no histórico do totem e na seção Evento (`;` + BOM, abre direto no Excel) |
+| 36 | Histórico do evento inteiro (todos os totens juntos) | Média | ✅ feito: seção **Evento** com indicadores, gráfico, partidas por totem e ranking geral |
 | 37 | Sites permitidos por totem (`frame-ancestors` por jogo) | Baixa | pendente |
-| 38 | Configuração do jogo por formulário (sem editar JSON) | Média | em andamento |
+| 38 | Configuração do jogo por formulário (sem editar JSON) | Média | ✅ feito: `games/<jogo>/config.schema.json`; durações em segundos; JSON avançado para extras; servidor valida a faixa |
 | 39 | Mais jogos além de Snake e Brick Rush | Baixa | pendente |

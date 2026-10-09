@@ -373,6 +373,7 @@ async function totemRoutes(fastify) {
             },
             maxPlayers:   { type: 'number' },
             maxQueueSize: { type: 'number', nullable: true },
+            paused:       { type: 'boolean' },
           },
         },
         401: errorResponse, 404: errorResponse,

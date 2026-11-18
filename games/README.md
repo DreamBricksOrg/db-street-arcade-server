@@ -7,6 +7,7 @@ Cada jogo é uma aplicação isolada que segue o padrão de integração descrit
 | Jogo | Pasta | HTTP | UDP | Descrição |
 |---|---|---|---|---|
 | 🐍 Snake | [`snake/`](snake/) | 9000 | 9001 | Cobras multiplayer; morrer = sessão encerra e a fila anda |
+| 🚀 Nave | [`nave/`](nave/) | — | — | Só iframe (`/embed`): nave que quebra blocos e inimigos, igual à TV do site; sem ponte UDP. `?kbd=1` testa com o teclado |
 | 🧱 Brick Rush | [`brick-rush/`](brick-rush/) | 9100 | 9101 | Platformer estilo Transformice; partidas de N rounds em mapas WFC |
 
 ## Convenções (todo jogo segue)

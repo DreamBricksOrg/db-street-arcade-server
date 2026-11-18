@@ -36,7 +36,7 @@ export default [
 
   // Classic browser scripts (no import/export)
   {
-    files: ['public/embed-assets/overlay.js', 'games/snake/public/game.js'],
+    files: ['public/embed-assets/overlay.js', 'games/snake/public/game.js', 'games/nave/public/game.js'],
     languageOptions: { ecmaVersion: 2024, sourceType: 'script', globals: { ...globals.browser } },
     rules: { 'no-unused-vars': unused, 'no-empty': emptyCatchOk },
   },

@@ -20,3 +20,6 @@ public/assets/fonts/
 docs/design_system/assets/fonts/**/*.ttf
 docs/design_system/assets/fonts/**/*.otf
 docs/design_system/assets/fonts/**/*.woff2
+
+# Launch videos from /brag (generated, large)
+brag-output*/

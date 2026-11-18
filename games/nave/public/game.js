@@ -14,9 +14,11 @@ const CFG = {
   speed: 4,      // 1–10: velocidade dos blocos/inimigos e frequência de spawn
   blockPoints: 25,
   enemyPoints: 50,
+  breakTimeout: 10, // s sem quebrar um bloco = a nave explode
 };
 
 const SHIP_SPEED = 200;      // px/s
+const BOOST_MULT = 2;        // B: vertical mais rápido
 const SHIP_MIN_X = 20, SHIP_MAX_X = 230; // a nave fica no lado esquerdo, como no site
 const FIRE_COOLDOWN = 0.25;
 const PALETTE = [ORANGE, '#4ee1ff', '#7dff7a', '#ffd23f', '#ff7ad9', '#b79cff', '#ffffff', '#5cffc4'];
@@ -47,7 +49,8 @@ function addPlayer(pid) {
   const n = Object.keys(players).length;
   players[pid] = {
     pid, x: 50 + (n % 4) * 30, y: 60 + ((n * 97) % (H - 120)), score: 0, alive: true,
-    up: false, down: false, left: false, right: false, fire: false, cooldown: 0, deadFor: 0,
+    up: false, down: false, left: false, right: false, fire: false, boost: false, cooldown: 0, deadFor: 0,
+    timer: CFG.breakTimeout,
     color: PALETTE[colorIndex++ % PALETTE.length],
   };
   return players[pid];
@@ -64,8 +67,10 @@ function explode(x, y, color) {
 
 function spawnObstacle() {
   const asteroid = Math.random() < 0.5;
+  const baseY = Math.random() * (H - 80) + 40;
   obstacles.push({
-    x: W + 30, y: Math.random() * (H - 80) + 40,
+    x: W + 30, y: baseY, baseY, age: 0, phase: Math.random() * 6.28,
+    amp: Math.min(70, elapsed * 1.2), // onda cresce com o tempo: passa por cima/baixo da nave
     w: asteroid ? 18 : 22, h: asteroid ? 18 : 16,
     speed: (Math.random() * 1.5 + 3) * 60 * (CFG.speed / 4) * (1 + Math.min(1, elapsed / 120)),
     type: asteroid ? 'asteroid' : 'enemy',
@@ -99,7 +104,7 @@ function update(dt) {
   // Spawn: 1 a cada ~1,17 s no piloto automático (70 frames); com gente jogando
   // acelera com a dificuldade e com o número de naves.
   const interval = playing
-    ? Math.max(0.35, (70 / 60) / (CFG.speed / 4) / Math.sqrt(live.length) / (1 + elapsed / 120))
+    ? Math.max(0.2, (70 / 60) / (CFG.speed / 4) / Math.sqrt(live.length) / (1 + elapsed / 30))
     : 70 / 60;
   spawnTimer += dt;
   if (spawnTimer >= interval) { spawnTimer = 0; spawnObstacle(); }
@@ -107,8 +112,9 @@ function update(dt) {
   if (playing) {
     for (const p of live) {
       p.x = Math.max(SHIP_MIN_X, Math.min(SHIP_MAX_X, p.x + (p.right - p.left) * SHIP_SPEED * dt));
-      p.y = Math.max(20, Math.min(H - 30, p.y + (p.down - p.up) * SHIP_SPEED * dt));
-      p.score += 10 * dt; // sobreviver pontua
+      p.y = Math.max(20, Math.min(H - 30, p.y + (p.down - p.up) * SHIP_SPEED * (p.boost ? BOOST_MULT : 1) * dt));
+      p.timer -= dt;
+      if (p.timer <= 0) { kill(p); continue; }
       p.cooldown -= dt;
       if (p.fire && p.cooldown <= 0) { lasers.push({ x: p.x + 14, y: p.y, pid: p.pid }); p.cooldown = FIRE_COOLDOWN; }
     }
@@ -127,12 +133,18 @@ function update(dt) {
 
   for (const o of obstacles) {
     o.x -= o.speed * dt;
+    o.age += dt;
+    o.y = Math.max(20, Math.min(H - 30, o.baseY + Math.sin(o.age * 3 + o.phase) * o.amp));
     for (const l of lasers) {
       if (l.x >= o.x - o.w / 2 && l.x <= o.x + o.w / 2 + 4 && Math.abs(l.y - o.y) < o.h / 2 + 2) {
         l.x = W + 99;
         o.dead = true;
         explode(o.x, o.y, ORANGE);
-        if (players[l.pid]) players[l.pid].score += o.type === 'enemy' ? CFG.enemyPoints : CFG.blockPoints;
+        const shooter = players[l.pid];
+        if (shooter && shooter.alive) {
+          shooter.score += o.type === 'enemy' ? CFG.enemyPoints : CFG.blockPoints;
+          shooter.timer = CFG.breakTimeout;
+        }
       }
     }
     if (!o.dead) {
@@ -182,7 +194,15 @@ function draw() {
 
   const live = alivePlayers();
   if (!live.length) drawShip(demo.x, demo.y, ORANGE);
-  for (const p of live) drawShip(p.x, p.y, p.color);
+  for (const p of live) {
+    drawShip(p.x, p.y, p.color);
+    // contagem até explodir: fica vermelha nos últimos 3 s
+    ctx.fillStyle = p.timer <= 3 ? '#ff3b3b' : p.color;
+    ctx.font = '500 10px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(Math.ceil(p.timer), p.x, p.y + 12);
+  }
 
   for (const l of lasers) {
     ctx.save(); ctx.fillStyle = '#fff'; glow('#fff', 6); ctx.fillRect(l.x, l.y - 1, 10, 2); ctx.restore();
@@ -246,7 +266,8 @@ function onInput(pid, action, state) {
   else if (action === 'dpad_down') p.down = on;
   else if (action === 'dpad_left') p.left = on;
   else if (action === 'dpad_right') p.right = on;
-  else if (action === 'btn_A' || action === 'btn_B') p.fire = on;
+  else if (action === 'btn_A') p.fire = on;
+  else if (action === 'btn_B') p.boost = on;
 }
 
 const evtSource = new EventSource('events');
@@ -265,7 +286,7 @@ evtSource.onmessage = (event) => {
 
 // Teclado só para testar sem celular: abra com ?kbd=1 (setas + espaço).
 if (new URLSearchParams(location.search).has('kbd')) {
-  const map = { ArrowUp: 'dpad_up', ArrowDown: 'dpad_down', ArrowLeft: 'dpad_left', ArrowRight: 'dpad_right', ' ': 'btn_A' };
+  const map = { ArrowUp: 'dpad_up', ArrowDown: 'dpad_down', ArrowLeft: 'dpad_left', ArrowRight: 'dpad_right', ' ': 'btn_A', Shift: 'btn_B' };
   const key = (state) => (e) => { if (map[e.key]) { e.preventDefault(); onInput('teclado', map[e.key], state); } };
   addPlayer('teclado');
   addEventListener('keydown', key(1));

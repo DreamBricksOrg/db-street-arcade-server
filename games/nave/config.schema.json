@@ -3,6 +3,7 @@
   "fields": [
     { "key": "speed", "label": "Velocidade dos blocos e inimigos", "type": "number", "unit": "1–10", "min": 1, "max": 10, "step": 1, "default": 4, "help": "Quanto maior, mais rápido e mais frequente." },
     { "key": "blockPoints", "label": "Pontos por bloco quebrado", "type": "number", "unit": "pontos", "min": 1, "max": 500, "step": 1, "default": 25 },
-    { "key": "enemyPoints", "label": "Pontos por inimigo", "type": "number", "unit": "pontos", "min": 1, "max": 500, "step": 1, "default": 50 }
+    { "key": "enemyPoints", "label": "Pontos por inimigo", "type": "number", "unit": "pontos", "min": 1, "max": 500, "step": 1, "default": 50 },
+    { "key": "breakTimeout", "label": "Tempo sem quebrar bloco até explodir", "type": "number", "unit": "segundos", "min": 3, "max": 60, "step": 1, "default": 10, "help": "Cada bloco quebrado zera a contagem." }
   ]
 }

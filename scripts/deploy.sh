@@ -8,7 +8,8 @@ dir="${1:?uso: deploy.sh <pasta do projeto>}"
 cd "$dir"
 
 prev=$(git rev-parse HEAD)
-git pull --ff-only
+git fetch --prune origin
+git reset --hard origin/main # o checkout do servidor só recebe deploy (aguenta histórico reescrito)
 new=$(git rev-parse HEAD)
 echo "deploy: $prev -> $new"
 

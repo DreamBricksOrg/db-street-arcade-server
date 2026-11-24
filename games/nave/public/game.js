@@ -6,11 +6,21 @@
 // 'config', 'end-session' — URLs relativas, iguais na ponte e no /embed.
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const W = canvas.width;
-const H = canvas.height;
+// Mundo lógico 400×400 (como a TV do site); o canvas é desenhado na resolução real da tela.
+const W = 400;
+const H = 400;
 const ORANGE = '#ff5722';
+let scale = 1;
+
+function resize() {
+  const px = Math.min(2048, Math.max(400, Math.round(canvas.clientWidth * (window.devicePixelRatio || 1))));
+  canvas.width = canvas.height = px;
+  scale = px / W;
+}
+new ResizeObserver(resize).observe(canvas); // também dispara no 1º layout
 
 const CFG = {
+  lobbyWaitMs: 30000, // espera no lobby após o 1º jogador, se as vagas não lotarem
   speed: 4,      // 1–10: velocidade dos blocos/inimigos e frequência de spawn
   blockPoints: 25,
   enemyPoints: 50,
@@ -34,6 +44,10 @@ let hiScore = 0;
 let spawnTimer = 0;
 let elapsed = 0;    // segundos com gente jogando (rampa de dificuldade)
 let t = 0;
+let phase = 'lobby';       // 'lobby' (movimento livre, sem blocos) → 'play'
+let lobbyDeadline = null;  // t em que a partida começa mesmo sem lotar
+let countdownEnd = null;   // t em que acaba a contagem 3-2-1
+let maxPlayers = 0;        // vagas do totem (queue-state)
 const stars = Array.from({ length: 40 }, () => ({
   x: Math.random() * W, y: Math.random() * H, size: Math.random() * 2, speed: (Math.random() * 2 + 1) * 60,
 }));
@@ -98,7 +112,8 @@ function update(dt) {
   particles = particles.filter(p => p.life > 0);
 
   const live = alivePlayers();
-  const playing = live.length > 0;
+  if (phase === 'lobby') lobbyTick(live);
+  const playing = phase === 'play' && live.length > 0;
   if (playing) elapsed += dt;
 
   // Spawn: 1 a cada ~1,17 s no piloto automático (70 frames); com gente jogando
@@ -107,14 +122,18 @@ function update(dt) {
     ? Math.max(0.2, (70 / 60) / (CFG.speed / 4) / Math.sqrt(live.length) / (1 + elapsed / 30))
     : 70 / 60;
   spawnTimer += dt;
-  if (spawnTimer >= interval) { spawnTimer = 0; spawnObstacle(); }
+  if (spawnTimer >= interval && (playing || !live.length)) { spawnTimer = 0; spawnObstacle(); }
 
-  if (playing) {
+  if (live.length) {
     for (const p of live) {
-      p.x = Math.max(SHIP_MIN_X, Math.min(SHIP_MAX_X, p.x + (p.right - p.left) * SHIP_SPEED * dt));
+      // no lobby a nave voa pela tela inteira; na partida fica no lado esquerdo
+      const maxX = playing ? SHIP_MAX_X : W - 20;
+      p.x = Math.max(SHIP_MIN_X, Math.min(maxX, p.x + (p.right - p.left) * SHIP_SPEED * dt));
       p.y = Math.max(20, Math.min(H - 30, p.y + (p.down - p.up) * SHIP_SPEED * (p.boost ? BOOST_MULT : 1) * dt));
-      p.timer -= dt;
-      if (p.timer <= 0) { kill(p); continue; }
+      if (playing) {
+        p.timer -= dt;
+        if (p.timer <= 0) { kill(p); continue; }
+      }
       p.cooldown -= dt;
       if (p.fire && p.cooldown <= 0) { lasers.push({ x: p.x + 14, y: p.y, pid: p.pid }); p.cooldown = FIRE_COOLDOWN; }
     }
@@ -163,10 +182,24 @@ function update(dt) {
     if (p.score > hiScore) hiScore = p.score;
   }
   for (const pid of Object.keys(players)) if (!players[pid].alive && players[pid].deadFor <= 0) delete players[pid];
+  if (phase === 'play' && !Object.keys(players).length) phase = 'lobby'; // todos morreram: novo lobby
+}
+
+// Lobby: começa quando as vagas lotam ou o prazo acaba, com contagem 3-2-1.
+function lobbyTick(live) {
+  if (!live.length) { lobbyDeadline = null; countdownEnd = null; return; }
+  if (lobbyDeadline === null) lobbyDeadline = t + CFG.lobbyWaitMs / 1000;
+  const full = maxPlayers > 0 && live.length >= maxPlayers;
+  if (countdownEnd === null && (full || t >= lobbyDeadline)) countdownEnd = t + 3;
+  if (countdownEnd !== null && t >= countdownEnd) {
+    phase = 'play'; countdownEnd = null; lobbyDeadline = null;
+    obstacles = []; lasers = []; elapsed = 0; spawnTimer = 0;
+    for (const p of live) { p.score = 0; p.timer = CFG.breakTimeout; }
+  }
 }
 
 // ── Desenho ─────────────────────────────────────────────────────────────────
-function glow(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
+function glow(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur * scale; }
 
 function drawShip(x, y, color) {
   ctx.save();
@@ -182,6 +215,7 @@ function drawShip(x, y, color) {
 }
 
 function draw() {
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
 
@@ -196,12 +230,19 @@ function draw() {
   if (!live.length) drawShip(demo.x, demo.y, ORANGE);
   for (const p of live) {
     drawShip(p.x, p.y, p.color);
-    // contagem até explodir: fica vermelha nos últimos 3 s
-    ctx.fillStyle = p.timer <= 3 ? '#ff3b3b' : p.color;
     ctx.font = '500 10px "IBM Plex Mono", monospace';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(Math.ceil(p.timer), p.x, p.y + 12);
+    if (phase === 'lobby') {
+      // cada um se identifica pelo apelido (o mesmo do celular) acima da nave
+      ctx.fillStyle = p.color;
+      ctx.textBaseline = 'bottom';
+      ctx.fillText((names[p.pid] ?? p.pid.slice(0, 6)).slice(0, 16), p.x, p.y - 12);
+    } else {
+      // contagem até explodir: fica vermelha nos últimos 3 s
+      ctx.fillStyle = p.timer <= 3 ? '#ff3b3b' : p.color;
+      ctx.textBaseline = 'top';
+      ctx.fillText(Math.ceil(p.timer), p.x, p.y + 12);
+    }
   }
 
   for (const l of lasers) {
@@ -249,11 +290,17 @@ function draw() {
   });
   ctx.globalAlpha = 1;
 
-  if (!live.length && Math.floor(t * 1.5) % 2 === 0) {
-    ctx.textAlign = 'center';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.font = '600 12px "IBM Plex Mono", monospace';
+  if (!live.length) {
+    if (Math.floor(t * 1.5) % 2 === 0) ctx.fillText('ESCANEIE O QR CODE PARA JOGAR', W / 2, H - 40);
+  } else if (phase === 'lobby') {
+    const left = Math.max(0, Math.ceil((countdownEnd ?? lobbyDeadline) - t));
+    ctx.fillStyle = ORANGE;
+    ctx.fillText(`LOBBY  ${live.length}${maxPlayers ? '/' + maxPlayers : ''} JOGADORES`, W / 2, H - 56);
     ctx.fillStyle = '#fff';
-    ctx.font = '600 12px "IBM Plex Mono", monospace';
-    ctx.fillText('ESCANEIE O QR CODE PARA JOGAR', W / 2, H - 40);
+    ctx.fillText(countdownEnd !== null ? `COMEÇANDO EM ${left}` : `COMEÇA EM ${left}s OU QUANDO LOTAR`, W / 2, H - 40);
   }
 }
 
@@ -294,6 +341,12 @@ if (new URLSearchParams(location.search).has('kbd')) {
 }
 
 fetch('config').then(r => r.json()).then(cfg => Object.assign(CFG, cfg)).catch(() => {});
+
+// Vagas do totem: o lobby começa assim que lotam.
+const pollSlots = () => fetch('queue-state', { cache: 'no-store' })
+  .then(r => r.json()).then(s => { maxPlayers = s.maxPlayers || 0; }).catch(() => {});
+pollSlots();
+setInterval(pollSlots, 3000);
 
 // ── Loop ────────────────────────────────────────────────────────────────────
 let last = performance.now();

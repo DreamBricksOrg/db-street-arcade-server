@@ -92,6 +92,15 @@ await scenario('join repetido do mesmo jogador devolve a MESMA sessão', async (
   assert.equal(r1.body.sessionId, r2.body.sessionId)
 })
 
+// ── playerId/metadata gigantes são recusados ─────────────────────────────────
+await scenario('join com playerId de 100 KB ou metadata de 500 KB é recusado (4xx)', async () => {
+  const tid = await makeTotem({ maxPlayers: 1 }); createdTotems.push(tid)
+  const big = await j('POST', `/api/totems/${tid}/queue/join`, { playerId: 'x'.repeat(100_000) }).catch(() => ({ status: 413 }))
+  assert.ok(big.status >= 400 && big.status < 500, `playerId grande → ${big.status}`)
+  const meta = await j('POST', `/api/totems/${tid}/queue/join`, { playerId: 'e2e_meta', metadata: { blob: 'y'.repeat(500_000) } }).catch(() => ({ status: 413 }))
+  assert.ok(meta.status >= 400 && meta.status < 500, `metadata grande → ${meta.status}`)
+})
+
 // ── Scenario 3: WS claim → active ────────────────────────────────────────────
 await scenario('WS connect reivindica a sessão (reserved → active)', async () => {
   const tid = await makeTotem({ maxPlayers: 1 }); createdTotems.push(tid)

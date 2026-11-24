@@ -276,6 +276,6 @@ export default async function embedRoutes(fastify) {
     if (!rel || rel.includes('\0') || !abs.startsWith(root + path.sep)) {
       return reply.status(404).send({ error: 'Not found' })
     }
-    return reply.sendFile(path.relative(root, abs), root)
+    return reply.sendFile(path.relative(root, abs).split(path.sep).join('/'), root) // '/' também no Windows
   })
 }

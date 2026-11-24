@@ -28,7 +28,7 @@ import { drawNickname }      from '../../lib/nicknames.js'
 
 const log = createLogger('totem.queue')
 
-const HEARTBEAT_SECS = 120
+const HEARTBEAT_SECS = 45    // o celular consulta a fila a cada 3s; quem fechou a aba deixa de ocupar a vez rápido
 const NICK_SECS      = 6 * 3600   // a returning player keeps the same animal
 
 export class TotemQueueService {

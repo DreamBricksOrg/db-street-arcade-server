@@ -271,13 +271,14 @@ async function totemRoutes(fastify) {
 
   fastify.post('/api/totems/:id/queue/join', {
     preHandler: queueJoinRateLimit,
+    bodyLimit: 4096,   // playerId + metadata do aparelho: nada aqui precisa de mais
     schema: {
       tags: ['Totems', 'Queue'], summary: 'Join totem instance: get own session or wait in line',
       params: totemIdParam,
       querystring: instanceQuery,
       body: {
         type: 'object',
-        properties: { playerId: { type: 'string' }, metadata: { type: 'object', additionalProperties: true } },
+        properties: { playerId: { type: 'string', minLength: 1, maxLength: 64 }, metadata: { type: 'object', additionalProperties: true } },
         required: ['playerId'],
       },
       response: {
@@ -308,7 +309,7 @@ async function totemRoutes(fastify) {
       params: totemIdParam,
       querystring: {
         type: 'object',
-        properties: { playerId: { type: 'string' }, instance: instanceProp },
+        properties: { playerId: { type: 'string', maxLength: 64 }, instance: instanceProp },
         required: ['playerId'],
       },
       response: {

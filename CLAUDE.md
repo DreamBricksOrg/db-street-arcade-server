@@ -168,7 +168,7 @@ scripts/
 | `OPERATOR_PASSWORD` | ✅ em produção | — | Senha do painel/API de operação. Vazia em dev = sem login |
 | `QUEUE_RESERVE_MS` | ❌ | 30000 | Prazo do chamado da fila conectar |
 | `QUEUE_SWEEP_MS` | ❌ | 10000 | Intervalo do sweeper (no_show/timeout) |
-| `QUEUE_JOIN_RATE_MAX` | ❌ | 8 | Máx. de queue/join por IP a cada 10s |
+| `QUEUE_JOIN_RATE_MAX` | ❌ | 60 | Máx. de queue/join por IP a cada 10s |
 | `INSTANCE_GRACE_MS` | ❌ | 120000 | Folga antes de encerrar instância (iframe) sem SSE |
 | `MAX_INSTANCES_PER_IP` | ❌ | 20 | Iframes simultâneos por IP (loopback não conta) |
 | `MAX_INSTANCES_PER_TOTEM` | ❌ | 2000 | Iframes simultâneos por totem |
@@ -356,8 +356,8 @@ settings: { _id: 'nicknames', animals: [], adjectives: [], updatedAt, updatedBy 
 | `session:{sessionId}` | HASH | Cache da sessão (id, totemId, playerId, status, totems JSON, expiresAt) |
 | `queue:totem:{totemId}` | LIST | Fila de playerIds do totem físico (instância default) |
 | `queue:totem:{totemId}:{instanceId}` | LIST | Fila de cada iframe |
-| `queue:heartbeat:{playerId}` | STRING | "1" com TTL 120s — mantém presença na fila |
-| `player:metadata:{playerId}` | STRING | JSON com dispositivo/IP (TTL 120s) |
+| `queue:heartbeat:{playerId}` | STRING | "1" com TTL 45s — mantém presença na fila |
+| `player:metadata:{playerId}` | STRING | JSON com dispositivo/IP (TTL 45s) |
 | `queue:joined:{playerId}` | STRING | Quando entrou na fila (ms) → `session.queuedAt` (TTL 6h) |
 | `player:nick:{playerId}` | STRING | Apelido sorteado na entrada (TTL 6h) — o mesmo na fila, na sessão e no jogo |
 | `inst:{totemId}` | HASH | instanceId → `{ ip, createdAt, lastSeenAt, onlineUntil }` (registro das instâncias web) |

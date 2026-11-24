@@ -6,6 +6,7 @@
 //   GET  /embed/:totemId/:inst/          → the game's index.html + QR overlay
 //   GET  /embed/:totemId/:inst/events    → SSE: player_join / inputs / player_leave
 //   POST /embed/:totemId/:inst/end-session  { pid }  → player died
+//   POST /embed/:totemId/:inst/cue        { cue, pid? } → sound on the player's phone
 //   GET  /embed/:totemId/:inst/queue-state → HUD data (sessions + queue)
 //   GET  /embed/:totemId/:inst/config    → totem.gameConfig
 //   GET  /embed/:totemId/:inst/<file>    → static file of games/<game>/public
@@ -23,6 +24,7 @@ import { gamePublicDir } from '../../lib/games.js'
 import { createLogger }  from '../../lib/logger.js'
 import { instanceKey }   from '../../lib/channels.js'
 import { RANGES, rankingSince } from '../../lib/stats.js'
+import { createRateLimiter } from '../../lib/rateLimit.js'
 import { SessionRepository } from '../session/session.repository.js'
 
 const log = createLogger('embed.routes')
@@ -33,6 +35,7 @@ const OVERLAY_TAGS =
 
 const totemParam = { type: 'string', minLength: 36, maxLength: 36 }
 const instParam  = { type: 'string', pattern: '^[A-Za-z0-9_-]{1,64}$' }
+const cueSchema  = { type: 'string', pattern: '^[a-z0-9_]{1,24}$' }
 const instParams = {
   type: 'object',
   properties: { totemId: totemParam, instanceId: instParam },
@@ -73,6 +76,9 @@ export default async function embedRoutes(fastify) {
   const instances = fastify.instances
   const hub       = fastify.instanceHub
   const rankingRepo = new SessionRepository(fastify.mongo)
+  const cueRateLimit = createRateLimiter({
+    name: 'cue', windowMs: 1000, max: 60, getRedis: () => fastify.redisPublisher,
+  })
 
   fastify.addHook('onSend', async (_request, reply, payload) => {
     reply.header('Content-Security-Policy', `frame-ancestors ${env.embedFrameAncestors}`)
@@ -197,6 +203,22 @@ export default async function embedRoutes(fastify) {
     if (!result.ok) return reply.status(result.code ?? 500).send({ ok: false, error: result.error })
     log.info({ totemId, instanceId, pid, sessionId: session._id }, 'Player died — session ended')
     return { ok: true, endedSessionId: session._id }
+  })
+
+  // ── Sound cue → the player's phone plays it (fire-and-forget) ─────────────
+  fastify.post('/embed/:totemId/:instanceId/cue', {
+    preHandler: cueRateLimit,
+    schema: {
+      tags: ['Embed'], summary: 'Sound cue for the phones of this instance', params: instParams,
+      body: {
+        type: 'object', required: ['cue'],
+        properties: { cue: cueSchema, pid: { type: 'string', minLength: 1, maxLength: 64 } },
+      },
+    },
+  }, async (request) => {
+    const { totemId, instanceId } = request.params
+    const sent = await queue.publishCue(totemId, instanceId, request.body.cue, request.body.pid ?? null)
+    return { ok: true, sent }
   })
 
   // ── Ranking of this totem (public: anonymous names and points only) ────────

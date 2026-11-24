@@ -47,6 +47,7 @@ let t = 0;
 let phase = 'lobby';       // 'lobby' (movimento livre, sem blocos) → 'play'
 let lobbyDeadline = null;  // t em que a partida começa mesmo sem lotar
 let countdownEnd = null;   // t em que acaba a contagem 3-2-1
+let lastTick = 4;          // último segundo da contagem que já virou som
 let maxPlayers = 0;        // vagas do totem (queue-state)
 const stars = Array.from({ length: 40 }, () => ({
   x: Math.random() * W, y: Math.random() * H, size: Math.random() * 2, speed: (Math.random() * 2 + 1) * 60,
@@ -64,10 +65,20 @@ function addPlayer(pid) {
   players[pid] = {
     pid, x: 50 + (n % 4) * 30, y: 60 + ((n * 97) % (H - 120)), score: 0, alive: true,
     up: false, down: false, left: false, right: false, fire: false, boost: false, cooldown: 0, deadFor: 0,
-    timer: CFG.breakTimeout,
+    timer: CFG.breakTimeout, lastSec: Infinity,
     color: PALETTE[colorIndex++ % PALETTE.length],
   };
   return players[pid];
+}
+
+// Som no celular do jogador: o backend repassa o cue e o celular toca (public/audio/).
+// Sem pid = todos os celulares da instância. Falha de rede nunca atrapalha o jogo.
+function cue(name, pid) {
+  fetch('cue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(pid ? { cue: name, pid } : { cue: name }),
+  }).catch(() => {});
 }
 
 function explode(x, y, color) {
@@ -133,9 +144,16 @@ function update(dt) {
       if (playing) {
         p.timer -= dt;
         if (p.timer <= 0) { kill(p); continue; }
+        const sec = Math.ceil(p.timer);
+        if (sec <= 3 && sec < p.lastSec) cue('warn', p.pid); // bipe a cada segundo final
+        p.lastSec = sec;
       }
       p.cooldown -= dt;
-      if (p.fire && p.cooldown <= 0) { lasers.push({ x: p.x + 14, y: p.y, pid: p.pid }); p.cooldown = FIRE_COOLDOWN; }
+      if (p.fire && p.cooldown <= 0) {
+        lasers.push({ x: p.x + 14, y: p.y, pid: p.pid });
+        p.cooldown = FIRE_COOLDOWN;
+        cue('fire', p.pid);
+      }
     }
   } else if (obstacles.length) {
     // Piloto automático do site: persegue o obstáculo mais próximo e o explode.
@@ -163,6 +181,8 @@ function update(dt) {
         if (shooter && shooter.alive) {
           shooter.score += o.type === 'enemy' ? CFG.enemyPoints : CFG.blockPoints;
           shooter.timer = CFG.breakTimeout;
+          shooter.lastSec = Infinity;
+          cue(o.type === 'enemy' ? 'enemy' : 'break', shooter.pid);
         }
       }
     }
@@ -190,11 +210,16 @@ function lobbyTick(live) {
   if (!live.length) { lobbyDeadline = null; countdownEnd = null; return; }
   if (lobbyDeadline === null) lobbyDeadline = t + CFG.lobbyWaitMs / 1000;
   const full = maxPlayers > 0 && live.length >= maxPlayers;
-  if (countdownEnd === null && (full || t >= lobbyDeadline)) countdownEnd = t + 3;
+  if (countdownEnd === null && (full || t >= lobbyDeadline)) { countdownEnd = t + 3; lastTick = 4; }
+  if (countdownEnd !== null) {
+    const sec = Math.ceil(countdownEnd - t);
+    if (sec < lastTick && sec > 0) { lastTick = sec; cue('tick'); }
+  }
   if (countdownEnd !== null && t >= countdownEnd) {
+    cue('start');
     phase = 'play'; countdownEnd = null; lobbyDeadline = null;
     obstacles = []; lasers = []; elapsed = 0; spawnTimer = 0;
-    for (const p of live) { p.score = 0; p.timer = CFG.breakTimeout; }
+    for (const p of live) { p.score = 0; p.timer = CFG.breakTimeout; p.lastSec = Infinity; }
   }
 }
 
@@ -324,6 +349,7 @@ evtSource.onmessage = (event) => {
   if (data.type === 'player_join') {
     if (data.nm) names[data.pid] = data.nm;
     addPlayer(data.pid);
+    cue('join', data.pid);
   } else if (data.type === 'player_leave') {
     delete players[data.pid];
   } else if (data.pid && data.a) {

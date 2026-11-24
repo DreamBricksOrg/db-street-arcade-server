@@ -51,6 +51,11 @@ function processPlayerMove(p, pid, pids) {
   // Checa se comeu a comida
   if (newHead.x === food.x && newHead.y === food.y) {
     p.score += CFG.pointsPerFood;
+    // som no celular do jogador (só no /embed; a ponte do totem físico ignora)
+    fetch('cue', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cue: 'eat', pid }),
+    }).catch(() => {});
     food = spawnFood();
     updateScoreboard();
   } else {

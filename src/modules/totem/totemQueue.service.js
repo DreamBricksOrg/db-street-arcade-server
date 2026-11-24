@@ -362,6 +362,21 @@ export class TotemQueueService {
     return sessions.find(s => s.playerId === pid || s.playerId.slice(0, 8) === pid.slice(0, 8)) ?? null
   }
 
+  /**
+   * Sound cue from the game → the phone(s) of that instance (the phone plays
+   * the sound; see public/audio/). With `pid`, only that player's phone.
+   */
+  async publishCue(totemId, instanceId, cue, pid = null) {
+    const sessions = await this.repo.listCurrentByInstance(totemId, normalizeInstance(instanceId))
+    const targets = pid
+      ? sessions.filter(s => s.playerId === pid || s.playerId.slice(0, 8) === pid.slice(0, 8))
+      : sessions
+    for (const s of targets) {
+      await this._publish(Channels.gameEvent(s._id), 'event', s._id, null, { event: 'cue', cue })
+    }
+    return targets.length
+  }
+
   /** Rough ETA: rounds to wait × average real duration of recent rounds. */
   async estimateWait(totem, position) {
     const fallback = totem.sessionDurationMs ?? env.sessionTimeoutMs

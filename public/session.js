@@ -12,6 +12,8 @@
 import { ArcadeWsClient } from '/websocket-client.js'
 import { initGamepad }    from '/gamepad.js'
 import { getPlayer, setPlayer } from '/player-store.js'
+import { createAudio }          from '/audio/engine.js'
+import { profileFor }           from '/audio/profiles.js'
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 const $loading    = document.getElementById('loading')
@@ -22,6 +24,7 @@ const $errorActs  = document.getElementById('error-actions')
 const $play       = document.getElementById('play-screen')
 const $sidLabel   = document.getElementById('sid-label')
 const $conn       = document.getElementById('conn')
+const $sound      = document.getElementById('sound-btn')
 
 // ── Extract sessionId from URL ────────────────────────────────────────────────
 const sessionId = location.pathname.split('/play/')[1]?.trim()
@@ -75,6 +78,18 @@ async function boot(sid) {
   $loading.style.display = 'none'
   $play.style.display    = 'flex'
 
+  // 4b. Som no celular: música do jogo em loop + efeitos que o jogo dispara (cues).
+  // O navegador só libera o áudio depois de um toque — o 1º toque no controle basta.
+  const audio = createAudio(profileFor(session.game))
+  audio.startMusic()
+  document.addEventListener('pointerdown', () => audio.unlock(), { once: true })
+  paintSound(audio.muted)
+  $sound.addEventListener('click', () => {
+    audio.unlock()
+    audio.setMuted(!audio.muted)
+    paintSound(audio.muted)
+  })
+
   // 5. Build WebSocket URL
   const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsUrl   = `${wsProto}//${location.host}/ws/game?sessionId=${sid}&playerId=${playerId}`
@@ -86,11 +101,7 @@ async function boot(sid) {
     },
     onClose(code) {
       setConnected(false)
-      if (code === 1008) {
-        // Policy violation — session ended
-        destroyAll()
-        showEnded(replayUrl)
-      }
+      if (code === 1008) finish() // policy violation — session ended
     },
     onError() {
       setConnected(false)
@@ -122,15 +133,31 @@ async function boot(sid) {
     gp.destroy()
   }
 
+  // Fim da sessão (pelo fechamento do WS ou pelo evento, o que chegar primeiro).
+  let finished = false
+  function finish() {
+    if (finished) return
+    finished = true
+    audio.cue('over')
+    audio.stopMusic()
+    audio.stop()
+    destroyAll()
+    showEnded(replayUrl)
+  }
+
   function handleServerEvent(data) {
-    if (data?.data?.event === 'session_ended') {
-      destroyAll()
-      showEnded(replayUrl)
-    }
+    const ev = data?.data
+    if (ev?.event === 'session_ended') finish()
+    else if (ev?.event === 'cue') audio.cue(ev.cue)
   }
 }
 
 // ── Visual state helpers ──────────────────────────────────────────────────────
+
+function paintSound(muted) {
+  $sound.textContent = muted ? '🔇' : '🔊'
+  $sound.setAttribute('aria-label', muted ? 'Ligar o som' : 'Desligar o som')
+}
 
 function setConnected(connected) {
   $conn.className   = 'db-badge db-badge--dot ' + (connected ? 'db-badge--success' : 'db-badge--warning db-badge--live')

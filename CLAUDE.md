@@ -112,6 +112,7 @@ public/
 ├── player-store.js                # playerId com validade (localStorage 10 min) p/ fila e controle
 ├── play.html / session.js         # Gamepad do jogador
 ├── gamepad.js                     # Handler de touch multi-touch
+├── audio/engine.js + profiles.js  # Som no celular: música em loop + efeitos (WebAudio, sem arquivos); perfil por jogo, cues do jogo
 ├── totem-entry.html / totem-entry.js  # Tela de fila do totem (aceita ?instance=)
 └── websocket-client.js            # ArcadeWsClient com reconexão exponencial
 
@@ -260,6 +261,7 @@ Todas as rotas de fila (`queue/*`, `end-session`, `qr`) aceitam `?instance=<id>`
 | GET | `/embed/:totemId/:inst/` | `index.html` do jogo com o overlay de QR injetado |
 | GET | `/embed/:totemId/:inst/events` | SSE com `connected`, `init`, `player_join`, inputs, `player_leave` (429 se limite) |
 | POST | `/embed/:totemId/:inst/end-session` | `{ pid, score? }` — jogador morreu nesta instância |
+| POST | `/embed/:totemId/:inst/cue` | `{ cue, pid? }` — som no celular: o backend repassa `{event:'cue'}` pelo WS e o celular toca (`public/audio/`). Sem `pid` = todos da instância. Equivalente do totem físico: `POST /api/totems/:id/cue` (`X-Totem-Key`, `playerId`) |
 | GET | `/embed/:totemId/:inst/queue-state` | HUD público: `{ sessions:[{pid,name,status}], queue:[{position}], maxPlayers, paused }` (sem IP/UA) |
 | GET | `/embed/:totemId/:inst/ranking` | Placar público do totem: `[{ position, name, score }]` |
 | GET | `/embed/:totemId/:inst/config` | `{ debugPanel: false, ...totem.gameConfig }` |

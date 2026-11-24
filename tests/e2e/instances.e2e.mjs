@@ -202,6 +202,37 @@ await scenario('end-session da instância encerra a sessão (died), envia player
   assert.equal(st2.body.status, 'play')
 })
 
+// ── 5b. Sound cues → phones ──────────────────────────────────────────────────
+await scenario('cue do jogo chega só no celular do pid (ou em todos sem pid); cue inválido → 400; sessão informa o jogo', async () => {
+  const tid = await makeTotem({ maxPlayers: 2 }); createdTotems.push(tid)
+  const s = await openStream(tid, 'cueA', visitor()); streams.push(s)
+  const a = await join(tid, 'cueA', 'e2e_cua1')
+  const b = await join(tid, 'cueA', 'e2e_cub1')
+  const wsA = await wsConnect(a.body.sessionId, 'e2e_cua1')
+  const wsB = await wsConnect(b.body.sessionId, 'e2e_cub1')
+  const got = { a: [], b: [] }
+  wsA.onmessage = (e) => got.a.push(JSON.parse(e.data))
+  wsB.onmessage = (e) => got.b.push(JSON.parse(e.data))
+  await sleep(300)
+
+  const one = await j('POST', `/embed/${tid}/cueA/cue`, { cue: 'fire', pid: 'e2e_cua1' })
+  assert.equal(one.status, 200, one.text)
+  assert.equal(one.body.sent, 1)
+  const all = await j('POST', `/embed/${tid}/cueA/cue`, { cue: 'start' })
+  assert.equal(all.body.sent, 2)
+  await sleep(300)
+
+  const cues = (arr) => arr.filter(m => m.data?.event === 'cue').map(m => m.data.cue)
+  assert.deepEqual(cues(got.a), ['fire', 'start'])
+  assert.deepEqual(cues(got.b), ['start'], 'o outro celular só recebe o cue sem pid')
+
+  const bad = await j('POST', `/embed/${tid}/cueA/cue`, { cue: 'Not Valid!' })
+  assert.equal(bad.status, 400)
+  const sess = await j('GET', `/api/sessions/${a.body.sessionId}`)
+  assert.equal(sess.body.game, 'snake')
+  wsA.close(); wsB.close()
+})
+
 // ── 6. Closed iframe ─────────────────────────────────────────────────────────
 await scenario('iframe fechado: após a folga sessões viram instance_closed e join → 410', async () => {
   const tid = await makeTotem({ maxPlayers: 1 }); createdTotems.push(tid)

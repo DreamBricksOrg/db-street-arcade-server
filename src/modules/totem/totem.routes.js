@@ -511,6 +511,31 @@ async function totemRoutes(fastify) {
     return { ok: true, endedCount: result.endedCount }
   })
 
+  // Sound cue from the physical totem's game (same as POST /embed/.../cue).
+  const cueRateLimit = createRateLimiter({
+    name: 'cue', windowMs: 1000, max: 60, getRedis: () => fastify.redisPublisher,
+  })
+  fastify.post('/api/totems/:id/cue', {
+    preHandler: cueRateLimit,
+    schema: {
+      tags: ['Totems'], summary: "Sound cue for the players' phones (played there)",
+      params: totemIdParam, querystring: instanceQuery,
+      body: {
+        type: 'object', required: ['cue'],
+        properties: {
+          cue: { type: 'string', pattern: '^[a-z0-9_]{1,24}$' },
+          playerId: { type: 'string', maxLength: 64 },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const totem = await service.findTotem(request.params.id)
+    if (!totem) return reply.status(404).send({ error: 'Totem not found' })
+    if (!fastify.isGameCaller(request, totem)) return reply.status(401).send({ error: 'Totem key required' })
+    const sent = await queue.publishCue(request.params.id, instanceOf(request), request.body.cue, request.body.playerId ?? null)
+    return { ok: true, sent }
+  })
+
   // ── History ────────────────────────────────────────────────────────────────
   const sessionsRepo = new SessionRepository(fastify.mongo)
 

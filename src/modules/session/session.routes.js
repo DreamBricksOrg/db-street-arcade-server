@@ -31,6 +31,7 @@ const sessionShape = {
     instanceId: { type: 'string' },
     playerId:   { type: 'string' },
     nickname:   { type: 'string', nullable: true },
+    game:       { type: 'string', nullable: true },
     status:    { type: 'string' },
     createdAt: { type: 'string' },
     expiresAt: { type: 'string' },
@@ -81,7 +82,9 @@ async function sessionRoutes(fastify) {
   }, async (request, reply) => {
     const session = await repo.findById(request.params.id)
     if (!session) return reply.status(404).send({ error: 'Session not found' })
-    return toDto(session)
+    // The phone picks its music/sound profile by game (public/audio/).
+    const totem = session.totemId ? await fastify.totemService?.findTotem(session.totemId) : null
+    return { ...toDto(session), game: totem?.game ?? null }
   })
 
   fastify.post('/api/sessions/:id/end', {

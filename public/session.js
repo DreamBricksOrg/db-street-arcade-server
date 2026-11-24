@@ -25,6 +25,7 @@ const $play       = document.getElementById('play-screen')
 const $sidLabel   = document.getElementById('sid-label')
 const $conn       = document.getElementById('conn')
 const $sound      = document.getElementById('sound-btn')
+const $gate       = document.getElementById('sound-gate')
 
 // ── Extract sessionId from URL ────────────────────────────────────────────────
 const sessionId = location.pathname.split('/play/')[1]?.trim()
@@ -79,11 +80,16 @@ async function boot(sid) {
   $play.style.display    = 'flex'
 
   // 4b. Som no celular: música do jogo em loop + efeitos que o jogo dispara (cues).
-  // O navegador só libera o áudio depois de um toque — o 1º toque no controle basta.
+  // O navegador só libera o áudio com um toque real (click). Tentamos já ao conectar
+  // (funciona onde o site já foi liberado) e, se o som não subir, um aviso de tela
+  // cheia pede UM toque — o controle não serve, pois cancela os eventos de toque.
   const audio = createAudio(profileFor(session.game))
   audio.startMusic()
-  document.addEventListener('pointerdown', () => audio.unlock(), { once: true })
+  audio.unlock()
   paintSound(audio.muted)
+  const gateTimer = setInterval(() => { if (audio.running) { $gate.hidden = true; clearInterval(gateTimer) } }, 300)
+  setTimeout(() => { if (!audio.running && !audio.muted) $gate.hidden = false }, 500)
+  $gate.addEventListener('click', () => { audio.unlock(); $gate.hidden = true })
   $sound.addEventListener('click', () => {
     audio.unlock()
     audio.setMuted(!audio.muted)
@@ -138,6 +144,8 @@ async function boot(sid) {
   function finish() {
     if (finished) return
     finished = true
+    clearInterval(gateTimer)
+    $gate.hidden = true
     audio.cue('over')
     audio.stopMusic()
     audio.stop()

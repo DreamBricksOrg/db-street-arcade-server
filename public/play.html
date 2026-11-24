@@ -193,6 +193,13 @@
     #btn-X { background: #0078d4; color: #fff; }   /* Xbox blue   — left   */
     #btn-Y { background: #ffb900; color: var(--db-slate-900); }   /* Xbox yellow — top    */
 
+    [hidden] { display: none !important; }
+    #sound-gate {
+      position: fixed; inset: 0; z-index: 30; border: 0; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; text-align: center;
+      padding: 24px; font: 600 20px/1.3 var(--font-sans, system-ui, sans-serif);
+      color: #fff; background: oklch(0.16 0.028 230 / 0.88);
+    }
     #sound-btn {
       border: 1px solid var(--border-subtle); background: transparent; border-radius: 10px;
       min-width: 44px; min-height: 44px; font-size: 18px; cursor: pointer;
@@ -296,6 +303,9 @@
     <!-- Input debug log -->
     <div id="input-log"></div>
   </div>
+
+  <!-- Pede um toque para liberar o som quando o navegador não liberou sozinho -->
+  <button type="button" id="sound-gate" hidden>🔊 Toque para ligar o som do jogo</button>
 
   <!-- C9.2 + C9.3: session orchestrator (reads URL, connects WS, wires gamepad) -->
   <script type="module" src="/session.js"></script>

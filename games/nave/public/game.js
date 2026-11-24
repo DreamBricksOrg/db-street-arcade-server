@@ -1,7 +1,7 @@
 // games/nave/public/game.js
 // A nave da TV do site da Dream Bricks, jogável: estrelas passando, nave laranja
 // com brilho, blocos (asteroides) e naves inimigas vindo da direita, explosões
-// de partículas e HI-SCORE. Sem jogadores roda o piloto automático do site.
+// de partículas, melhor e última pontuação. Sem jogadores roda o piloto automático do site.
 // Contrato do jogo: SSE 'events' (player_join / player_leave / inputs),
 // 'config', 'end-session' — URLs relativas, iguais na ponte e no /embed.
 const canvas = document.getElementById('gameCanvas');
@@ -40,7 +40,8 @@ let colorIndex = 0;
 let obstacles = []; // { x, y, w, h, speed, type: 'asteroid' | 'enemy' }
 let lasers = [];    // { x, y, pid }
 let particles = [];
-let hiScore = 0;
+let hiScore = 0;      // melhor pontuação (ranking do totem + partidas desta tela)
+let lastScore = null; // pontuação da última nave que explodiu
 let spawnTimer = 0;
 let elapsed = 0;    // segundos com gente jogando (rampa de dificuldade)
 let t = 0;
@@ -105,6 +106,7 @@ function spawnObstacle() {
 function kill(p) {
   p.alive = false;
   p.deadFor = 1.2;
+  lastScore = Math.floor(p.score);
   explode(p.x, p.y, p.color);
   explode(p.x, p.y, '#ffffff');
   fetch('end-session', {
@@ -292,16 +294,21 @@ function draw() {
     ctx.save(); ctx.globalAlpha = p.life; ctx.fillStyle = p.color; glow(p.color, 8); ctx.fillRect(p.x, p.y, 3, 3); ctx.restore();
   }
 
-  // HI-SCORE no topo, como no site
-  const shown = live.length || hiScore ? Math.floor(hiScore) : Math.floor(demo.score);
+  // Melhor pontuação (do dia, no totem) e última pontuação (da última nave que explodiu)
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillStyle = 'rgba(255, 87, 34, 0.85)';
   ctx.font = '500 10px "IBM Plex Mono", monospace';
-  ctx.fillText('H I - S C O R E', W / 2, 8);
+  ctx.fillText('MELHOR PONTUAÇÃO', W / 2, 8);
   ctx.fillStyle = '#fff';
   ctx.font = '600 20px "IBM Plex Mono", monospace';
-  ctx.fillText(String(shown).padStart(5, '0'), W / 2, 22);
+  ctx.fillText(String(Math.floor(hiScore)).padStart(5, '0'), W / 2, 22);
+  ctx.fillStyle = 'rgba(255, 87, 34, 0.85)';
+  ctx.font = '500 10px "IBM Plex Mono", monospace';
+  ctx.fillText('ÚLTIMA PONTUAÇÃO', W / 2, 50);
+  ctx.fillStyle = '#fff';
+  ctx.font = '600 14px "IBM Plex Mono", monospace';
+  ctx.fillText(lastScore === null ? '—' : String(lastScore).padStart(5, '0'), W / 2, 63);
 
   // Placar dos jogadores (melhores 4)
   ctx.font = '500 11px "IBM Plex Mono", monospace';
@@ -367,6 +374,15 @@ if (new URLSearchParams(location.search).has('kbd')) {
 }
 
 fetch('config').then(r => r.json()).then(cfg => Object.assign(CFG, cfg)).catch(() => {});
+
+// Melhor pontuação do totem (mesmo /ranking do embed e da ponte).
+function loadBest() {
+  fetch('ranking', { cache: 'no-store' })
+    .then(r => (r.ok ? r.json() : []))
+    .then(rows => { if (rows[0]) hiScore = Math.max(hiScore, rows[0].score); })
+    .catch(() => {});
+}
+loadBest();
 
 // Vagas do totem: o lobby começa assim que lotam.
 const pollSlots = () => fetch('queue-state', { cache: 'no-store' })

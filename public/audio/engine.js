@@ -105,6 +105,7 @@ export function createAudio(profile) {
 
   return {
     get muted() { return muted },
+    get running() { return !!ctx && ctx.state === 'running' },
 
     /** Chamar dentro de um toque/clique; é seguro repetir. */
     unlock() {

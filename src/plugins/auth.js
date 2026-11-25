@@ -41,7 +41,7 @@ async function authPlugin(fastify) {
   // 10 attempts/min per IP, counted in Redis across processes when available
   // (registered after this plugin; looked up at request time).
   const loginRateLimit = createRateLimiter({
-    name: 'login', windowMs: 60_000, max: 10,
+    name: 'login', windowMs: 60_000, max: env.loginRateMax,
     getRedis: () => fastify.redisPublisher,
   })
 

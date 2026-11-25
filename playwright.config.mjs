@@ -35,6 +35,7 @@ export default defineConfig({
       NODE_ENV: 'development',
       OPERATOR_PASSWORD,
       QUEUE_JOIN_RATE_MAX: '1000',
+      LOGIN_RATE_MAX: '1000',
       QUEUE_SWEEP_MS: '500',
     },
   },

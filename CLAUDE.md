@@ -169,6 +169,7 @@ scripts/
 | `QUEUE_RESERVE_MS` | ❌ | 30000 | Prazo do chamado da fila conectar |
 | `QUEUE_SWEEP_MS` | ❌ | 10000 | Intervalo do sweeper (no_show/timeout) |
 | `QUEUE_JOIN_RATE_MAX` | ❌ | 60 | Máx. de queue/join por IP a cada 10s |
+| `LOGIN_RATE_MAX` | ❌ | 10 | Máx. de tentativas de login por IP por minuto (os testes de UI sobem) |
 | `INSTANCE_GRACE_MS` | ❌ | 120000 | Folga antes de encerrar instância (iframe) sem SSE |
 | `MAX_INSTANCES_PER_IP` | ❌ | 20 | Iframes simultâneos por IP (loopback não conta) |
 | `MAX_INSTANCES_PER_TOTEM` | ❌ | 2000 | Iframes simultâneos por totem |

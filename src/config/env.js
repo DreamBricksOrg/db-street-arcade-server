@@ -46,6 +46,7 @@ export const env = {
   // (overridable so e2e tests can use short values)
   queueReserveMs:   parseInt(process.env.QUEUE_RESERVE_MS ?? '30000', 10),
   queueSweepMs:     parseInt(process.env.QUEUE_SWEEP_MS   ?? '10000', 10),
+  loginRateMax: parseInt(process.env.LOGIN_RATE_MAX ?? '10', 10),
   queueJoinRateMax: parseInt(process.env.QUEUE_JOIN_RATE_MAX ?? '60', 10),
 
   // Finished sessions older than this are deleted by a MongoDB TTL index

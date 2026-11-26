@@ -260,6 +260,7 @@ Todas as rotas de fila (`queue/*`, `end-session`, `qr`) aceitam `?instance=<id>`
 |--------|------|-----------|
 | GET | `/embed/:totemId` | 302 para `/embed/:totemId/<uuid novo>/` (uma instância por carregamento; preserva query) |
 | GET | `/embed/:totemId/:inst/` | `index.html` do jogo com o overlay de QR injetado |
+| GET | `/embed/:totemId/:inst/qr` | Só o QR da instância (sem título/logo), para um `<iframe>` em div separada; o painel gera o snippet que cria o id e o usa no jogo (`?showqr=false`) e no QR |
 | GET | `/embed/:totemId/:inst/events` | SSE com `connected`, `init`, `player_join`, inputs, `player_leave` (429 se limite) |
 | POST | `/embed/:totemId/:inst/end-session` | `{ pid, score? }` — jogador morreu nesta instância |
 | POST | `/embed/:totemId/:inst/cue` | `{ cue, pid? }` — som no celular: o backend repassa `{event:'cue'}` pelo WS e o celular toca (`public/audio/`). Sem `pid` = todos da instância. Equivalente do totem físico: `POST /api/totems/:id/cue` (`X-Totem-Key`, `playerId`) |

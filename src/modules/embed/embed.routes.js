@@ -145,6 +145,23 @@ export default async function embedRoutes(fastify) {
     return reply.type('text/html; charset=utf-8').send(page)
   })
 
+  // ── Só o QR da instância (para uma div separada do jogo no site) ───────────
+  // Sem título, logo ou moldura: o site posiciona e estiliza o <iframe>.
+  fastify.get('/embed/:totemId/:instanceId/qr', {
+    schema: { tags: ['Embed'], summary: 'QR code alone, for a separate div', params: instParams },
+  }, async (request, reply) => {
+    const { totemId, instanceId } = request.params
+    if (!await loadGameTotem(totemId, reply)) return reply
+    if (!instances.validId(instanceId)) return reply.status(400).send({ error: 'Invalid instance id' })
+    const src = `/api/totems/${encodeURIComponent(totemId)}/qr?instance=${encodeURIComponent(instanceId)}`
+    reply.header('Cache-Control', 'no-store')
+    return reply.type('text/html; charset=utf-8').send(
+      '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>QR Code</title><style>html,body{margin:0;height:100%;background:transparent}' +
+      'img{display:block;width:100%;height:100%;object-fit:contain}</style>' +
+      `<img src="${src}" alt="QR Code para jogar pelo celular">`)
+  })
+
   // ── SSE: the iframe's "UDP socket" ─────────────────────────────────────────
   fastify.get('/embed/:totemId/:instanceId/events', {
     schema: { tags: ['Embed'], summary: 'Game packet stream of one instance', params: instParams },

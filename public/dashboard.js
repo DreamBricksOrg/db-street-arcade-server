@@ -60,6 +60,7 @@ const embedTotemName  = $('embed-totem-name')
 const embedPreview    = $('embed-preview')
 const embedResponsive = $('embed-responsive')
 const embedShowQr     = $('embed-showqr')
+const embedQrSplit    = $('embed-qrsplit')
 const embedWidth      = $('embed-width')
 const embedHeight     = $('embed-height')
 const embedCode       = $('embed-code')
@@ -1252,14 +1253,58 @@ function formatDuration(ms) {
 
 function embedUrl(totem) {
   const q = new URLSearchParams()
-  if (!embedShowQr.checked) q.set('showqr', 'false')
+  const overlay = embedShowQr.checked && !embedQrSplit.checked
+  if (!overlay) q.set('showqr', 'false')
   const pos = embedDialog.querySelector('input[name="embed-pos"]:checked')?.value
-  if (embedShowQr.checked && pos && pos !== 'br') q.set('qrpos', pos)
+  if (overlay && pos && pos !== 'br') q.set('qrpos', pos)
   const qs = q.toString()
   return `${window.location.origin}/embed/${totem._id}${qs ? `?${qs}` : ''}`
 }
 
+// QR em div separada: a página gera um id de instância e o usa no jogo e no QR.
+function embedSplitSnippet(totem) {
+  const base = `${window.location.origin}/embed/${totem._id}`
+  const name = escHtml(totem.name)
+  const game = embedResponsive.checked
+    ? `<div style="position:relative;width:100%;aspect-ratio:16/9;">
+` +
+      `  <iframe id="sa-game" title="${name}" allow="fullscreen; autoplay"
+` +
+      `    style="position:absolute;inset:0;width:100%;height:100%;border:0;"></iframe>
+</div>`
+    : `<iframe id="sa-game" title="${name}" width="${Math.max(240, parseInt(embedWidth.value, 10) || 960)}" height="${Math.max(180, parseInt(embedHeight.value, 10) || 540)}"
+` +
+      `  allow="fullscreen; autoplay" style="border:0;"></iframe>`
+  return `${game}
+
+` +
+    `<!-- QR em uma div própria: posicione e dimensione como quiser -->
+` +
+    `<div id="sa-qr-box" style="width:240px;height:240px;">
+` +
+    `  <iframe id="sa-qr" title="QR Code" style="width:100%;height:100%;border:0;"></iframe>
+</div>
+
+` +
+    `<script>
+` +
+    `  (function () {
+` +
+    `    var id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+` +
+    `    var base = "${base}/" + id + "/";
+` +
+    `    document.getElementById("sa-game").src = base + "?showqr=false";
+` +
+    `    document.getElementById("sa-qr").src = base + "qr";
+` +
+    `  })();
+` +
+    `</script>`
+}
+
 function embedSnippet(totem) {
+  if (embedQrSplit.checked) return embedSplitSnippet(totem)
   const src  = embedUrl(totem)
   const name = escHtml(totem.name)
   if (embedResponsive.checked) {
@@ -1279,7 +1324,7 @@ function refreshEmbed({ reloadPreview = false } = {}) {
   if (!embedTotem) return
   embedWidth.disabled  = embedResponsive.checked
   embedHeight.disabled = embedResponsive.checked
-  embedDialog.querySelectorAll('input[name="embed-pos"]').forEach(r => { r.disabled = !embedShowQr.checked })
+  embedDialog.querySelectorAll('input[name="embed-pos"]').forEach(r => { r.disabled = !embedShowQr.checked || embedQrSplit.checked })
   embedCode.textContent = embedSnippet(embedTotem)
   embedOpen.href = embedUrl(embedTotem)
   if (reloadPreview) {
@@ -1304,6 +1349,7 @@ embedDialog.addEventListener('close', () => {
 })
 for (const el of [embedResponsive, embedWidth, embedHeight]) el.addEventListener('input', () => refreshEmbed())
 embedShowQr.addEventListener('change', () => refreshEmbed({ reloadPreview: true }))
+embedQrSplit.addEventListener('change', () => refreshEmbed({ reloadPreview: true }))
 embedDialog.querySelectorAll('input[name="embed-pos"]').forEach(r =>
   r.addEventListener('change', () => refreshEmbed({ reloadPreview: true })))
 

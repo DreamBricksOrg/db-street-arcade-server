@@ -37,3 +37,14 @@ test('o QR leva à fila daquela instância (e não à do totem físico)', async 
   expect((await join.json()).status).toBe('play')
   await expect(page.locator('.dbx-status-text')).toHaveText('1 vaga livre', { timeout: 10_000 })
 })
+
+test('/qr mostra só o QR da instância, sem título nem logo', async ({ page, request }) => {
+  const inst = 'ui-qr-solo'
+  await page.goto(`/embed/${totem._id}/${inst}/qr`)
+  await expect(page.locator('img')).toHaveCount(1)
+  await expect(page.locator('img')).toHaveAttribute('src', `/api/totems/${totem._id}/qr?instance=${inst}`)
+  expect((await page.locator('body').innerText()).trim()).toBe('')
+  const png = await request.get(`/api/totems/${totem._id}/qr?instance=${inst}`)
+  expect(png.headers()['content-type']).toBe('image/png')
+  expect((await request.get(`/embed/${totem._id}/default/qr`)).status()).toBe(400)
+})
